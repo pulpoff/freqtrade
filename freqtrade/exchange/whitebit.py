@@ -4,9 +4,9 @@ import logging
 from datetime import datetime
 
 from freqtrade.enums import MarginMode, TradingMode
-from freqtrade.exceptions import ExchangeError
+from freqtrade.exceptions import ExchangeError, OperationalException
 from freqtrade.exchange import Exchange
-from freqtrade.exchange.exchange_types import FtHas
+from freqtrade.exchange.exchange_types import CcxtBalances, FtHas
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,19 @@ class Whitebit(Exchange):
         (TradingMode.SPOT, MarginMode.NONE),
         (TradingMode.FUTURES, MarginMode.ISOLATED),
     ]
+
+    def get_balances(self, params: dict | None = None) -> CcxtBalances:
+        """
+        WhiteBit returns None for free/used/total on some currencies.
+        Sanitize these to 0 so downstream code (wallets, RPC) doesn't break.
+        """
+        balances = super().get_balances(params)
+        for currency in balances:
+            if isinstance(balances[currency], dict):
+                for key in ("free", "used", "total"):
+                    if balances[currency].get(key) is None:
+                        balances[currency][key] = 0
+        return balances
 
     def get_max_leverage(self, pair: str, stake_amount: float | None) -> float:
         if self.trading_mode == TradingMode.FUTURES:
@@ -54,14 +67,15 @@ class Whitebit(Exchange):
         self, pair: str, amount: float, is_short: bool, open_date: datetime
     ) -> float:
         """
-        Fetch funding fees, either from the exchange (live) or calculates them
-        based on funding rate/mark price history.
-        WhiteBit does not support fetchFundingRateHistory, so fall back to
-        _fetch_and_calculate_funding_fees and return 0.0 if unavailable.
+        Fetch funding fees from the exchange.
+        WhiteBit does not support fetchFundingRateHistory, so the dry-run
+        calculation path cannot work.  In live mode we use fetchFundingHistory
+        (the proper exchange API).  In dry-run mode funding fees are unavailable.
         """
         if self.trading_mode == TradingMode.FUTURES:
-            try:
-                return self._fetch_and_calculate_funding_fees(pair, amount, is_short, open_date)
-            except ExchangeError:
-                logger.warning(f"Could not update funding fees for {pair}.")
+            if not self._config["dry_run"]:
+                try:
+                    return self._get_funding_fees_from_exchange(pair, open_date)
+                except (ExchangeError, OperationalException):
+                    logger.warning(f"Could not update funding fees for {pair}.")
         return 0.0
