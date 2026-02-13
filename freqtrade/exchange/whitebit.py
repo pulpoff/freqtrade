@@ -32,21 +32,25 @@ class Whitebit(Exchange):
 
     def get_balances(self, params: dict | None = None) -> CcxtBalances:
         """
-        WhiteBit returns None for free/used/total on some currencies.
-        Sanitize these to 0 so downstream code (wallets, RPC) doesn't break.
+        WhiteBit collateral balance endpoint returns only 'total' per currency
+        (e.g. {"USDT": 50}) with free/used left as None by ccxt.
+        Derive free = total - used so Freqtrade sees available funds.
         """
         balances = super().get_balances(params)
-        # Log balances for debugging WhiteBit collateral wallet issues
         for currency in balances:
             if isinstance(balances[currency], dict):
                 bal = balances[currency]
-                logger.info(
-                    f"WhiteBit balance {currency}: "
-                    f"free={bal.get('free')}, used={bal.get('used')}, total={bal.get('total')}"
-                )
-                for key in ("free", "used", "total"):
-                    if balances[currency].get(key) is None:
-                        balances[currency][key] = 0
+                total = bal.get("total")
+                free = bal.get("free")
+                used = bal.get("used")
+                # WhiteBit collateral: only 'total' is provided.
+                # Derive the missing fields so wallets see available balance.
+                if used is None:
+                    bal["used"] = 0
+                if free is None:
+                    bal["free"] = (total or 0) - (bal["used"])
+                if total is None:
+                    bal["total"] = 0
         return balances
 
     def get_max_leverage(self, pair: str, stake_amount: float | None) -> float:
