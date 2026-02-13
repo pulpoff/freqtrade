@@ -36,8 +36,14 @@ class Whitebit(Exchange):
         Sanitize these to 0 so downstream code (wallets, RPC) doesn't break.
         """
         balances = super().get_balances(params)
+        # Log balances for debugging WhiteBit collateral wallet issues
         for currency in balances:
             if isinstance(balances[currency], dict):
+                bal = balances[currency]
+                logger.info(
+                    f"WhiteBit balance {currency}: "
+                    f"free={bal.get('free')}, used={bal.get('used')}, total={bal.get('total')}"
+                )
                 for key in ("free", "used", "total"):
                     if balances[currency].get(key) is None:
                         balances[currency][key] = 0
