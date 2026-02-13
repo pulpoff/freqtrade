@@ -13,8 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class Whitebit(Exchange):
-    """WhiteBit exchange class.
-    Contains adjustments needed for Freqtrade to work with this exchange.
+    """
+    WhiteBit exchange class. Contains adjustments needed for Freqtrade to work
+    with this exchange.
+
+    Please note that this exchange is not included in the list of exchanges
+    officially supported by the Freqtrade development team. So some features
+    may still not work as expected.
     """
 
     _ft_has: FtHas = {
@@ -32,32 +37,26 @@ class Whitebit(Exchange):
 
     def get_balances(self, params: dict | None = None) -> CcxtBalances:
         """
-        WhiteBit collateral balance endpoint returns only 'total' per currency
-        (e.g. {"USDT": 50}) with free/used left as None by ccxt.
-        Derive free = total - used so Freqtrade sees available funds.
+        WhiteBit collateral endpoint only returns total per currency,
+        ccxt leaves free/used as None. Derive the missing values.
         """
         balances = super().get_balances(params)
         for currency in balances:
             if isinstance(balances[currency], dict):
                 bal = balances[currency]
-                total = bal.get("total")
-                free = bal.get("free")
-                used = bal.get("used")
-                # WhiteBit collateral: only 'total' is provided.
-                # Derive the missing fields so wallets see available balance.
-                if used is None:
+                if bal.get("used") is None:
                     bal["used"] = 0
-                if free is None:
-                    bal["free"] = (total or 0) - (bal["used"])
-                if total is None:
+                if bal.get("free") is None:
+                    bal["free"] = (bal.get("total") or 0) - bal["used"]
+                if bal.get("total") is None:
                     bal["total"] = 0
         return balances
 
     def get_max_leverage(self, pair: str, stake_amount: float | None) -> float:
+        # No leverage tiers - read max from market info directly
         if self.trading_mode == TradingMode.FUTURES:
             return self.markets[pair]["limits"]["leverage"]["max"]
-        else:
-            return 1.0
+        return 1.0
 
     async def _fetch_funding_rate_history(
         self,
@@ -66,11 +65,7 @@ class Whitebit(Exchange):
         limit: int,
         since_ms: int | None = None,
     ) -> list[list]:
-        """
-        WhiteBit does not support fetchFundingRateHistory.
-        Return empty list so the data downloader skips funding rate candles
-        gracefully instead of raising ccxt.NotSupported for every pair.
-        """
+        # WhiteBit does not support fetchFundingRateHistory
         return []
 
     def get_funding_fees(
@@ -78,10 +73,15 @@ class Whitebit(Exchange):
     ) -> float:
         """
         Fetch funding fees from the exchange.
-        WhiteBit does not support fetchFundingRateHistory, so the dry-run
-        calculation path cannot work.  In live mode we use fetchFundingHistory
-        (the proper exchange API).  In dry-run mode funding fees are unavailable.
+        :param pair: The quote/base pair of the trade
+        :param is_short: trade direction
+        :param amount: Trade amount
+        :param open_date: Open date of the trade
+        :return: funding fee since open_date
+        :raises: ExchangeError if something goes wrong.
         """
+        # WhiteBit does not provide fetchFundingRateHistory,
+        # use fetchFundingHistory via _get_funding_fees_from_exchange instead.
         if self.trading_mode == TradingMode.FUTURES:
             if not self._config["dry_run"]:
                 try:
