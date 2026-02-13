@@ -106,6 +106,7 @@ from freqtrade.misc import (
     file_dump_json,
     file_load_json,
     safe_value_fallback,
+    safe_value_nested,
 )
 from freqtrade.util import FtTTLCache, PeriodicCache, dt_from_ts, dt_now
 from freqtrade.util.datetime_helpers import dt_humanize_delta, dt_ts, format_ms_time
@@ -313,10 +314,12 @@ class Exchange:
         if self._exchange_ws:
             self._exchange_ws.cleanup()
         logger.debug("Exchange object destroyed, closing async loop")
+        loop_running = self.loop.is_running() or asyncio.get_event_loop().is_running()
         if (
             getattr(self, "_api_async", None)
             and inspect.iscoroutinefunction(self._api_async.close)
             and self._api_async.session
+            and not loop_running
         ):
             logger.debug("Closing async ccxt session.")
             self.loop.run_until_complete(self._api_async.close())
@@ -324,6 +327,7 @@ class Exchange:
             self._ws_async
             and inspect.iscoroutinefunction(self._ws_async.close)
             and self._ws_async.session
+            and not loop_running
         ):
             logger.debug("Closing ws ccxt session.")
             self.loop.run_until_complete(self._ws_async.close())
@@ -982,12 +986,12 @@ class Exchange:
              swap.linear.fetchOHLCV.limit
         """
         feat = (
-            self._api_async.features.get("spot", {})
+            safe_value_nested(self._api_async.features, "spot", {})
             if market_type == "spot"
-            else self._api_async.features.get("swap", {}).get("linear", {})
+            else safe_value_nested(self._api_async.features, "swap.linear", {})
         )
 
-        return feat.get(endpoint, {}).get(attribute, default)
+        return safe_value_nested(feat, f"{endpoint}.{attribute}", default)
 
     def get_precision_amount(self, pair: str) -> float | None:
         """
