@@ -24,6 +24,7 @@ class Whitebit(Exchange):
 
     _ft_has: FtHas = {
         "trades_has_history": False,
+        "ws_enabled": True,
     }
     _ft_has_futures: FtHas = {
         "uses_leverage_tiers": False,
@@ -55,7 +56,11 @@ class Whitebit(Exchange):
     def get_max_leverage(self, pair: str, stake_amount: float | None) -> float:
         # No leverage tiers - read max from market info directly
         if self.trading_mode == TradingMode.FUTURES:
-            return self.markets[pair]["limits"]["leverage"]["max"]
+            try:
+                return self.markets[pair]["limits"]["leverage"]["max"]
+            except KeyError:
+                logger.warning(f"Could not read max leverage for {pair}, defaulting to 1.")
+                return 1.0
         return 1.0
 
     async def _fetch_funding_rate_history(
@@ -80,12 +85,14 @@ class Whitebit(Exchange):
         :return: funding fee since open_date
         :raises: ExchangeError if something goes wrong.
         """
-        # WhiteBit does not provide fetchFundingRateHistory,
-        # use fetchFundingHistory via _get_funding_fees_from_exchange instead.
         if self.trading_mode == TradingMode.FUTURES:
-            if not self._config["dry_run"]:
-                try:
+            try:
+                if self._config["dry_run"]:
+                    return self._fetch_and_calculate_funding_fees(
+                        pair, amount, is_short, open_date
+                    )
+                else:
                     return self._get_funding_fees_from_exchange(pair, open_date)
-                except (ExchangeError, OperationalException):
-                    logger.warning(f"Could not update funding fees for {pair}.")
+            except (ExchangeError, OperationalException):
+                logger.warning(f"Could not update funding fees for {pair}.")
         return 0.0
