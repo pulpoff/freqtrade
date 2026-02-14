@@ -40,6 +40,20 @@ class Whitebit(Exchange):
         (TradingMode.FUTURES, MarginMode.ISOLATED),
     ]
 
+    def reload_markets(self, force: bool = False, *, load_leverage_tiers: bool = True) -> None:
+        super().reload_markets(force=force, load_leverage_tiers=load_leverage_tiers)
+        # Fix contractSize in ccxt's own market dicts.
+        # ccxt sets contractSize = amountPrecision for WhiteBit (e.g. 0.01 for BCH)
+        # but WhiteBit expects amounts in base currency, not contracts.
+        # ccxt's safe_order() uses market['contractSize'] internally to calculate
+        # average price: avg = cost / (filled * contractSize). With contractSize=0.01,
+        # the average price gets inflated 100x (e.g. BCH shows 56356 instead of 563.56).
+        if self.trading_mode == TradingMode.FUTURES:
+            for api in (self._api, self._api_async):
+                for market in api.markets.values():
+                    if market.get("contract"):
+                        market["contractSize"] = 1
+
     def get_balances(self, params: dict | None = None) -> CcxtBalances:
         """
         WhiteBit collateral endpoint only returns total per currency,
