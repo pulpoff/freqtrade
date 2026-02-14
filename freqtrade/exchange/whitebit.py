@@ -24,7 +24,11 @@ class Whitebit(Exchange):
 
     _ft_has: FtHas = {
         "trades_has_history": False,
-        "ws_enabled": True,
+        # WS disabled: ccxt.pro stores WhiteBit candles under 'unknown' timeframe key
+        # because the WS API doesn't include timeframe in candle updates.
+        # Freqtrade expects candles keyed by timeframe ('1m', '5m', etc.), so WS
+        # data is never found and every tick falls back to REST with log spam.
+        "ws_enabled": False,
     }
     _ft_has_futures: FtHas = {
         "uses_leverage_tiers": False,
