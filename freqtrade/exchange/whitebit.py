@@ -70,6 +70,14 @@ class Whitebit(Exchange):
             return 1.0
         return 1.0
 
+    def get_contract_size(self, pair: str) -> float | None:
+        # ccxt sets contractSize = amountPrecision for WhiteBit (e.g. 0.01 for BCH),
+        # but WhiteBit expects order amounts in base currency, not contracts.
+        # This causes freqtrade to inflate amounts by 1/contractSize (e.g. 100x for BCH).
+        if self.trading_mode == TradingMode.FUTURES:
+            return 1.0
+        return 1
+
     def _set_leverage(
         self,
         leverage: float,
