@@ -3,10 +3,13 @@
 import logging
 from datetime import datetime
 
+import ccxt
+
 from freqtrade.enums import MarginMode, TradingMode
-from freqtrade.exceptions import ExchangeError, OperationalException
+from freqtrade.exceptions import DDosProtection, ExchangeError, OperationalException, TemporaryError
 from freqtrade.exchange import Exchange
-from freqtrade.exchange.exchange_types import CcxtBalances, FtHas
+from freqtrade.exchange.common import retrier
+from freqtrade.exchange.exchange_types import CcxtBalances, CcxtOrder, FtHas
 
 
 logger = logging.getLogger(__name__)
@@ -145,3 +148,29 @@ class Whitebit(Exchange):
             except (ExchangeError, OperationalException):
                 logger.warning(f"Could not update funding fees for {pair}.")
         return 0.0
+
+    @retrier(retries=0)
+    def _fetch_orders(
+        self, pair: str, since: datetime, params: dict | None = None
+    ) -> list[CcxtOrder]:
+        """
+        WhiteBit's ccxt fetch_orders() is broken — it uses asyncio.gather()
+        on synchronous methods, causing TypeError. Bypass it and fetch
+        open + closed orders separately.
+        """
+        if self._config["dry_run"]:
+            return []
+        try:
+            since_ms = int((since.timestamp() - 10) * 1000)
+            orders = self._fetch_orders_emulate(pair, since_ms)
+            self._log_exchange_response("fetch_orders", orders)
+            orders = [self._order_contracts_to_amount(o) for o in orders]
+            return orders
+        except ccxt.DDoSProtection as e:
+            raise DDosProtection(e) from e
+        except (ccxt.OperationFailed, ccxt.ExchangeError) as e:
+            raise TemporaryError(
+                f"Could not fetch orders due to {e.__class__.__name__}. Message: {e}"
+            ) from e
+        except ccxt.BaseError as e:
+            raise OperationalException(e) from e
