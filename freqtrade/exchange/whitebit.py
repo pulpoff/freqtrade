@@ -95,6 +95,23 @@ class Whitebit(Exchange):
             return 1.0
         return 1
 
+    def _order_contracts_to_amount(self, order: CcxtOrder) -> CcxtOrder:
+        """
+        Fix average price inflated by ccxt's wrong contractSize for WhiteBit futures.
+
+        ccxt sets contractSize = amountPrecision for WhiteBit (e.g. 0.01 for SOL).
+        Its safe_order() then calculates: average = cost / (filled * 0.01) = 100x actual.
+        The reload_markets() fix patches market dicts, but ccxt methods call load_markets()
+        internally which can use stale references. Recalculate average here as cost/filled
+        (correct for contractSize=1) to guarantee correct prices at all entry points.
+        """
+        if self.trading_mode == TradingMode.FUTURES:
+            filled = order.get("filled")
+            cost = order.get("cost")
+            if filled and cost and filled > 0:
+                order["average"] = cost / filled
+        return order
+
     def _set_leverage(
         self,
         leverage: float,
