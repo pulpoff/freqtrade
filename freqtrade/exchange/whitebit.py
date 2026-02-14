@@ -66,8 +66,8 @@ class Whitebit(Exchange):
                     return float(max_lev)
             except (KeyError, TypeError, ValueError):
                 pass
-            logger.warning(f"Could not read max leverage for {pair}, defaulting to 1.")
-            return 1.0
+            logger.info(f"Could not read max leverage for {pair}, defaulting to 10.")
+            return 10.0
         return 1.0
 
     def get_contract_size(self, pair: str) -> float | None:
