@@ -61,10 +61,13 @@ class Whitebit(Exchange):
         # No leverage tiers - read max from market info directly
         if self.trading_mode == TradingMode.FUTURES:
             try:
-                return self.markets[pair]["limits"]["leverage"]["max"]
-            except KeyError:
-                logger.warning(f"Could not read max leverage for {pair}, defaulting to 1.")
-                return 1.0
+                max_lev = self.markets[pair]["limits"]["leverage"]["max"]
+                if max_lev is not None:
+                    return float(max_lev)
+            except (KeyError, TypeError, ValueError):
+                pass
+            logger.warning(f"Could not read max leverage for {pair}, defaulting to 1.")
+            return 1.0
         return 1.0
 
     async def _fetch_funding_rate_history(
