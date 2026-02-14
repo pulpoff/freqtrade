@@ -9,7 +9,7 @@ from freqtrade.enums import MarginMode, TradingMode
 from freqtrade.exceptions import DDosProtection, ExchangeError, OperationalException, TemporaryError
 from freqtrade.exchange import Exchange
 from freqtrade.exchange.common import retrier
-from freqtrade.exchange.exchange_types import CcxtBalances, CcxtOrder, FtHas
+from freqtrade.exchange.exchange_types import CcxtBalances, CcxtOrder, CcxtPosition, FtHas
 
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,30 @@ class Whitebit(Exchange):
             if filled and cost and filled > 0:
                 order["average"] = cost / filled
         return order
+
+    def fetch_positions(
+        self, pair: str | None = None, params: dict | None = None
+    ) -> list[CcxtPosition]:
+        """
+        Fix WhiteBit positions: ccxt parse_position sets side=None and contracts=None.
+
+        Without side, _update_live() in wallets.py filters out all positions
+        (``if position["side"] is None: continue``), leaving _positions empty.
+        This causes _check_exit_amount() to always return False, triggering an
+        infinite recovery loop that prevents exits.
+
+        Derive side from the raw amount sign (+long/-short) and set contracts
+        from the absolute amount.
+        """
+        positions = super().fetch_positions(pair, params)
+        for position in positions:
+            info = position.get("info", {})
+            raw_amount = float(info.get("amount", 0))
+            if position.get("side") is None and raw_amount != 0:
+                position["side"] = "long" if raw_amount > 0 else "short"
+            if position.get("contracts") is None:
+                position["contracts"] = abs(raw_amount)
+        return positions
 
     def _set_leverage(
         self,
