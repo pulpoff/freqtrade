@@ -70,6 +70,26 @@ class Whitebit(Exchange):
             return 1.0
         return 1.0
 
+    def _set_leverage(
+        self,
+        leverage: float,
+        pair: str | None = None,
+        accept_fail: bool = False,
+    ):
+        # WhiteBit does not support per-symbol setLeverage via API.
+        # Leverage is configured at the account/position level on the exchange.
+        pass
+
+    def set_margin_mode(
+        self,
+        pair: str,
+        margin_mode: MarginMode,
+        accept_fail: bool = False,
+        params: dict | None = None,
+    ):
+        # WhiteBit only supports isolated margin for futures — no API call needed.
+        pass
+
     async def _fetch_funding_rate_history(
         self,
         pair: str,
