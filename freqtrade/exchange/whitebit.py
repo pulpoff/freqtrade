@@ -61,13 +61,33 @@ class Whitebit(Exchange):
         """
         WhiteBit collateral endpoint only returns total per currency,
         ccxt leaves free/used as None. Derive the missing values.
+
+        For futures, also fetch positions to calculate the margin locked in
+        open positions. Without this, ``used=0`` makes ``free=total``, so the
+        balance display double-counts position margins — the full USDT balance
+        is shown *and* position equity is added on top, inflating the total.
         """
         balances = super().get_balances(params)
+
+        margin_used = 0.0
+        if self.trading_mode == TradingMode.FUTURES:
+            try:
+                positions = super().fetch_positions()
+                for pos in positions:
+                    margin = float(pos.get("info", {}).get("margin", 0) or 0)
+                    margin_used += margin
+            except Exception:
+                logger.warning("Could not fetch positions for balance calculation.")
+
+        stake = self._config.get("stake_currency", "USDT")
         for currency in balances:
             if isinstance(balances[currency], dict):
                 bal = balances[currency]
                 if bal.get("used") is None:
-                    bal["used"] = 0
+                    if self.trading_mode == TradingMode.FUTURES and currency == stake:
+                        bal["used"] = margin_used
+                    else:
+                        bal["used"] = 0
                 if bal.get("free") is None:
                     bal["free"] = (bal.get("total") or 0) - bal["used"]
                 if bal.get("total") is None:
@@ -123,8 +143,10 @@ class Whitebit(Exchange):
         This causes _check_exit_amount() to always return False, triggering an
         infinite recovery loop that prevents exits.
 
-        Derive side from the raw amount sign (+long/-short) and set contracts
-        from the absolute amount.
+        Derive side from the raw amount sign (+long/-short), set contracts
+        from the absolute amount, and ensure collateral is populated from the
+        raw ``margin`` field (wallets.py also filters positions with
+        ``collateral == 0.0``).
         """
         positions = super().fetch_positions(pair, params)
         for position in positions:
@@ -134,6 +156,13 @@ class Whitebit(Exchange):
                 position["side"] = "long" if raw_amount > 0 else "short"
             if position.get("contracts") is None:
                 position["contracts"] = abs(raw_amount)
+            # Ensure collateral is set from the raw margin field.
+            # _update_live() filters out positions with collateral == 0.0,
+            # which would leave _positions empty and trigger infinite recovery.
+            if not position.get("collateral") and raw_amount != 0:
+                raw_margin = float(info.get("margin", 0) or 0)
+                if raw_margin > 0:
+                    position["collateral"] = raw_margin
         return positions
 
     def _set_leverage(
