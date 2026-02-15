@@ -7,6 +7,8 @@
 
 Freqtrade is a free and open source crypto trading bot written in Python. It is designed to support all major exchanges and be controlled via Telegram or webUI. It contains backtesting, plotting and money management tools as well as strategy optimization by machine learning.
 
+> **This fork adds WhiteBit spot and futures support.** WhiteBit integration has been tested with live trading and includes fixes for several ccxt compatibility issues. See [WhiteBit Exchange Notes](#whitebit-exchange-notes) below for details.
+
 ![freqtrade](https://raw.githubusercontent.com/freqtrade/freqtrade/develop/docs/assets/freqtrade-screenshot.png)
 
 ## Disclaimer
@@ -58,6 +60,7 @@ Exchanges confirmed working by the community:
 
 - [X] [Bitvavo](https://bitvavo.com/)
 - [X] [Kucoin](https://www.kucoin.com/)
+- [X] [WhiteBit](https://whitebit.com/) (Spot and Futures — this fork)
 
 ## Documentation
 
@@ -159,6 +162,44 @@ Telegram is not mandatory. However, this is a great way to control your bot. Mor
 - `/help`: Show help message.
 - `/version`: Show version.
 
+
+## WhiteBit Exchange Notes
+
+This fork adds a dedicated WhiteBit exchange class (`freqtrade/exchange/whitebit.py`) that fixes several ccxt compatibility issues required for live trading on both spot and futures markets.
+
+### What was fixed
+
+| Issue | Problem | Fix |
+|-------|---------|-----|
+| **Contract size** | ccxt sets `contractSize = amountPrecision` (e.g. 0.01 for BCH), inflating average prices 100x | Patched to `contractSize = 1` on market load; recalculate average price from `cost / filled` |
+| **Position parsing** | ccxt returns `side = None` and `contracts = None` for WhiteBit positions, breaking exit logic | Derive side from raw amount sign (+long/−short), set contracts from absolute amount |
+| **Balance accounting** | ccxt leaves `free` / `used` as `None` for futures balances, causing double-counting in the UI | Derive `used` from position margins, `free = total − used` |
+| **Leverage detection** | WhiteBit positions don't include leverage; falling back to config (1x) breaks equity calculations for shorts | Calculate real leverage from `notional_value / margin` per position |
+| **Order fetching** | ccxt's `fetch_orders()` for WhiteBit uses `asyncio.gather()` on synchronous methods, raising `TypeError` | Bypass with separate open + closed order fetches |
+| **WebSocket** | ccxt.pro stores WhiteBit candles under `'unknown'` timeframe key, causing REST fallback spam | WebSocket disabled; REST-only |
+| **Leverage API** | WhiteBit doesn't support per-symbol `setLeverage` | No-op (leverage is set at account level on the exchange UI) |
+| **Margin mode** | WhiteBit only supports isolated margin for futures | No-op (no API call needed) |
+| **Funding rates** | WhiteBit doesn't support `fetchFundingRateHistory` | Stub returning empty list |
+
+### Configuration
+
+WhiteBit futures use **isolated margin**. Leverage is configured at the account level on the WhiteBit web UI — the bot cannot change it via API.
+
+```json
+{
+    "exchange": {
+        "name": "whitebit"
+    },
+    "trading_mode": "futures",
+    "margin_mode": "isolated"
+}
+```
+
+### Known limitations
+
+- Leverage is account-wide on WhiteBit (not per-symbol). Set it on the exchange UI before starting the bot.
+- WebSocket data feed is disabled due to a ccxt.pro timeframe mapping bug. The bot uses REST polling.
+- `fetchFundingRateHistory` is not supported by WhiteBit; funding fee calculation uses the exchange-reported value from positions.
 
 ## Development branches
 
