@@ -156,13 +156,26 @@ class Whitebit(Exchange):
                 position["side"] = "long" if raw_amount > 0 else "short"
             if position.get("contracts") is None:
                 position["contracts"] = abs(raw_amount)
+            raw_margin = float(info.get("margin", 0) or 0)
+            base_price = float(info.get("basePrice", 0) or 0)
             # Ensure collateral is set from the raw margin field.
             # _update_live() filters out positions with collateral == 0.0,
             # which would leave _positions empty and trigger infinite recovery.
             if not position.get("collateral") and raw_amount != 0:
-                raw_margin = float(info.get("margin", 0) or 0)
                 if raw_margin > 0:
                     position["collateral"] = raw_margin
+            # WhiteBit positions don't include a leverage field — ccxt sets it
+            # to None.  Wallets/RPC fall back to Trade.leverage (1x from config)
+            # but the exchange may use a different account-level leverage.
+            # This mismatch causes the Bot Balance equity formula for shorts
+            #   est_stake = collateral * (1 + leverage) - current_value
+            # to produce deeply negative values (collateral is small at higher
+            # leverage, but formula assumes 1x).  Derive the real leverage from
+            # notional_value / margin so the equity calculation is correct.
+            if position.get("leverage") is None and raw_amount != 0:
+                if raw_margin > 0 and base_price > 0:
+                    notional = abs(raw_amount) * base_price
+                    position["leverage"] = notional / raw_margin
         return positions
 
     def _set_leverage(
