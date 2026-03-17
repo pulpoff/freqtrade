@@ -54,31 +54,32 @@ const StrategyBuilderPage = {
         return `
         <div class="builder-layout d-flex flex-column">
             <!-- Top Bar -->
-            <div class="d-flex align-items-center justify-content-between bg-dark border-bottom border-secondary px-2 px-md-3 py-2">
+            <div class="d-flex align-items-center justify-content-between border-bottom border-secondary px-2 px-md-3 py-2" style="background:var(--bc-bg-dark)">
                 <div class="d-flex align-items-center gap-2 gap-md-3">
                     <button class="btn btn-link text-secondary p-0" onclick="App.navigate('dashboard')">
                         <i class="bi bi-chevron-left fs-5"></i>
                     </button>
-                    <button class="btn btn-link text-secondary p-0 d-md-none" onclick="document.getElementById('sbSidebar').classList.toggle('show')">
-                        <i class="bi bi-layout-sidebar fs-5"></i>
-                    </button>
-                    <i class="bi bi-diagram-3 text-warning d-none d-md-inline"></i>
+                    <i class="bi bi-diagram-3 text-warning"></i>
                     <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold"
-                        style="width:180px;max-width:40vw" value="${this.strategyName}"
+                        style="width:200px;max-width:30vw" value="${this.strategyName}"
                         onchange="StrategyBuilderPage.strategyName = this.value">
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <a href="#" class="btn btn-sm btn-link text-info"><i class="bi bi-info-circle me-1"></i>Helpdesk</a>
-                    <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:100px"
+                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.saveStrategy()" title="Save">
+                        <i class="bi bi-save"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.loadStrategy()" title="Load">
+                        <i class="bi bi-folder-open"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
+                        <i class="bi bi-code-slash"></i>
+                    </button>
+                    <select class="form-select form-select-sm border-secondary" style="width:80px;background:var(--bc-card);color:var(--bc-text)"
                         id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
-                        <option value="1m">1m</option>
-                        <option value="3m">3m</option>
-                        <option value="5m" selected>5m</option>
-                        <option value="15m">15m</option>
-                        <option value="30m">30m</option>
-                        <option value="1h">1h</option>
-                        <option value="4h">4h</option>
-                        <option value="1d">1d</option>
+                        <option value="1m">1m</option><option value="3m">3m</option>
+                        <option value="5m" selected>5m</option><option value="15m">15m</option>
+                        <option value="30m">30m</option><option value="1h">1h</option>
+                        <option value="4h">4h</option><option value="1d">1d</option>
                     </select>
                     <button class="btn btn-warning btn-sm fw-semibold" onclick="StrategyBuilderPage.importStrategy()">
                         IMPORT <i class="bi bi-download ms-1"></i>
@@ -89,125 +90,58 @@ const StrategyBuilderPage = {
                 </div>
             </div>
 
-            <!-- Main area: Sidebar + Canvas -->
-            <div class="d-flex flex-grow-1" style="min-height:0">
-                <!-- Left Sidebar - Strategy Info -->
-                <div id="sbSidebar" class="bg-dark border-end border-secondary p-3 d-none d-md-block" style="width:280px;overflow-y:auto">
-                    <div class="mb-3">
-                        <small class="text-secondary">Imported <span class="text-primary">0 times</span></small>
-                        <div class="text-warning small mt-1">
-                            <i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small text-secondary fw-semibold">Description:</label>
-                        <textarea class="form-control form-control-sm" rows="3" placeholder="Describe your strategy..."
-                            onchange="StrategyBuilderPage.strategyDesc = this.value">${this.strategyDesc}</textarea>
-                    </div>
-
-                    <hr class="border-secondary">
-
-                    <h6 class="text-secondary small fw-semibold mb-2">BLOCKS</h6>
-
-                    <!-- Block Categories -->
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">Flow Control</small>
-                        ${this._paletteBlock('start')}
-                        ${this._paletteBlock('terminate')}
-                        ${this._paletteBlock('wait')}
-                        ${this._paletteBlock('reset')}
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">Indicators</small>
-                        ${this._paletteBlock('indicator')}
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">Conditions</small>
-                        ${this._paletteBlock('gain')}
-                        ${this._paletteBlock('group')}
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">Actions</small>
-                        ${this._paletteBlock('buy')}
-                        ${this._paletteBlock('sell')}
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">Risk Management</small>
-                        ${this._paletteBlock('stoploss')}
-                        ${this._paletteBlock('takeprofit')}
-                        ${this._paletteBlock('trailing')}
-                    </div>
-                    <div class="mb-2">
-                        <small class="text-muted fw-semibold">External</small>
-                        ${this._paletteBlock('webhook')}
-                    </div>
-
-                    <hr class="border-secondary">
-                    <button class="btn btn-outline-success btn-sm w-100" onclick="StrategyBuilderPage.generateCode()">
-                        <i class="bi bi-code-slash me-1"></i> Generate Python Code
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.saveStrategy()">
-                        <i class="bi bi-save me-1"></i> Save Strategy
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.loadStrategy()">
-                        <i class="bi bi-folder-open me-1"></i> Load Strategy
-                    </button>
+            <!-- Canvas (full width, no sidebar) -->
+            <div class="flex-grow-1 d-flex flex-column" style="min-height:0">
+                <div id="builderCanvas" class="builder-canvas-wrapper flex-grow-1"
+                     onmousedown="StrategyBuilderPage.onCanvasMouseDown(event)"
+                     onmousemove="StrategyBuilderPage.onCanvasMouseMove(event)"
+                     onmouseup="StrategyBuilderPage.onCanvasMouseUp(event)"
+                     ondrop="StrategyBuilderPage.onDrop(event)"
+                     ondragover="event.preventDefault()">
+                    <svg class="connections-layer" id="connectionsLayer"></svg>
+                    <div id="nodesContainer" class="builder-canvas"></div>
                 </div>
 
-                <!-- Canvas -->
-                <div class="flex-grow-1 d-flex flex-column" style="min-width:0">
-                    <div id="builderCanvas" class="builder-canvas-wrapper flex-grow-1"
-                         onmousedown="StrategyBuilderPage.onCanvasMouseDown(event)"
-                         onmousemove="StrategyBuilderPage.onCanvasMouseMove(event)"
-                         onmouseup="StrategyBuilderPage.onCanvasMouseUp(event)"
-                         ondrop="StrategyBuilderPage.onDrop(event)"
-                         ondragover="event.preventDefault()">
-                        <svg class="connections-layer" id="connectionsLayer"></svg>
-                        <div id="nodesContainer" class="builder-canvas"></div>
-                    </div>
-
-                    <!-- Bottom Toolbar - Block palette organized by category (like botcrypto) -->
-                    <div class="builder-toolbar d-flex align-items-center justify-content-center gap-2 py-2 px-4">
-                        <div class="toolbar-group">
-                            <span class="toolbar-group-label">Indicateurs</span>
-                            <div class="d-flex gap-1">
-                                ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicator', 'tb-indicator')}
+                <!-- Bottom Panel - Tabbed block palette -->
+                <div class="builder-bottom-panel">
+                    <ul class="nav nav-tabs builder-tabs" id="sbPanelTabs">
+                        <li class="nav-item"><a class="nav-link active" data-sb-tab="indicators" onclick="StrategyBuilderPage._switchTab(this, 'indicators')">Indicators</a></li>
+                        <li class="nav-item"><a class="nav-link" data-sb-tab="actions" onclick="StrategyBuilderPage._switchTab(this, 'actions')">Actions</a></li>
+                        <li class="nav-item"><a class="nav-link" data-sb-tab="flow" onclick="StrategyBuilderPage._switchTab(this, 'flow')">Flow</a></li>
+                        <li class="nav-item"><a class="nav-link" data-sb-tab="risk" onclick="StrategyBuilderPage._switchTab(this, 'risk')">Risk</a></li>
+                        <li class="nav-item"><a class="nav-link" data-sb-tab="external" onclick="StrategyBuilderPage._switchTab(this, 'external')">External</a></li>
+                    </ul>
+                    <div class="builder-tab-content">
+                        <div class="builder-tab-pane active" id="sbTab-indicators">
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${this._toolbarBlock('indicator', 'bi-graph-up', 'EMA', 'tb-indicator')}
                                 ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
-                            </div>
-                        </div>
-                        <div class="toolbar-divider"></div>
-                        <div class="toolbar-group">
-                            <span class="toolbar-group-label">Actions</span>
-                            <div class="d-flex gap-1">
-                                ${this._toolbarBlock('buy', 'bi-cart-plus', 'Achat', 'tb-buy')}
-                                ${this._toolbarBlock('sell', 'bi-cart-dash', 'Vente', 'tb-sell')}
-                                ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Attendre', 'tb-wait')}
-                                ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
-                            </div>
-                        </div>
-                        <div class="toolbar-divider"></div>
-                        <div class="toolbar-group">
-                            <span class="toolbar-group-label">Logique</span>
-                            <div class="d-flex gap-1">
                                 ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
-                                ${this._toolbarBlock('start', 'bi-play-circle', 'Début', 'tb-terminate')}
-                                ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Fin', 'tb-terminate')}
+                            </div>
+                        </div>
+                        <div class="builder-tab-pane" id="sbTab-actions">
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${this._toolbarBlock('buy', 'bi-cart-plus', 'Buy', 'tb-buy')}
+                                ${this._toolbarBlock('sell', 'bi-cart-dash', 'Sell', 'tb-sell')}
+                                ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Wait', 'tb-wait')}
+                            </div>
+                        </div>
+                        <div class="builder-tab-pane" id="sbTab-flow">
+                            <div class="d-flex gap-2 flex-wrap">
+                                ${this._toolbarBlock('start', 'bi-play-circle', 'Start', 'tb-terminate')}
+                                ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Terminate', 'tb-terminate')}
                                 ${this._toolbarBlock('reset', 'bi-arrow-counterclockwise', 'Reset', 'tb-reset')}
                             </div>
                         </div>
-                        <div class="toolbar-divider"></div>
-                        <div class="toolbar-group">
-                            <span class="toolbar-group-label">Risk</span>
-                            <div class="d-flex gap-1">
+                        <div class="builder-tab-pane" id="sbTab-risk">
+                            <div class="d-flex gap-2 flex-wrap">
                                 ${this._toolbarBlock('stoploss', 'bi-shield-x', 'Stop Loss', 'tb-trailing')}
+                                ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
                                 ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing', 'tb-trailing')}
                             </div>
                         </div>
-                        <div class="toolbar-divider"></div>
-                        <div class="toolbar-group">
-                            <span class="toolbar-group-label">External</span>
-                            <div class="d-flex gap-1">
+                        <div class="builder-tab-pane" id="sbTab-external">
+                            <div class="d-flex gap-2 flex-wrap">
                                 ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
                             </div>
                         </div>
@@ -215,6 +149,16 @@ const StrategyBuilderPage = {
                 </div>
             </div>
         </div>`;
+    },
+
+    _switchTab(el, tabId) {
+        // Toggle active tab link
+        document.querySelectorAll('#sbPanelTabs .nav-link').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+        // Toggle tab pane
+        document.querySelectorAll('.builder-tab-pane').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById('sbTab-' + tabId);
+        if (pane) pane.classList.add('active');
     },
 
     _paletteBlock(type) {
