@@ -362,16 +362,27 @@ const StrategyBuilderPage = {
         const svg = document.getElementById('connectionsLayer');
         if (!svg) return;
 
-        // SVG defs for arrowhead markers
+        // Ensure SVG covers the full canvas area
+        const wrapper = svg.parentElement;
+        if (wrapper) {
+            const maxX = Math.max(1200, ...this.nodes.map(n => n.x + 200));
+            const maxY = Math.max(600, ...this.nodes.map(n => n.y + 200));
+            svg.setAttribute('width', maxX);
+            svg.setAttribute('height', maxY);
+            svg.style.width = maxX + 'px';
+            svg.style.height = maxY + 'px';
+        }
+
+        // SVG defs for arrowhead markers (use hardcoded colors - CSS vars don't work in SVG innerHTML)
         const defs = `<defs>
             <marker id="arrowNormal" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-orange, #f0ad4e)"/>
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
             </marker>
             <marker id="arrowTrue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-orange, #f0ad4e)"/>
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
             </marker>
             <marker id="arrowFalse" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-red, #e74c5e)"/>
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#e74c5e"/>
             </marker>
         </defs>`;
 
@@ -381,9 +392,11 @@ const StrategyBuilderPage = {
             if (!fromNode || !toNode) return '';
 
             const fromBt = this.blockTypes[fromNode.type];
-            const x1 = fromNode.x + 45;
+            // Output connector is on the right side of the node (node width ~90px)
+            const x1 = fromNode.x + 90;
             let y1 = fromNode.y + 45;
-            const x2 = toNode.x + 0;
+            // Input connector is on the left side of the target node
+            const x2 = toNode.x;
             const y2 = toNode.y + 45;
 
             // Adjust for two-output nodes
@@ -392,12 +405,15 @@ const StrategyBuilderPage = {
                 else if (conn.type === 'false') y1 = fromNode.y + 60;
             }
 
-            const cx1 = x1 + 60;
-            const cx2 = x2 - 60;
-            const pathClass = conn.type === 'true' ? 'conn-true' : conn.type === 'false' ? 'conn-false' : 'conn-normal';
-            const markerRef = conn.type === 'true' ? 'arrowTrue' : conn.type === 'false' ? 'arrowFalse' : 'arrowNormal';
+            const dx = Math.abs(x2 - x1);
+            const cx1 = x1 + Math.max(40, dx * 0.4);
+            const cx2 = x2 - Math.max(40, dx * 0.4);
 
-            return `<path class="${pathClass}" d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" marker-end="url(#${markerRef})"/>`;
+            const strokeColor = conn.type === 'false' ? '#e74c5e' : '#f5a623';
+            const dashArray = conn.type === 'false' ? ' stroke-dasharray="6,3"' : '';
+            const markerRef = conn.type === 'false' ? 'arrowFalse' : conn.type === 'true' ? 'arrowTrue' : 'arrowNormal';
+
+            return `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="2.5"${dashArray} marker-end="url(#${markerRef})"/>`;
         }).join('');
 
         svg.innerHTML = defs + paths;

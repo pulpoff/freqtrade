@@ -373,13 +373,28 @@ const TradesPage = {
                 return;
             }
 
-            const [openTrades, trades, profit, balance, stats, config] = await Promise.all([
+            // Always fetch config first (works in all modes including backtesting)
+            const config = await API.getConfig().catch(() => null);
+
+            // Update bot status right away - even if trade endpoints fail
+            if (config) {
+                this.updateBotStatus(config);
+            } else if (API.connected) {
+                // Connected but config failed - show connected status
+                const badge = document.getElementById('botStatusBadge');
+                if (badge) {
+                    badge.innerHTML = '<span class="status-dot connected me-1"></span> Connected';
+                    badge.className = 'badge badge-bc badge-completed';
+                }
+            }
+
+            // Try trade endpoints - these fail in backtesting mode
+            const [openTrades, trades, profit, balance, stats] = await Promise.all([
                 API.getOpenTrades().catch(() => []),
                 API.getTrades(100).catch(() => ({ trades: [] })),
                 API.getProfit().catch(() => null),
                 API.getBalance().catch(() => null),
                 API.getStats().catch(() => null),
-                API.getConfig().catch(() => null),
             ]);
 
             this.openTrades = Array.isArray(openTrades) ? openTrades : [];
@@ -409,11 +424,6 @@ const TradesPage = {
 
             if (balance) {
                 if (el('tsBalance')) el('tsBalance').textContent = Components.formatNumber(balance.total || 0, 2);
-            }
-
-            // Update bot status
-            if (config) {
-                this.updateBotStatus(config);
             }
 
             this.updateTabContent();
@@ -446,16 +456,28 @@ const TradesPage = {
     },
 
     showDemoData() {
-        this.closedTrades = Components.generateDemoTrades(20);
-        this.openTrades = [];
-        const el = (id) => document.getElementById(id);
-        if (el('tsClosedCount')) el('tsClosedCount').textContent = this.closedTrades.length;
+        if (API.connected) {
+            // Connected but trade endpoints unavailable (backtesting mode)
+            this.closedTrades = [];
+            this.openTrades = [];
+            // Still show connected status
+            const badge = document.getElementById('botStatusBadge');
+            if (badge) {
+                badge.innerHTML = '<span class="status-dot connected me-1"></span> Connected (Backtesting)';
+                badge.className = 'badge badge-bc badge-completed';
+            }
+        } else {
+            this.closedTrades = Components.generateDemoTrades(20);
+            this.openTrades = [];
+            const el = (id) => document.getElementById(id);
+            if (el('tsClosedCount')) el('tsClosedCount').textContent = this.closedTrades.length;
 
-        const totalProfit = this.closedTrades.reduce((s, t) => s + (t.profit_abs || 0), 0);
-        const winCount = this.closedTrades.filter(t => t.profit_abs > 0).length;
-        if (el('tsTotalProfit')) el('tsTotalProfit').textContent = Components.formatNumber(totalProfit);
-        if (el('tsWinRate')) el('tsWinRate').textContent = Components.formatPercent(winCount / this.closedTrades.length * 100);
-        if (el('tsBalance')) el('tsBalance').textContent = '1,000.00';
+            const totalProfit = this.closedTrades.reduce((s, t) => s + (t.profit_abs || 0), 0);
+            const winCount = this.closedTrades.filter(t => t.profit_abs > 0).length;
+            if (el('tsTotalProfit')) el('tsTotalProfit').textContent = Components.formatNumber(totalProfit);
+            if (el('tsWinRate')) el('tsWinRate').textContent = Components.formatPercent(winCount / this.closedTrades.length * 100);
+            if (el('tsBalance')) el('tsBalance').textContent = '1,000.00';
+        }
 
         this.updateTabContent();
     },
