@@ -14,6 +14,11 @@ const TradesPage = {
     render() {
         return `
         <div id="tradesPage">
+            ${API.isBacktestingMode ? `
+            <div class="alert alert-info d-flex align-items-center mb-3">
+                <i class="bi bi-flask me-2"></i>
+                <span><strong>Backtesting Mode</strong> - Trade operations and live data are not available in this mode.</span>
+            </div>` : ''}
             <!-- Bot Controls -->
             <div class="card mb-3">
                 <div class="card-body">
@@ -198,7 +203,7 @@ const TradesPage = {
                     ${this.openTrades.map(t => `
                     <tr>
                         <td>${t.trade_id}</td>
-                        <td class="fw-semibold">${t.pair}</td>
+                        <td class="fw-semibold">${Components.cleanPairName(t.pair)}</td>
                         <td><span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'}">${t.is_short ? 'Short' : 'Long'}</span></td>
                         <td>${Components.formatNumber(t.open_rate, 6)}</td>
                         <td>${Components.formatNumber(t.current_rate || t.open_rate, 6)}</td>
@@ -247,7 +252,7 @@ const TradesPage = {
                     ${this.closedTrades.map(t => `
                     <tr>
                         <td>${t.trade_id}</td>
-                        <td class="fw-semibold">${t.pair}</td>
+                        <td class="fw-semibold">${Components.cleanPairName(t.pair)}</td>
                         <td class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'} fw-semibold">
                             ${Components.formatPercent((t.profit_ratio || 0) * 100)}
                             <br><small>${(t.profit_abs || 0) >= 0 ? '+' : ''}${Components.formatNumber(t.profit_abs || 0)}</small>
@@ -352,7 +357,7 @@ const TradesPage = {
                 const whitelist = await API.getWhitelist();
                 if (whitelist && whitelist.whitelist && whitelist.whitelist.length > 0) {
                     select.innerHTML = whitelist.whitelist.map(p =>
-                        `<option value="${p}">${p}</option>`
+                        `<option value="${p}">${Components.cleanPairName(p)}</option>`
                     ).join('');
                 }
             }

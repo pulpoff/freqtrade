@@ -10,6 +10,10 @@ const API = {
     /** Track endpoints that fail with "not supported in backtesting mode" */
     _disabledEndpoints: new Set(),
     isBacktestingMode: false,
+    /** Known trade-related endpoints that fail in backtesting mode */
+    _tradeEndpoints: ['/profit', '/status', '/trades', '/stats', '/balance', '/count',
+        '/daily', '/weekly', '/monthly', '/performance', '/stopentry', '/forceexit',
+        '/forceenter'],
 
     /** Initialize from saved settings */
     init() {
@@ -92,10 +96,18 @@ const API = {
             if (!resp.ok) {
                 const errBody = await resp.text();
                 // Detect backtesting mode errors and disable the endpoint
-                if (errBody.includes('not supported in backtesting mode') || errBody.includes('NotImplementedError')) {
+                const isTradeEndpoint = this._tradeEndpoints.some(ep => baseEndpoint === ep || baseEndpoint.startsWith(ep + '/'));
+                const isBacktestError = errBody.includes('not supported in backtesting mode') ||
+                    errBody.includes('NotImplementedError') ||
+                    (resp.status === 500 && isTradeEndpoint);
+                if (isBacktestError) {
                     this._disabledEndpoints.add(baseEndpoint);
-                    this.isBacktestingMode = true;
-                    console.log(`Endpoint ${baseEndpoint} disabled (backtesting mode)`);
+                    if (!this.isBacktestingMode) {
+                        this.isBacktestingMode = true;
+                        // Pre-disable all known trade endpoints
+                        this._tradeEndpoints.forEach(ep => this._disabledEndpoints.add(ep));
+                        console.log('Backtesting mode detected - trade endpoints disabled');
+                    }
                     throw new Error('Endpoint not available in backtesting mode');
                 }
                 throw new Error(`API Error ${resp.status}: ${errBody}`);

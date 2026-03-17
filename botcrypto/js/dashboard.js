@@ -16,7 +16,87 @@ const DashboardPage = {
     render() {
         return `
         <div id="dashboardPage">
-            <!-- Pair/Timeframe selector -->
+            ${API.isBacktestingMode ? `
+            <div class="alert alert-info d-flex align-items-center mb-3">
+                <i class="bi bi-flask me-2"></i>
+                <span><strong>Backtesting Mode</strong> - Trade data and live balances are not available. Use the Backtesting page to run strategy tests.</span>
+            </div>` : ''}
+
+            <!-- Bot Info Bar (like freqmon) -->
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="badge badge-bc" id="dashBotStatus">
+                                <span class="status-dot disconnected me-1"></span> Offline
+                            </span>
+                            <span class="text-secondary small" id="dashStrategyName"><i class="bi bi-diagram-3 me-1"></i>-</span>
+                            <span class="text-secondary small" id="dashExchangeName"><i class="bi bi-bank me-1"></i>-</span>
+                            <span class="text-secondary small" id="dashTradingMode"></span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-outline-success" onclick="DashboardPage.refreshAll()">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Stats Row (like freqmon) -->
+            <div class="row g-3 mb-3" id="dashSummaryStats">
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashTotalProfit">0</div>
+                            <div class="stat-label">Total Profit</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashProfitPct">0%</div>
+                            <div class="stat-label">Profit %</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashClosedTrades">0</div>
+                            <div class="stat-label">Closed Trades</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashOpenTrades">0</div>
+                            <div class="stat-label">Open Trades</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashWinRate">0%</div>
+                            <div class="stat-label">Win Rate</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card">
+                        <div class="card-body py-3 text-center">
+                            <div class="stat-value" id="dashBalance">0</div>
+                            <div class="stat-label">Balance</div>
+                            <div class="stat-sublabel" id="dashBalanceDetail"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between border-bottom border-secondary pb-2 mb-2">
@@ -42,18 +122,13 @@ const DashboardPage = {
                 </div>
             </div>
 
-            <!-- Bottom Section: Stats + Trades -->
+            <!-- Bottom Section: Equity + Profit + Trades -->
             <div class="row g-3">
                 <!-- Left: Equity + Stats -->
                 <div class="col-lg-4">
                     <div class="card h-100">
                         <div class="card-body">
-                            <div class="d-flex align-items-center gap-2 mb-3">
-                                <i class="bi bi-gem text-warning"></i>
-                                <i class="bi bi-wallet2 text-secondary"></i>
-                                <span id="dashBalance" class="fw-semibold">0 USDT</span>
-                                <span id="dashQuote" class="text-secondary ms-2"></span>
-                            </div>
+                            <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Equity Curve</h6>
                             <div id="equityChart" style="height:180px"></div>
                             <div id="dashProfitDisplay">
                                 ${Components.profitDisplay(0, 0, 0, 0)}
@@ -133,7 +208,7 @@ const DashboardPage = {
                     }
                     if (select) {
                         select.innerHTML = pairs.map(p =>
-                            `<option value="${p}" ${p === this.currentPair ? 'selected' : ''}>${p}</option>`
+                            `<option value="${p}" ${p === this.currentPair ? 'selected' : ''}>${Components.cleanPairName(p)}</option>`
                         ).join('');
                     }
                 }
@@ -363,11 +438,18 @@ const DashboardPage = {
                 let cumProfit = 0;
                 const equityData = daily.data.map(d => {
                     cumProfit += (d.abs_profit || 0);
-                    return {
-                        time: Math.floor(new Date(d.date).getTime() / 1000),
-                        value: startBalance + cumProfit,
-                    };
-                }).filter(d => !isNaN(d.time) && d.time > 0);
+                    // Handle date strings like "YYYY-MM-DD" - parse as UTC
+                    const dateStr = d.date || '';
+                    const parts = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    let time;
+                    if (parts) {
+                        // Use date string directly for lightweight-charts (YYYY-MM-DD)
+                        time = dateStr.substring(0, 10);
+                    } else {
+                        time = Math.floor(new Date(dateStr).getTime() / 1000);
+                    }
+                    return { time, value: startBalance + cumProfit };
+                }).filter(d => d.time && (typeof d.time === 'string' || (!isNaN(d.time) && d.time > 0)));
 
                 if (equityData.length > 1) {
                     this._equityAreaSeries.setData(equityData);
@@ -379,7 +461,15 @@ const DashboardPage = {
         }
     },
 
+    async refreshAll() {
+        await this.loadBotConfig();
+        await this.loadData();
+        await this.refreshChart();
+        App.showToast('Dashboard refreshed', 'info');
+    },
+
     async loadData() {
+        const el = (id) => document.getElementById(id);
         try {
             if (!API.connected) {
                 this.showDemoData();
@@ -387,47 +477,111 @@ const DashboardPage = {
             }
 
             // Load real data in parallel
-            const [profit, trades, balance, openTrades] = await Promise.all([
+            const [profit, trades, balance, openTrades, config, count] = await Promise.all([
                 API.getProfit().catch(() => null),
                 API.getTrades(50).catch(() => ({ trades: [] })),
                 API.getBalance().catch(() => null),
                 API.getOpenTrades().catch(() => []),
+                API.getConfig().catch(() => null),
+                API.getTradeCount().catch(() => null),
             ]);
 
-            // Profit display
+            // Bot info bar
+            if (config) {
+                const statusBadge = el('dashBotStatus');
+                if (statusBadge) {
+                    const state = config.state || 'unknown';
+                    if (state === 'running') {
+                        statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Running';
+                        statusBadge.className = 'badge badge-bc badge-completed';
+                    } else if (state === 'stopped') {
+                        statusBadge.innerHTML = '<span class="status-dot disconnected me-1"></span> Stopped';
+                        statusBadge.className = 'badge badge-bc badge-failed';
+                    } else {
+                        statusBadge.innerHTML = `<span class="status-dot me-1" style="background:var(--bc-orange)"></span> ${state}`;
+                        statusBadge.className = 'badge badge-bc';
+                    }
+                }
+                if (el('dashStrategyName') && config.strategy) {
+                    el('dashStrategyName').innerHTML = `<i class="bi bi-diagram-3 me-1"></i>${config.strategy}`;
+                }
+                if (el('dashExchangeName') && config.exchange) {
+                    el('dashExchangeName').innerHTML = `<i class="bi bi-bank me-1"></i>${config.exchange}`;
+                }
+                if (el('dashTradingMode')) {
+                    const mode = config.trading_mode || 'spot';
+                    const dryRun = config.dry_run;
+                    el('dashTradingMode').innerHTML = `
+                        <span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'} me-1">${dryRun ? 'Dry Run' : 'Live'}</span>
+                        <span class="badge bg-secondary">${mode}</span>`;
+                }
+            }
+
+            // Summary stat cards
+            const openTradesList = Array.isArray(openTrades) ? openTrades : [];
+            if (el('dashOpenTrades')) el('dashOpenTrades').textContent = openTradesList.length;
+
             if (profit) {
-                const pd = document.getElementById('dashProfitDisplay');
+                const totalTrades = (profit.winning_trades || 0) + (profit.losing_trades || 0);
+                const winRate = totalTrades > 0 ? (profit.winning_trades / totalTrades * 100) : 0;
+                const avgProfit = totalTrades > 0 ? (profit.profit_closed_coin || 0) / totalTrades : 0;
+                const currency = profit.stake_currency || 'USDT';
+
+                if (el('dashTotalProfit')) {
+                    const val = profit.profit_closed_coin || 0;
+                    el('dashTotalProfit').textContent = `${val >= 0 ? '+' : ''}${Components.formatNumber(val, 2)}`;
+                    el('dashTotalProfit').className = `stat-value ${val >= 0 ? 'text-profit' : 'text-loss'}`;
+                }
+                if (el('dashProfitPct')) {
+                    const pct = profit.profit_closed_percent || profit.profit_closed_ratio_mean * 100 || 0;
+                    el('dashProfitPct').textContent = `${pct >= 0 ? '+' : ''}${Components.formatNumber(pct, 2)}%`;
+                    el('dashProfitPct').className = `stat-value ${pct >= 0 ? 'text-profit' : 'text-loss'}`;
+                }
+                if (el('dashClosedTrades')) el('dashClosedTrades').textContent = totalTrades;
+                if (el('dashWinRate')) {
+                    el('dashWinRate').textContent = `${Components.formatNumber(winRate, 1)}%`;
+                    el('dashWinRate').className = `stat-value ${winRate >= 50 ? 'text-profit' : 'text-loss'}`;
+                }
+
+                // Profit display panel
+                const pd = el('dashProfitDisplay');
                 if (pd) {
-                    const totalTrades = (profit.winning_trades || 0) + (profit.losing_trades || 0);
-                    const winRate = totalTrades > 0 ? (profit.winning_trades / totalTrades * 100) : 0;
-                    const avgProfit = totalTrades > 0 ? (profit.profit_closed_coin || 0) / totalTrades : 0;
                     pd.innerHTML = Components.profitDisplay(
                         profit.profit_all_coin || 0,
                         profit.profit_closed_coin || 0,
-                        winRate,
-                        avgProfit,
-                        profit.stake_currency || 'USDT'
+                        winRate, avgProfit, currency
                     );
                 }
             }
 
+            // Trade count from API
+            if (count && el('dashClosedTrades') && count.closed !== undefined) {
+                el('dashClosedTrades').textContent = count.closed || 0;
+            }
+            if (count && el('dashOpenTrades') && count.current !== undefined) {
+                el('dashOpenTrades').textContent = count.current || 0;
+            }
+
             // Trades table - combine open and closed
             const allTrades = [];
-            if (Array.isArray(openTrades)) {
-                openTrades.forEach(t => { t.is_open = true; allTrades.push(t); });
-            }
+            openTradesList.forEach(t => { t.is_open = true; allTrades.push(t); });
             if (trades && trades.trades) {
                 trades.trades.forEach(t => { if (!t.is_open) allTrades.push(t); });
             }
-            const tt = document.getElementById('dashTradesTable');
+            const tt = el('dashTradesTable');
             if (tt) tt.innerHTML = Components.tradesTable(allTrades.slice(0, 20));
 
             // Balance display
             if (balance) {
-                const db = document.getElementById('dashBalance');
-                const dq = document.getElementById('dashQuote');
-                if (db) db.textContent = `${Components.formatNumber(balance.total || 0, 4)} ${balance.symbol || balance.stake || 'USDT'}`;
-                if (dq) dq.textContent = balance.note || '';
+                const total = balance.total || balance.value || 0;
+                const currency = balance.symbol || balance.stake || balance.stake_currency || 'USDT';
+                if (el('dashBalance')) el('dashBalance').textContent = `${Components.formatNumber(total, 2)} ${currency}`;
+                if (el('dashBalanceDetail')) {
+                    const parts = [];
+                    if (balance.free !== undefined) parts.push(`Free: ${Components.formatNumber(balance.free, 2)}`);
+                    if (balance.used !== undefined && balance.used > 0) parts.push(`In trades: ${Components.formatNumber(balance.used, 2)}`);
+                    el('dashBalanceDetail').textContent = parts.join(' | ');
+                }
             }
 
             // Load equity chart from daily data
@@ -447,8 +601,13 @@ const DashboardPage = {
         const pd = document.getElementById('dashProfitDisplay');
         if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
 
-        const db = document.getElementById('dashBalance');
-        if (db) db.textContent = '0 USDT';
+        const el = (id) => document.getElementById(id);
+        if (el('dashBalance')) el('dashBalance').textContent = '0 USDT';
+        if (el('dashTotalProfit')) el('dashTotalProfit').textContent = '0';
+        if (el('dashProfitPct')) el('dashProfitPct').textContent = '0%';
+        if (el('dashClosedTrades')) el('dashClosedTrades').textContent = '0';
+        if (el('dashOpenTrades')) el('dashOpenTrades').textContent = '0';
+        if (el('dashWinRate')) el('dashWinRate').textContent = '0%';
     },
 
     destroy() {

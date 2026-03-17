@@ -67,7 +67,7 @@ const Components = {
                     ${gain >= 0 ? '+' : ''}${this.formatNumber(gain)} <small class="text-secondary">${quoteCurrency}</small>
                 </span>
             </td>
-            <td class="fw-semibold small">${pair}</td>
+            <td class="fw-semibold small">${this.cleanPairName(pair)}</td>
             <td>
                 <div class="action-sell">SELL</div>
                 <div class="action-buy">BUY</div>
@@ -194,6 +194,12 @@ const Components = {
                 <div class="progress-bar bg-success" style="width: ${percent}%"></div>
             </div>
         </div>`;
+    },
+
+    /** Clean pair name for display (strip futures suffixes like :USDT) */
+    cleanPairName(pair) {
+        if (!pair) return '';
+        return pair.replace(/:[A-Z]+$/, '');
     },
 
     // ========== UTILITIES ==========
