@@ -10,7 +10,7 @@ const App = {
 
     pages: {
         'dashboard': { title: 'Dashboard', module: () => DashboardPage },
-        'robots': { title: 'My Robots', module: () => RobotsPage },
+        'strategies': { title: 'My strategies', module: () => RobotsPage },
         'strategy-builder': { title: 'Strategy Builder', module: () => StrategyBuilderPage },
         'backtesting': { title: 'Backtesting', module: () => BacktestingPage },
         'strategy-store': { title: 'Strategy Store', module: () => StrategyStorePage },

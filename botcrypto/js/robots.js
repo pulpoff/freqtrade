@@ -1,24 +1,71 @@
 /**
- * BotCrypto - My Robots Page
- * Bot management with start/stop toggles, status, ROI tracking
- * Similar to botcrypto.io's "Mes robots" view
+ * BotCrypto - My Strategies Page
+ * Strategy management with tabs for My Strategies / Imported Strategies
+ * Matches botcrypto.io's "My strategies" view
  */
 const RobotsPage = {
-    robots: [],
+    strategies: [],
+    activeTab: 'my',
+    searchQuery: '',
     refreshTimer: null,
 
     render() {
+        const myStrategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const importedList = Object.entries(imported).map(([name, data]) => ({ name, ...data }));
+
+        const list = this.activeTab === 'my' ? myStrategies : importedList;
+        const filtered = this.searchQuery
+            ? list.filter(s => s.name.toLowerCase().includes(this.searchQuery.toLowerCase()))
+            : list;
+
         return `
-        <div id="robotsPage">
-            <div class="d-flex align-items-center justify-content-between mb-4">
-                <h4 class="fw-semibold mb-0"><i class="bi bi-robot me-2"></i>My Robots</h4>
-                <button class="btn btn-success" onclick="RobotsPage.showNewBotModal()">
-                    <i class="bi bi-plus-lg me-1"></i> New Robot
+        <div id="strategiesPage">
+            <div class="d-flex align-items-start justify-content-between mb-3">
+                <div>
+                    <h4 class="fw-semibold mb-1"><i class="bi bi-diagram-3 me-2"></i>My strategies</h4>
+                    <p class="text-secondary small mb-0">Find here the summary of your strategies</p>
+                </div>
+                <button class="btn btn-success fw-semibold" onclick="RobotsPage.createNewStrategy()">
+                    <i class="bi bi-plus-circle me-1"></i> NEW STRATEGY
                 </button>
             </div>
 
-            <!-- Active Bot Info (from Freqtrade) -->
-            <div class="card mb-3" id="activeBotCard">
+            <!-- Tabs: My Strategies / Imported Strategies -->
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn strategy-tab ${this.activeTab === 'my' ? 'active' : ''}"
+                    onclick="RobotsPage.switchTab('my')">
+                    <i class="bi bi-diagram-3 me-2"></i>My Strategies
+                </button>
+                <button class="btn strategy-tab ${this.activeTab === 'imported' ? 'active' : ''}"
+                    onclick="RobotsPage.switchTab('imported')">
+                    <i class="bi bi-download me-2"></i>Imported Strategies
+                </button>
+            </div>
+
+            <!-- Search -->
+            <div class="strategy-search-bar mb-4">
+                <input type="text" class="form-control" placeholder="Find your strategy..."
+                    value="${this.searchQuery}"
+                    oninput="RobotsPage.searchQuery = this.value; RobotsPage.refresh()">
+                <i class="bi bi-search"></i>
+            </div>
+
+            <!-- Strategy Cards -->
+            <div class="strategy-cards-grid" id="strategiesList">
+                ${filtered.length === 0 ? `
+                    <div class="text-center text-secondary py-5">
+                        <i class="bi bi-diagram-3 fs-1 d-block mb-2"></i>
+                        <p>${this.activeTab === 'my' ? 'No strategies created yet' : 'No imported strategies'}</p>
+                        <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.${this.activeTab === 'my' ? 'createNewStrategy' : 'importStrategy'}()">
+                            <i class="bi bi-plus-lg me-1"></i> ${this.activeTab === 'my' ? 'Create Your First Strategy' : 'Import a Strategy'}
+                        </button>
+                    </div>
+                ` : filtered.map((s, i) => this._renderStrategyCard(s, i)).join('')}
+            </div>
+
+            <!-- Active Bot Section -->
+            <div class="card mt-4" id="activeBotCard">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between mb-3">
                         <h6 class="fw-semibold mb-0"><i class="bi bi-broadcast me-2 text-success"></i>Active Freqtrade Bot</h6>
@@ -41,22 +88,129 @@ const RobotsPage = {
                     </div>
                 </div>
             </div>
+        </div>`;
+    },
 
-            <!-- Saved Robots List -->
-            <div class="card">
-                <div class="card-header d-flex align-items-center justify-content-between">
-                    <h6 class="mb-0"><i class="bi bi-collection me-2"></i>Robot Configurations</h6>
-                    <small class="text-secondary" id="robotCount">0 robots</small>
+    _renderStrategyCard(s, index) {
+        const timeUnit = s.timeUnit || s.timeframe || '';
+        const nodesCount = s.nodes ? s.nodes.length : 0;
+        const savedAt = s.savedAt || s.importedAt || '';
+        const isImported = this.activeTab === 'imported';
+
+        return `
+        <div class="strategy-card" onclick="RobotsPage.openStrategy('${s.name.replace(/'/g, "\\'")}', ${isImported})">
+            <div class="d-flex align-items-start justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-diagram-3 text-warning"></i>
+                    <span class="fw-semibold strategy-card-name">${s.name}</span>
                 </div>
-                <div class="card-body" id="robotsList">
-                    ${this.renderRobotsList()}
+                <div class="dropdown" onclick="event.stopPropagation()">
+                    <button class="btn btn-sm btn-link text-secondary p-0" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+                        <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); RobotsPage.openStrategy('${s.name.replace(/'/g, "\\'")}', ${isImported})">
+                            <i class="bi bi-pencil me-2"></i>Edit</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); RobotsPage.duplicateStrategy(${index})">
+                            <i class="bi bi-copy me-2"></i>Duplicate</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); RobotsPage.deleteStrategy(${index})">
+                            <i class="bi bi-trash me-2"></i>Delete</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mt-3">
+                <span class="text-secondary small">${nodesCount > 0 ? nodesCount + ' blocks' : 'No blocks'}</span>
+                <div class="d-flex align-items-center gap-3">
+                    ${!isImported && s.desc ? `<span class="text-success small">${s.desc.substring(0, 20)}</span>` : ''}
+                    ${timeUnit ? `<span class="text-secondary small">${timeUnit}<i class="bi bi-clock ms-1"></i></span>` : ''}
                 </div>
             </div>
         </div>`;
     },
 
+    switchTab(tab) {
+        this.activeTab = tab;
+        this.searchQuery = '';
+        this.refresh();
+    },
+
+    createNewStrategy() {
+        // Navigate to strategy builder - it will create a fresh strategy with just START
+        localStorage.removeItem('bc_strategy');
+        StrategyBuilderPage.nodes = [];
+        StrategyBuilderPage.connections = [];
+        StrategyBuilderPage.nextId = 1;
+        StrategyBuilderPage.strategyName = 'My Strategy';
+        StrategyBuilderPage.strategyDesc = '';
+        StrategyBuilderPage.createDefaultNodes();
+        StrategyBuilderPage.autoSave();
+        App.navigate('strategy-builder');
+    },
+
+    openStrategy(name, isImported) {
+        if (isImported) {
+            const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+            if (imported[name]) {
+                // Parse imported strategy into flow and open builder
+                StrategyBuilderPage._parseStrategyToFlow(imported[name].content, name);
+                StrategyBuilderPage.autoSave();
+                App.navigate('strategy-builder');
+            }
+        } else {
+            const strategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+            const s = strategies.find(st => st.name === name);
+            if (s) {
+                StrategyBuilderPage.nodes = s.nodes || [];
+                StrategyBuilderPage.connections = s.connections || [];
+                StrategyBuilderPage.strategyName = s.name;
+                StrategyBuilderPage.strategyDesc = s.desc || '';
+                StrategyBuilderPage.nextId = s.nextId || 1;
+                StrategyBuilderPage.timeUnit = s.timeUnit || '5m';
+                StrategyBuilderPage.autoSave();
+                App.navigate('strategy-builder');
+            }
+        }
+    },
+
+    duplicateStrategy(index) {
+        if (this.activeTab === 'my') {
+            const strategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+            if (strategies[index]) {
+                const copy = JSON.parse(JSON.stringify(strategies[index]));
+                copy.name = copy.name + ' (copy)';
+                copy.savedAt = new Date().toISOString();
+                strategies.push(copy);
+                localStorage.setItem('bc_strategies', JSON.stringify(strategies));
+                this.refresh();
+                App.showToast('Strategy duplicated', 'success');
+            }
+        }
+    },
+
+    deleteStrategy(index) {
+        if (!confirm('Delete this strategy?')) return;
+        if (this.activeTab === 'my') {
+            const strategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+            strategies.splice(index, 1);
+            localStorage.setItem('bc_strategies', JSON.stringify(strategies));
+        } else {
+            const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+            const keys = Object.keys(imported);
+            if (keys[index]) {
+                delete imported[keys[index]];
+                localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+            }
+        }
+        this.refresh();
+        App.showToast('Strategy deleted', 'info');
+    },
+
+    importStrategy() {
+        StrategyBuilderPage.importStrategy();
+    },
+
     async init() {
-        this.robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
         await this.loadActiveBotInfo();
         this.refreshTimer = setInterval(() => this.loadActiveBotInfo(), 15000);
     },
@@ -148,202 +302,6 @@ const RobotsPage = {
         } catch (e) {
             App.showToast(`Failed: ${e.message}`, 'error');
         }
-    },
-
-    renderRobotsList() {
-        const robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
-        if (robots.length === 0) {
-            return `<div class="text-center text-secondary py-4">
-                <i class="bi bi-robot fs-1 d-block mb-2"></i>
-                <p>No robot configurations saved yet</p>
-                <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.showNewBotModal()">
-                    <i class="bi bi-plus-lg me-1"></i> Create Your First Robot
-                </button>
-            </div>`;
-        }
-
-        const countEl = document.getElementById('robotCount');
-        if (countEl) countEl.textContent = `${robots.length} robot${robots.length !== 1 ? 's' : ''}`;
-
-        return `<div class="row g-3">${robots.map((r, i) => `
-        <div class="col-lg-4 col-md-6">
-            <div class="card h-100 border-secondary">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="fw-semibold mb-0">${r.name}</h6>
-                        <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" ${r.active ? 'checked' : ''}
-                                onchange="RobotsPage.toggleRobot(${i}, this.checked)">
-                        </div>
-                    </div>
-                    <div class="d-flex gap-1 mb-2">
-                        <span class="badge bg-primary bg-opacity-10 text-primary">${r.strategy || '-'}</span>
-                        <span class="badge bg-success bg-opacity-10 text-success">${r.pair || 'All'}</span>
-                        <span class="badge bg-warning bg-opacity-10 text-warning">${r.exchange || '-'}</span>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <small class="text-secondary d-block">Mode</small>
-                            <small class="fw-semibold">${r.mode || 'Real-Time'}</small>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-secondary d-block">Capital</small>
-                            <small class="fw-semibold">${r.capital || '1000'} USDT</small>
-                        </div>
-                    </div>
-                    <small class="text-secondary">Created: ${Components.formatDate(r.createdAt)}</small>
-                    <div class="d-flex gap-2 mt-2">
-                        <button class="btn btn-outline-success btn-sm flex-grow-1" onclick="RobotsPage.launchRobot(${i})">
-                            <i class="bi bi-play-fill me-1"></i> Launch
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="RobotsPage.editRobot(${i})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="RobotsPage.deleteRobot(${i})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>`).join('')}</div>`;
-    },
-
-    showNewBotModal() {
-        const strategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
-        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
-        const allStrats = [...strategies.map(s => s.name), ...Object.keys(imported)];
-
-        const modal = document.createElement('div');
-        modal.innerHTML = `
-        <div class="modal fade" tabindex="-1" id="newBotModal">
-            <div class="modal-dialog">
-                <div class="modal-content bg-dark border-secondary">
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title"><i class="bi bi-robot me-2"></i>New Robot</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label small text-secondary">Robot Name</label>
-                            <input type="text" class="form-control" id="newBotName" placeholder="e.g. Agent Nomadia Spirit" value="Bot ${(JSON.parse(localStorage.getItem('bc_robots') || '[]')).length + 1}">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small text-secondary">Strategy</label>
-                            <select class="form-select" id="newBotStrategy">
-                                <option value="">-- Select Strategy --</option>
-                                ${allStrats.map(s => `<option value="${s}">${s}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="row g-3 mb-3">
-                            <div class="col-6">
-                                <label class="form-label small text-secondary">Exchange</label>
-                                <select class="form-select" id="newBotExchange">
-                                    <option value="binance">Binance</option>
-                                    <option value="kraken">Kraken</option>
-                                    <option value="bybit">Bybit</option>
-                                    <option value="okx">OKX</option>
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small text-secondary">Trading Pair</label>
-                                <input type="text" class="form-control" id="newBotPair" placeholder="BTC/USDT" value="BTC/USDT">
-                            </div>
-                        </div>
-                        <div class="row g-3 mb-3">
-                            <div class="col-6">
-                                <label class="form-label small text-secondary">Execution Mode</label>
-                                <div class="btn-group w-100" id="newBotMode">
-                                    <button class="btn btn-outline-success active" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')" data-mode="realtime">Real-Time</button>
-                                    <button class="btn btn-outline-secondary" onclick="this.parentElement.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')" data-mode="backtest">Backtest</button>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small text-secondary">Capital (USDT)</label>
-                                <input type="number" class="form-control" id="newBotCapital" value="1000">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-secondary">
-                        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button class="btn btn-success fw-semibold" onclick="RobotsPage.saveNewBot()">
-                            <i class="bi bi-check-lg me-1"></i> Create Robot
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-        document.body.appendChild(modal);
-        this._newBotModal = new bootstrap.Modal(modal.querySelector('.modal'));
-        this._newBotModalEl = modal;
-        this._newBotModal.show();
-        modal.querySelector('.modal').addEventListener('hidden.bs.modal', () => modal.remove());
-    },
-
-    saveNewBot() {
-        const name = document.getElementById('newBotName')?.value.trim();
-        const strategy = document.getElementById('newBotStrategy')?.value;
-        const exchange = document.getElementById('newBotExchange')?.value;
-        const pair = document.getElementById('newBotPair')?.value.trim();
-        const capital = document.getElementById('newBotCapital')?.value;
-        const modeBtn = document.querySelector('#newBotMode .btn.active');
-        const mode = modeBtn?.dataset.mode || 'realtime';
-
-        if (!name) { App.showToast('Please enter a robot name', 'warning'); return; }
-        if (!strategy) { App.showToast('Please select a strategy', 'warning'); return; }
-
-        const robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
-        robots.push({
-            name, strategy, exchange, pair, capital, mode,
-            active: false,
-            createdAt: new Date().toISOString()
-        });
-        localStorage.setItem('bc_robots', JSON.stringify(robots));
-
-        if (this._newBotModal) this._newBotModal.hide();
-        this.refresh();
-        App.showToast(`Robot "${name}" created`, 'success');
-    },
-
-    toggleRobot(index, active) {
-        const robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
-        if (robots[index]) {
-            robots[index].active = active;
-            localStorage.setItem('bc_robots', JSON.stringify(robots));
-        }
-    },
-
-    launchRobot(index) {
-        const robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
-        const r = robots[index];
-        if (!r) return;
-
-        if (r.mode === 'backtest') {
-            App.navigate('backtesting');
-            setTimeout(() => {
-                const select = document.getElementById('btStrategy');
-                if (select) {
-                    for (const opt of select.options) {
-                        if (opt.value === r.strategy) { select.value = r.strategy; break; }
-                    }
-                }
-            }, 500);
-        } else {
-            App.showToast(`To run "${r.name}" in real-time, configure Freqtrade with strategy "${r.strategy}"`, 'info');
-        }
-    },
-
-    editRobot(index) {
-        // For now just show the new bot modal pre-filled
-        App.showToast('Edit coming soon - delete and recreate for now', 'info');
-    },
-
-    deleteRobot(index) {
-        if (!confirm('Delete this robot configuration?')) return;
-        const robots = JSON.parse(localStorage.getItem('bc_robots') || '[]');
-        robots.splice(index, 1);
-        localStorage.setItem('bc_robots', JSON.stringify(robots));
-        this.refresh();
-        App.showToast('Robot deleted', 'info');
     },
 
     refresh() {

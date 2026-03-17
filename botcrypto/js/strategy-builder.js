@@ -49,10 +49,12 @@ const StrategyBuilderPage = {
 
     // Indicator types available
     indicatorTypes: [
-        'EMA', 'SMA', 'RSI', 'MACD', 'Bollinger Bands', 'Stochastic',
-        'ATR', 'CCI', 'Williams %R', 'Ichimoku', 'ADX', 'OBV',
-        'VWAP', 'Parabolic SAR', 'Supertrend', 'Pivot Points',
-        'Fear & Greed Index', 'MFI', 'ROC', 'TRIX'
+        'Average True Range', 'Bollinger Bands', 'Choppiness Index',
+        'Commodity Channel Index', "Elder's Force Index", 'EMA',
+        'Fear & Greed Index', 'Ichimoku', 'MACD', 'MFI',
+        'OBV', 'Parabolic SAR', 'Pivot Points', 'Price',
+        'ROC', 'RSI', 'SMA', 'Stochastic', 'Supertrend',
+        'TRIX', 'VWAP', 'Vortex', 'Williams %R', 'ADX'
     ],
 
     render() {
@@ -116,14 +118,43 @@ const StrategyBuilderPage = {
                     <button class="btn btn-sm btn-outline-secondary ms-1" onclick="StrategyBuilderPage.zoomReset()" title="Reset view"><i class="bi bi-fullscreen"></i></button>
                 </div>
 
+                <!-- Indicator Picker Popup (hidden by default) -->
+                <div class="indicator-picker-popup" id="indicatorPickerPopup">
+                    <div class="indicator-picker-header">
+                        <span class="fw-semibold">Choose an Indicator</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.closeIndicatorPicker()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <input type="text" class="indicator-picker-search" id="indicatorSearch"
+                        placeholder="Search indicators..." oninput="StrategyBuilderPage.filterIndicators(this.value)">
+                    <div class="indicator-picker-list" id="indicatorPickerList">
+                        ${this.indicatorTypes.map(t => `
+                            <div class="indicator-picker-item" draggable="true"
+                                 ondragstart="StrategyBuilderPage.onIndicatorDragStart(event, '${t}')"
+                                 onclick="StrategyBuilderPage.addIndicatorNode('${t}')">
+                                <i class="bi bi-graph-up text-info me-2"></i>
+                                <span>${t}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
                 <!-- Bottom Toolbar - Single row block palette matching botcrypto.io -->
                 <div class="builder-bottom-toolbar">
                     <div class="toolbar-blocks-row">
-                        ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicators', 'tb-indicator')}
+                        <div class="toolbar-block" onclick="StrategyBuilderPage.toggleIndicatorPicker(event)">
+                            <div class="tb-icon tb-indicator position-relative">
+                                <i class="bi bi-graph-up"></i>
+                                <i class="bi bi-chevron-up indicator-arrow-up"></i>
+                            </div>
+                            <span class="tb-name">Indicators</span>
+                        </div>
                         ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
                         ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
                         ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing stop', 'tb-trailing')}
                         ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Wait', 'tb-wait')}
+                        ${this._toolbarBlock('fgi', 'bi-graph-up', 'FGI', 'tb-indicator')}
                         ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
                         ${this._toolbarBlock('buy', 'bi-cart-plus', 'Buy', 'tb-buy')}
                         ${this._toolbarBlock('sell', 'bi-cart-dash', 'Sell', 'tb-sell')}
@@ -144,6 +175,82 @@ const StrategyBuilderPage = {
         document.querySelectorAll('.builder-tab-pane').forEach(p => p.classList.remove('active'));
         const pane = document.getElementById('sbTab-' + tabId);
         if (pane) pane.classList.add('active');
+    },
+
+    // ========== INDICATOR PICKER ==========
+    toggleIndicatorPicker(event) {
+        event.stopPropagation();
+        const popup = document.getElementById('indicatorPickerPopup');
+        if (!popup) return;
+        popup.classList.toggle('open');
+        if (popup.classList.contains('open')) {
+            const search = document.getElementById('indicatorSearch');
+            if (search) { search.value = ''; search.focus(); }
+            this.filterIndicators('');
+            // Close on outside click
+            setTimeout(() => {
+                this._indicatorPickerCloseHandler = (e) => {
+                    if (!popup.contains(e.target) && !e.target.closest('.toolbar-block')) {
+                        this.closeIndicatorPicker();
+                    }
+                };
+                document.addEventListener('click', this._indicatorPickerCloseHandler);
+            }, 10);
+        } else {
+            this._removeIndicatorPickerHandler();
+        }
+    },
+
+    closeIndicatorPicker() {
+        const popup = document.getElementById('indicatorPickerPopup');
+        if (popup) popup.classList.remove('open');
+        this._removeIndicatorPickerHandler();
+    },
+
+    _removeIndicatorPickerHandler() {
+        if (this._indicatorPickerCloseHandler) {
+            document.removeEventListener('click', this._indicatorPickerCloseHandler);
+            this._indicatorPickerCloseHandler = null;
+        }
+    },
+
+    filterIndicators(query) {
+        const list = document.getElementById('indicatorPickerList');
+        if (!list) return;
+        const items = list.querySelectorAll('.indicator-picker-item');
+        const q = query.toLowerCase();
+        items.forEach(item => {
+            const name = item.textContent.toLowerCase();
+            item.style.display = name.includes(q) ? '' : 'none';
+        });
+    },
+
+    addIndicatorNode(type) {
+        this.closeIndicatorPicker();
+        const canvas = document.getElementById('builderCanvas');
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (rect.width / 2 - this._panX) / this._zoom - 40 + Math.random() * 100;
+        const y = (rect.height / 2 - this._panY) / this._zoom - 40 + Math.random() * 100;
+
+        const bt = this.blockTypes.indicator;
+        const node = {
+            id: this.nextId++,
+            type: 'indicator',
+            x: Math.max(0, x),
+            y: Math.max(0, y),
+            params: { ...bt.params, type }
+        };
+        this.nodes.push(node);
+        this.renderNodes();
+        this.autoSave();
+        App.showToast(`Added ${type} indicator`, 'success');
+    },
+
+    onIndicatorDragStart(event, indicatorType) {
+        event.dataTransfer.setData('blockType', 'indicator');
+        event.dataTransfer.setData('indicatorType', indicatorType);
+        this.closeIndicatorPicker();
     },
 
     _toolbarBlock(type, icon, name, tbClass) {
@@ -216,27 +323,10 @@ const StrategyBuilderPage = {
 
     createDefaultNodes() {
         this.nodes = [
-            { id: 1, type: 'start', x: 100, y: 250, params: {} },
-            { id: 2, type: 'indicator', x: 300, y: 350, params: { type: 'EMA', timeframe: '1m', period: 9, value: 0, condition: 'Crosses Over', compareType: 'EMA', comparePeriod: 26, compareValue: 0 } },
-            { id: 3, type: 'buy', x: 500, y: 250, params: { orderType: 'Market', trade: 'First', volume: 100, volumePercent: true, price: 0, assetQuote: true } },
-            { id: 4, type: 'gain', x: 700, y: 180, params: { condition: 'Above', value: 2, trade: 'Last' } },
-            { id: 5, type: 'sell', x: 900, y: 120, params: { orderType: 'Market', trade: 'First', volume: 100, volumePercent: true, price: 0, assetQuote: false } },
-            { id: 6, type: 'gain', x: 700, y: 350, params: { condition: 'Below', value: -5, trade: 'Last' } },
-            { id: 7, type: 'sell', x: 900, y: 350, params: { orderType: 'Market', trade: 'First', volume: 100, volumePercent: true, price: 0, assetQuote: false } },
-            { id: 8, type: 'terminate', x: 1100, y: 120, params: {} },
+            { id: 1, type: 'start', x: 120, y: 250, params: {} },
         ];
-        this.connections = [
-            { from: 1, to: 2, type: 'normal' },
-            { from: 1, to: 3, type: 'normal' },
-            { from: 2, to: 3, type: 'normal' },
-            { from: 3, to: 4, type: 'normal' },
-            { from: 3, to: 6, type: 'normal' },
-            { from: 4, to: 5, type: 'true' },
-            { from: 6, to: 7, type: 'true' },
-            { from: 5, to: 8, type: 'normal' },
-            { from: 7, to: 5, type: 'normal' },
-        ];
-        this.nextId = 9;
+        this.connections = [];
+        this.nextId = 2;
     },
 
     renderNodes() {
@@ -259,7 +349,11 @@ const StrategyBuilderPage = {
         let paramsText = '';
         if (node.type === 'indicator') {
             const p = node.params;
-            paramsText = `${p.timeframe} | ${p.type}${p.period ? '+' : ''} ${p.period} ${p.value} ${p.condition} ${p.compareType}...`;
+            if (p.type === 'Price') {
+                paramsText = `${p.timeframe} | ${p.line || 'Close'} ${p.value || 0} ${p.condition} ${p.compareType || ''}`;
+            } else {
+                paramsText = `${p.timeframe} | ${p.type}+ ${p.period} ${p.value} ${p.condition} ${p.compareType || ''}...`;
+            }
         } else if (node.type === 'gain') {
             const p = node.params;
             paramsText = `${p.condition} ${p.value} ${p.trade}`;
@@ -381,10 +475,33 @@ const StrategyBuilderPage = {
         const x = (event.clientX - rect.left - this._panX) / this._zoom - 40;
         const y = (event.clientY - rect.top - this._panY) / this._zoom - 40;
 
+        // If dragging a specific indicator type from the picker
+        const indicatorType = event.dataTransfer.getData('indicatorType');
+        if (type === 'indicator' && indicatorType) {
+            const bt = this.blockTypes.indicator;
+            const node = {
+                id: this.nextId++,
+                type: 'indicator',
+                x: Math.max(0, x),
+                y: Math.max(0, y),
+                params: { ...bt.params, type: indicatorType }
+            };
+            this.nodes.push(node);
+            this.renderNodes();
+            this.autoSave();
+            App.showToast(`Added ${indicatorType} indicator`, 'success');
+            return;
+        }
+
         this.addNodeAt(type, x, y);
     },
 
     addNode(type, x, y) {
+        // FGI shortcut: add indicator with Fear & Greed Index type
+        if (type === 'fgi') {
+            this.addIndicatorNode('Fear & Greed Index');
+            return;
+        }
         const canvas = document.getElementById('builderCanvas');
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
@@ -639,9 +756,11 @@ const StrategyBuilderPage = {
         const title = document.getElementById('nodePropertiesTitle');
         const body = document.getElementById('nodePropertiesBody');
 
-        title.innerHTML = `<span class="me-2">${bt.letter || ''}</span> ${bt.label}`;
+        const displayLabel = node.type === 'indicator' ? (node.params.type || bt.label) : bt.label;
+        title.innerHTML = `<i class="bi ${bt.icon} me-2"></i> ${displayLabel}`;
 
-        let html = `<p class="text-secondary small">${this._getBlockDescription(node.type)}</p>`;
+        let descKey = node.type === 'indicator' && node.params.type === 'Price' ? 'price' : node.type;
+        let html = `<p class="text-secondary small">${this._getBlockDescription(descKey)}</p>`;
 
         if (node.type === 'buy' || node.type === 'sell') {
             html += this._orderPropertiesForm(node);
@@ -677,6 +796,7 @@ const StrategyBuilderPage = {
             buy: 'Send a market or limit buy order. Allows to manage currently opened bot orders.',
             sell: 'Send a market or limit sell order. Allows to manage currently opened bot orders.',
             indicator: 'Technical analysis indicator. Compare values to generate trading signals.',
+            price: 'Price data composed of opening, close, high and low prices for a given period.',
             gain: 'Check the gain/loss of a trade. Routes flow based on condition.',
             stoploss: 'Automatically sell when loss exceeds threshold.',
             takeprofit: 'Automatically sell when profit reaches target.',
@@ -742,6 +862,69 @@ const StrategyBuilderPage = {
 
     _indicatorPropertiesForm(node) {
         const p = node.params;
+        const isPrice = p.type === 'Price';
+
+        // Price indicator has special Line selector (Open/High/Low/Close)
+        if (isPrice) {
+            return `
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-graph-up text-info me-2"></i>
+                        <span class="fw-semibold text-light">PRICE</span>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <small class="text-secondary d-block">LINE</small>
+                            <span class="fw-semibold text-light">${p.line || 'Close'}</span>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-secondary d-block">OFFSET</small>
+                            <span class="fw-semibold text-light">${p.value || 0}</span>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-secondary d-block">MULTIPLICATOR</small>
+                            <span class="fw-semibold text-light">${p.multiplicator || 1}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="text-light mb-2">Line</h6>
+            <div class="btn-group w-100 mb-3">
+                ${['Open', 'High', 'Low', 'Close'].map(l => `
+                    <button class="btn btn-sm ${(p.line || 'Close') === l ? 'btn-outline-success active' : 'btn-outline-secondary'}"
+                        onclick="StrategyBuilderPage.updateParam(${node.id}, 'line', '${l}'); StrategyBuilderPage.editNode(${node.id})">${l}</button>
+                `).join('')}
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="form-label small text-secondary">Offset</label>
+                    <input type="number" class="form-control form-control-sm" value="${p.value || 0}" step="1"
+                        onchange="StrategyBuilderPage.updateParam(${node.id}, 'value', parseFloat(this.value))">
+                </div>
+                <div class="col-6">
+                    <label class="form-label small text-secondary">Multiplicator</label>
+                    <input type="number" class="form-control form-control-sm" value="${p.multiplicator || 1}" step="0.1"
+                        onchange="StrategyBuilderPage.updateParam(${node.id}, 'multiplicator', parseFloat(this.value))">
+                </div>
+            </div>
+
+            <h6 class="text-light mb-2">Condition</h6>
+            <select class="form-select mb-3" onchange="StrategyBuilderPage.updateParam(${node.id}, 'condition', this.value)">
+                ${['Above', 'Below', 'Crosses Over', 'Crosses Under', 'Equal'].map(c => `<option ${p.condition === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+
+            <h6 class="text-light mb-2">Comparator</h6>
+            <select class="form-select mb-3" onchange="StrategyBuilderPage.updateParam(${node.id}, 'compareType', this.value); StrategyBuilderPage.editNode(${node.id})">
+                <option value="">-- Comparator --</option>
+                ${this.indicatorTypes.map(t => `<option value="${t}" ${p.compareType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                <option ${p.compareType === 'Value' ? 'selected' : ''}>Value</option>
+            </select>`;
+        }
+
+        // Standard indicator form
         return `
         <h6 class="text-light mb-2">Indicator Type</h6>
         <select class="form-select mb-3" onchange="StrategyBuilderPage.updateParam(${node.id}, 'type', this.value); StrategyBuilderPage.editNode(${node.id})">
@@ -769,23 +952,21 @@ const StrategyBuilderPage = {
 
         <h6 class="text-light mb-2">Condition</h6>
         <select class="form-select mb-3" onchange="StrategyBuilderPage.updateParam(${node.id}, 'condition', this.value)">
-            ${['Crosses Over', 'Crosses Under', 'Above', 'Below', 'Equals'].map(c => `<option ${p.condition === c ? 'selected' : ''}>${c}</option>`).join('')}
+            ${['Crosses Over', 'Crosses Under', 'Above', 'Below', 'Equal'].map(c => `<option ${p.condition === c ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
 
-        <h6 class="text-light mb-2">Compare With</h6>
-        <div class="row g-2 mb-3">
-            <div class="col">
-                <select class="form-select form-select-sm" onchange="StrategyBuilderPage.updateParam(${node.id}, 'compareType', this.value)">
-                    ${this.indicatorTypes.map(t => `<option ${p.compareType === t ? 'selected' : ''}>${t}</option>`).join('')}
-                    <option ${p.compareType === 'Value' ? 'selected' : ''}>Value</option>
-                    <option ${p.compareType === 'Price' ? 'selected' : ''}>Price</option>
-                </select>
-            </div>
-            <div class="col">
-                <input type="number" class="form-control form-control-sm" value="${p.comparePeriod}"
-                    onchange="StrategyBuilderPage.updateParam(${node.id}, 'comparePeriod', parseInt(this.value))">
-            </div>
-        </div>`;
+        <h6 class="text-light mb-2">Comparator</h6>
+        <select class="form-select mb-3" onchange="StrategyBuilderPage.updateParam(${node.id}, 'compareType', this.value)">
+            <option value="">-- Comparator --</option>
+            ${this.indicatorTypes.map(t => `<option value="${t}" ${p.compareType === t ? 'selected' : ''}>${t}</option>`).join('')}
+            <option ${p.compareType === 'Value' ? 'selected' : ''}>Value</option>
+        </select>
+        ${p.compareType && p.compareType !== 'Value' ? '' : `
+        <div class="mb-3">
+            <label class="form-label small text-secondary">Compare Value</label>
+            <input type="number" class="form-control form-control-sm" value="${p.comparePeriod || 0}"
+                onchange="StrategyBuilderPage.updateParam(${node.id}, 'comparePeriod', parseInt(this.value))">
+        </div>`}`;
     },
 
     _gainPropertiesForm(node) {
