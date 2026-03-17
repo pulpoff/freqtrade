@@ -339,6 +339,9 @@ const DashboardPage = {
         }
     },
 
+    // Cached strategy name to avoid repeated getConfig calls
+    _strategyName: '',
+
     async loadChartData() {
         if (!this.candleSeries) return;
 
@@ -362,13 +365,13 @@ const DashboardPage = {
 
         try {
             if (API.connected && pair) {
-                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - Loading...`;
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - <span class="spinner-border spinner-border-sm me-1"></span>Loading...`;
 
                 const limit = this._candleLimits[tf] || 2000;
                 let candles = null;
                 let signals = [];
 
-                // Try 1: pair_candles (strategy-analyzed data)
+                // Try 1: pair_candles (fast - strategy-analyzed data for whitelisted pairs)
                 try {
                     const data = await API.getPairCandles(pair, tf, limit);
                     if (data && data.columns && data.data && data.data.length > 0) {
@@ -377,6 +380,38 @@ const DashboardPage = {
                     }
                 } catch (e) {
                     console.log('pair_candles failed:', e.message);
+                }
+
+                // Try 2: pair_history fallback (slower - fetches & analyzes data for any pair)
+                if (!candles || candles.length === 0) {
+                    try {
+                        if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - <span class="spinner-border spinner-border-sm me-1"></span>Fetching data...`;
+
+                        // Use shorter timerange to keep it fast
+                        const now = new Date();
+                        const daysBack = { '1m': 1, '3m': 2, '5m': 3, '15m': 7, '30m': 14, '1h': 30, '4h': 60, '1d': 180 };
+                        const days = daysBack[tf] || 3;
+                        const start = new Date(now.getTime() - days * 86400000);
+                        const timerange = `${start.toISOString().slice(0,10).replace(/-/g,'')}-${now.toISOString().slice(0,10).replace(/-/g,'')}`;
+
+                        // Cache strategy name to avoid repeated config calls
+                        if (!this._strategyName) {
+                            try {
+                                const config = await API.getConfig();
+                                this._strategyName = config.strategy || '';
+                            } catch(e) {}
+                        }
+
+                        if (this._strategyName) {
+                            const data = await API.getPairHistory(pair, tf, timerange, this._strategyName);
+                            if (data && data.columns && data.data && data.data.length > 0) {
+                                candles = API.parseCandleData(data);
+                                signals = API.parseSignals(data);
+                            }
+                        }
+                    } catch (e) {
+                        console.log('pair_history fallback failed:', e.message);
+                    }
                 }
 
                 if (candles && candles.length > 0) {
