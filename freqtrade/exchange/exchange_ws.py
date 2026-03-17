@@ -50,9 +50,12 @@ class ExchangeWS:
             self.reset_connections()
 
             self._loop.call_soon_threadsafe(self._loop.stop)
-            time.sleep(0.1)
+            # Wait for the event loop thread to finish instead of sleeping
+            self._thread.join(timeout=5.0)
             if not self._loop.is_closed():
                 self._loop.close()
+            logger.debug("Stopped")
+            return
 
         self._thread.join()
         logger.debug("Stopped")
@@ -63,9 +66,12 @@ class ExchangeWS:
         """
         if hasattr(self, "_loop") and not self._loop.is_closed():
             logger.info("Resetting WS connections.")
-            asyncio.run_coroutine_threadsafe(self._cleanup_async(), loop=self._loop)
-            while not self.__cleanup_called:
-                time.sleep(0.1)
+            future = asyncio.run_coroutine_threadsafe(self._cleanup_async(), loop=self._loop)
+            # Block until the coroutine completes (with timeout) instead of polling with sleep
+            try:
+                future.result(timeout=10.0)
+            except Exception:
+                logger.exception("Error during WS cleanup")
         self.__cleanup_called = False
 
     async def _cleanup_async(self) -> None:

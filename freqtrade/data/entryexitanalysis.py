@@ -49,24 +49,34 @@ def _analyze_candles_and_indicators(
         trades_inds = pd.DataFrame()
 
         if trades_red.shape[0] > 0 and buyf.shape[0] > 0:
-            for t, v in trades_red.iterrows():
-                allinds = buyf.loc[(buyf["date"] < v[date_col])]
-                if allinds.shape[0] > 0:
-                    tmp_inds = allinds.iloc[[-1]]
+            # Use merge_asof for efficient nearest-date lookup instead of O(n²) iterrows
+            buyf_sorted = buyf.sort_values("date")
+            trades_sorted = trades_red.sort_values(date_col)
 
-                    trades_red.loc[t, "signal_date"] = tmp_inds["date"].values[0]
-                    trades_red.loc[t, "enter_reason"] = trades_red.loc[t, "enter_tag"]
-                    tmp_inds.index.rename("signal_date", inplace=True)
-                    trades_inds = pd.concat([trades_inds, tmp_inds])
+            # Find the last signal candle before each trade's date
+            merged = pd.merge_asof(
+                trades_sorted[[date_col]].rename(columns={date_col: "_lookup_date"}),
+                buyf_sorted[["date"]].rename(columns={"date": "signal_date"}),
+                left_on="_lookup_date",
+                right_on="signal_date",
+                direction="backward",
+            )
+
+            trades_red["signal_date"] = merged["signal_date"].values
+            trades_red["enter_reason"] = trades_red["enter_tag"]
+
+            # Collect indicator rows for matched signal dates
+            valid_mask = trades_red["signal_date"].notna()
+            if valid_mask.any():
+                signal_dates = trades_red.loc[valid_mask, "signal_date"].unique()
+                trades_inds = buyf.loc[buyf["date"].isin(signal_dates)].copy()
+                trades_inds.index.rename("signal_date", inplace=True)
 
             if "signal_date" in trades_red:
                 trades_red["signal_date"] = pd.to_datetime(trades_red["signal_date"], utc=True)
                 trades_red.set_index("signal_date", inplace=True)
 
-                try:
-                    trades_red = pd.merge(trades_red, trades_inds, on="signal_date", how="outer")
-                except Exception as e:
-                    raise e
+                trades_red = pd.merge(trades_red, trades_inds, on="signal_date", how="outer")
         return trades_red
     else:
         return pd.DataFrame()
@@ -140,25 +150,26 @@ def _do_group_table_output(
                 "total_profit_pct",
             ]
             sortcols = ["profit_abs_sum", "enter_reason"]
+            group_mask: list[str] = []
 
             # 1: profit summaries grouped by enter_tag
             if g == "1":
                 group_mask = ["enter_reason"]
 
             # 2: profit summaries grouped by enter_tag and exit_tag
-            if g == "2":
+            elif g == "2":
                 group_mask = ["enter_reason", "exit_reason"]
 
             # 3: profit summaries grouped by pair and enter_tag
-            if g == "3":
+            elif g == "3":
                 group_mask = ["pair", "enter_reason"]
 
             # 4: profit summaries grouped by pair, enter_ and exit_tag (this can get quite large)
-            if g == "4":
+            elif g == "4":
                 group_mask = ["pair", "enter_reason", "exit_reason"]
 
             # 5: profit summaries grouped by exit_tag
-            if g == "5":
+            elif g == "5":
                 group_mask = ["exit_reason"]
                 sortcols = ["exit_reason"]
 

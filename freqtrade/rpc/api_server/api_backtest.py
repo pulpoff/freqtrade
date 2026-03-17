@@ -118,8 +118,11 @@ def __run_backtest_bg(btconfig: Config):
     except ConfigurationError as e:
         logger.error(f"Backtesting encountered a configuration Error: {e}")
 
-    except (Exception, OperationalException, DependencyException) as e:
+    except (OperationalException, DependencyException) as e:
         logger.exception(f"Backtesting caused an error: {e}")
+        ApiBG.bt["bt_error"] = str(e)
+    except Exception as e:
+        logger.exception(f"Backtesting caused an unexpected error: {e}")
         ApiBG.bt["bt_error"] = str(e)
     finally:
         ApiBG.bgtask_running = False

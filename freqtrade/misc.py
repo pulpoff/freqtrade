@@ -63,7 +63,7 @@ def json_load(datafile: TextIO) -> Any:
     return rapidjson.load(datafile, number_mode=rapidjson.NM_NATIVE)
 
 
-def file_load_json(file: Path):
+def file_load_json(file: Path) -> Any:
     if file.suffix != ".gz":
         gzipfile = file.with_suffix(file.suffix + ".gz")
     else:
@@ -95,7 +95,7 @@ def pair_to_filename(pair: str) -> str:
     return pair
 
 
-def deep_merge_dicts(source, destination, allow_null_overrides: bool = True):
+def deep_merge_dicts(source: dict, destination: dict, allow_null_overrides: bool = True) -> dict:
     """
     Values from Source override destination, destination is returned (and modified!!)
     Sample:
@@ -115,7 +115,7 @@ def deep_merge_dicts(source, destination, allow_null_overrides: bool = True):
     return destination
 
 
-def round_dict(d, n):
+def round_dict(d: dict, n: int) -> dict:
     """
     Rounds float values in the dict to n digits after the decimal point.
     """
@@ -190,7 +190,7 @@ def chunks(lst: list[Any], n: int) -> Iterator[list[Any]]:
         yield (lst[chunk : chunk + n])
 
 
-def parse_db_uri_for_logging(uri: str):
+def parse_db_uri_for_logging(uri: str) -> str:
     """
     Helper method to parse the DB URI and return the same DB URI with the password censored
     if it contains it. Otherwise, return the DB URI unchanged
