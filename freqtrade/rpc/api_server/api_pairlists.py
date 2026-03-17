@@ -61,7 +61,7 @@ def __run_pairlist(job_id: str, config_loc: Config):
                 "whitelist": pairlists.whitelist,
             }
             ApiBG.jobs[job_id]["status"] = "success"
-    except (OperationalException, Exception) as e:
+    except Exception as e:
         logger.exception(e)
         ApiBG.jobs[job_id]["error"] = str(e)
         ApiBG.jobs[job_id]["status"] = "failed"

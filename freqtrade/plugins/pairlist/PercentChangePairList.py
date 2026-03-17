@@ -72,7 +72,7 @@ class PercentChangePairList(IPairList):
         # whether to use range lookback or not
         self._use_range = (self._tf_in_min > 0) and (self._lookback_period > 0)
 
-        if self._use_range & (self._refresh_period < _tf_in_sec):
+        if self._use_range and (self._refresh_period < _tf_in_sec):
             raise OperationalException(
                 f"Refresh period of {self._refresh_period} seconds is smaller than one "
                 f"timeframe of {self._lookback_timeframe}. Please adjust refresh_period "

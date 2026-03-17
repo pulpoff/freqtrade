@@ -312,12 +312,12 @@ class FreqtradeBot(LoggingMixin):
         Notify the user when the bot is stopped (not reloaded)
         and there are still open trades active.
         """
-        open_trades = Trade.get_open_trades()
+        open_trade_count = Trade.get_open_trade_count()
 
-        if len(open_trades) != 0 and self.state != State.RELOAD_CONFIG:
+        if open_trade_count != 0 and self.state != State.RELOAD_CONFIG:
             msg = {
                 "type": RPCMessageType.WARNING,
-                "status": f"{len(open_trades)} open trades active.\n\n"
+                "status": f"{open_trade_count} open trades active.\n\n"
                 f"Handle these trades manually on {self.exchange.name}, "
                 f"or '/start' the bot again and use '/stopentry' "
                 f"to handle open trades gracefully. \n"
@@ -606,15 +606,15 @@ class FreqtradeBot(LoggingMixin):
         """
         trades_created = 0
 
-        whitelist = deepcopy(self.active_pair_whitelist)
+        whitelist = list(self.active_pair_whitelist)
         if not whitelist:
             self.log_once("Active pair whitelist is empty.", logger.info)
             return trades_created
         # Remove pairs for currently opened trades from the whitelist
-        for trade in Trade.get_open_trades():
-            if trade.pair in whitelist:
-                whitelist.remove(trade.pair)
-                logger.debug("Ignoring %s in pair whitelist", trade.pair)
+        open_trade_pairs = {trade.pair for trade in Trade.get_open_trades()}
+        whitelist = [pair for pair in whitelist if pair not in open_trade_pairs]
+        for pair in open_trade_pairs:
+            logger.debug("Ignoring %s in pair whitelist", pair)
 
         if not whitelist:
             self.log_once(
