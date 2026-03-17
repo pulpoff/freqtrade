@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,7 +29,7 @@ from freqtrade.rpc.api_server.api_schemas import (
     BacktestRequest,
     BacktestResponse,
 )
-from freqtrade.rpc.api_server.deps import get_config, verify_strategy
+from freqtrade.rpc.api_server.deps import get_config, safe_deepcopy, verify_strategy
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
 from freqtrade.rpc.rpc import RPCException
 
@@ -142,24 +141,7 @@ async def api_start_backtest(
 
     verify_strategy(bt_settings.strategy)
 
-    try:
-        btconfig = deepcopy(config)
-    except TypeError:
-        # Config may contain unpicklable objects (e.g. _thread.lock from strategy manager).
-        # Fall back to a JSON-safe shallow reconstruction.
-        import json
-        def _safe_copy(obj):
-            try:
-                return json.loads(json.dumps(obj))
-            except (TypeError, ValueError):
-                if isinstance(obj, dict):
-                    return {k: _safe_copy(v) for k, v in obj.items()
-                            if not callable(v) and not isinstance(v, type)}
-                elif isinstance(obj, (list, tuple)):
-                    return type(obj)(_safe_copy(i) for i in obj)
-                else:
-                    return obj
-        btconfig = _safe_copy(config)
+    btconfig = safe_deepcopy(config)
     remove_exchange_credentials(btconfig["exchange"], True)
     settings = dict(bt_settings)
     if settings.get("freqai", None) is not None:

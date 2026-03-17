@@ -636,6 +636,14 @@ class PairHistory(BaseModel):
     data_stop_ts: int
 
 
+class PairOHLCV(BaseModel):
+    pair: str
+    timeframe: str
+    columns: list[str]
+    data: SerializeAsAny[list[Any]]
+    length: int
+
+
 class BacktestFreqAIInputs(BaseModel):
     identifier: str
 

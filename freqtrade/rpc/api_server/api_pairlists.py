@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.exceptions import HTTPException
@@ -15,7 +14,7 @@ from freqtrade.rpc.api_server.api_schemas import (
     PairListsResponse,
     WhitelistEvaluateResponse,
 )
-from freqtrade.rpc.api_server.deps import get_config, get_exchange
+from freqtrade.rpc.api_server.deps import get_config, get_exchange, safe_deepcopy
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
 
 
@@ -77,15 +76,7 @@ def pairlists_evaluate(
     if ApiBG.pairlist_running:
         raise HTTPException(status_code=400, detail="Pairlist evaluation is already running.")
 
-    try:
-        config_loc = deepcopy(config)
-    except TypeError:
-        import json
-        try:
-            config_loc = json.loads(json.dumps(config, default=str))
-        except (TypeError, ValueError):
-            config_loc = {k: v for k, v in config.items()
-                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+    config_loc = safe_deepcopy(config)
     config_loc["stake_currency"] = payload.stake_currency
     config_loc["pairlists"] = payload.pairlists
     handleExchangePayload(payload, config_loc)

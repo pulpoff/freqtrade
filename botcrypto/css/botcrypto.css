@@ -1567,7 +1567,7 @@ h4.fw-semibold, h5.fw-semibold {
 .sb-analysis-panel {
     position: fixed;
     top: 0;
-    left: var(--sidebar-collapsed-width);
+    left: var(--sidebar-width);
     bottom: 0;
     width: 340px;
     max-width: 40vw;
@@ -1576,9 +1576,18 @@ h4.fw-semibold, h5.fw-semibold {
     z-index: 1060;
     overflow-y: auto;
     overflow-x: hidden;
-    transform: translateX(calc(-100% - var(--sidebar-collapsed-width)));
-    transition: transform 0.3s ease;
+    transform: translateX(calc(-100% - var(--sidebar-width)));
+    transition: transform 0.3s ease, left 0.3s ease;
     box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+}
+/* When sidebar is collapsed, adjust panel position */
+.sidebar.collapsed ~ .main-wrapper .sb-backtest-panel,
+.sidebar.collapsed ~ .main-wrapper .sb-analysis-panel {
+    left: var(--sidebar-collapsed-width);
+    transform: translateX(calc(-100% - var(--sidebar-collapsed-width)));
+}
+.sidebar.collapsed ~ .main-wrapper .sb-backtest-panel.open {
+    transform: translateX(0);
 }
 
 .sb-analysis-panel {

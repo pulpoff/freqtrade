@@ -1,4 +1,6 @@
 from collections.abc import AsyncIterator
+from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -12,6 +14,27 @@ from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
 from freqtrade.rpc.rpc import RPC, RPCException
 
 from .webserver import ApiServer
+
+
+def safe_deepcopy(config: dict[str, Any]) -> dict[str, Any]:
+    """Deepcopy config, falling back to JSON serialization if _thread.lock objects are present."""
+    try:
+        return deepcopy(config)
+    except TypeError:
+        import json
+        try:
+            config_loc = json.loads(json.dumps(config, default=str))
+        except (TypeError, ValueError):
+            config_loc = {k: v for k, v in config.items()
+                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+        # Restore Path objects that got converted to strings by JSON serialization
+        for key in ("datadir", "user_data_dir"):
+            if key in config_loc and isinstance(config_loc[key], str):
+                config_loc[key] = Path(config_loc[key])
+        # Ensure essential config keys have defaults if missing
+        config_loc.setdefault("dataformat_ohlcv", config.get("dataformat_ohlcv", "feather"))
+        config_loc.setdefault("dataformat_trades", config.get("dataformat_trades", "feather"))
+        return config_loc
 
 
 def get_rpc_optional() -> RPC | None:

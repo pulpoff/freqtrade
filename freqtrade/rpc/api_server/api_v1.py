@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -27,6 +26,7 @@ from freqtrade.rpc.api_server.deps import (
     get_exchange,
     get_rpc,
     get_rpc_optional,
+    safe_deepcopy,
     verify_strategy,
 )
 from freqtrade.rpc.rpc import RPCException
@@ -140,15 +140,7 @@ def plot_config(
             raise RPCException("Strategy is mandatory in webserver mode.")
         return PlotConfig.model_validate(rpc._rpc_plot_config())
     else:
-        try:
-            config1 = deepcopy(config)
-        except TypeError:
-            import json
-            try:
-                config1 = json.loads(json.dumps(config, default=str))
-            except (TypeError, ValueError):
-                config1 = {k: v for k, v in config.items()
-                           if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+        config1 = safe_deepcopy(config)
         config1.update({"strategy": strategy})
     try:
         return PlotConfig.model_validate(RPC._rpc_plot_config_with_strategy(config1))
@@ -164,15 +156,7 @@ def markets(
 ):
     if not rpc or config["runmode"] == RunMode.WEBSERVER:
         # webserver mode
-        try:
-            config_loc = deepcopy(config)
-        except TypeError:
-            import json
-            try:
-                config_loc = json.loads(json.dumps(config, default=str))
-            except (TypeError, ValueError):
-                config_loc = {k: v for k, v in config.items()
-                              if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+        config_loc = safe_deepcopy(config)
         handleExchangePayload(query, config_loc)
         exchange = get_exchange(config_loc)
     else:
@@ -195,15 +179,7 @@ def get_strategy(
 
     if not rpc or config["runmode"] == RunMode.WEBSERVER:
         # webserver mode
-        try:
-            config_ = deepcopy(config)
-        except TypeError:
-            import json
-            try:
-                config_ = json.loads(json.dumps(config, default=str))
-            except (TypeError, ValueError):
-                config_ = {k: v for k, v in config.items()
-                           if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+        config_ = safe_deepcopy(config)
         from freqtrade.resolvers.strategy_resolver import StrategyResolver
 
         try:
@@ -241,5 +217,7 @@ def sysinfo():
 
 
 @router.get("/health", response_model=Health, tags=["Info"])
-def health(rpc: RPC = Depends(get_rpc)):
+def health(rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return {"last_process": None, "last_process_loc": None, "last_process_ts": None}
     return rpc.health()

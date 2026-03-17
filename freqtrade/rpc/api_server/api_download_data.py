@@ -1,6 +1,4 @@
 import logging
-from copy import deepcopy
-
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.exceptions import HTTPException
 
@@ -9,7 +7,7 @@ from freqtrade.exceptions import OperationalException
 from freqtrade.persistence import FtNoDBContext
 from freqtrade.rpc.api_server.api_pairlists import handleExchangePayload
 from freqtrade.rpc.api_server.api_schemas import BgJobStarted, DownloadDataPayload
-from freqtrade.rpc.api_server.deps import get_config, get_exchange
+from freqtrade.rpc.api_server.deps import get_config, get_exchange, safe_deepcopy
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
 from freqtrade.util.progress_tracker import get_progress_tracker
 
@@ -54,15 +52,7 @@ def pairlists_evaluate(
 ):
     if ApiBG.download_data_running:
         raise HTTPException(status_code=400, detail="Data Download is already running.")
-    try:
-        config_loc = deepcopy(config)
-    except TypeError:
-        import json
-        try:
-            config_loc = json.loads(json.dumps(config, default=str))
-        except (TypeError, ValueError):
-            config_loc = {k: v for k, v in config.items()
-                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+    config_loc = safe_deepcopy(config)
     config_loc["stake_currency"] = ""
     config_loc["pairs"] = payload.pairs
     if payload.timerange:
