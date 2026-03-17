@@ -246,28 +246,24 @@ const BacktestingPage = {
             console.log('Could not load strategies:', e.message);
         }
 
-        // Add imported strategies that aren't in the API list yet
+        // Add imported strategies — always show them, upload in background if needed
         const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
         const apiNames = this.strategies || [];
         for (const [name, info] of Object.entries(imported)) {
             if (!apiNames.includes(name)) {
-                // Try to upload if connected and not yet uploaded
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+                // Try to upload in background if connected and not yet uploaded
                 if (API.connected && !info.uploaded && info.content) {
-                    try {
-                        await API.request('/strategies/upload', {
-                            method: 'POST',
-                            body: JSON.stringify({ strategy: info.content, name })
-                        });
+                    API.request('/strategies/upload', {
+                        method: 'POST',
+                        body: JSON.stringify({ strategy: info.content, name })
+                    }).then(() => {
                         info.uploaded = true;
                         localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
-                        // Add to list since it's now available
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.textContent = `${name} (imported)`;
-                        select.appendChild(opt);
-                    } catch (e) {
-                        console.log(`Could not upload imported strategy ${name}:`, e.message);
-                    }
+                    }).catch(e => console.log(`Upload ${name}:`, e.message));
                 }
             }
         }

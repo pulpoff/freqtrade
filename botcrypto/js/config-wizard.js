@@ -163,13 +163,27 @@ const ConfigWizardPage = {
 
         <div class="mb-3">
             <label class="form-label">Exchange</label>
-            <select class="form-select" onchange="ConfigWizardPage.config.exchange = this.value">
+            <select class="form-select" id="cfgExchangeSelect" onchange="ConfigWizardPage.config.exchange = this.value">
                 <option value="binance" ${this.config.exchange === 'binance' ? 'selected' : ''}>Binance</option>
+                <option value="bybit" ${this.config.exchange === 'bybit' ? 'selected' : ''}>Bybit</option>
                 <option value="kraken" ${this.config.exchange === 'kraken' ? 'selected' : ''}>Kraken</option>
                 <option value="kucoin" ${this.config.exchange === 'kucoin' ? 'selected' : ''}>KuCoin</option>
-                <option value="gate" ${this.config.exchange === 'gate' ? 'selected' : ''}>Gate.io</option>
-                <option value="bybit" ${this.config.exchange === 'bybit' ? 'selected' : ''}>Bybit</option>
                 <option value="okx" ${this.config.exchange === 'okx' ? 'selected' : ''}>OKX</option>
+                <option value="gate" ${this.config.exchange === 'gate' ? 'selected' : ''}>Gate.io</option>
+                <option value="bitget" ${this.config.exchange === 'bitget' ? 'selected' : ''}>Bitget</option>
+                <option value="htx" ${this.config.exchange === 'htx' ? 'selected' : ''}>HTX (Huobi)</option>
+                <option value="mexc" ${this.config.exchange === 'mexc' ? 'selected' : ''}>MEXC</option>
+                <option value="coinbase" ${this.config.exchange === 'coinbase' ? 'selected' : ''}>Coinbase</option>
+                <option value="bitstamp" ${this.config.exchange === 'bitstamp' ? 'selected' : ''}>Bitstamp</option>
+                <option value="bitmart" ${this.config.exchange === 'bitmart' ? 'selected' : ''}>BitMart</option>
+                <option value="cryptocom" ${this.config.exchange === 'cryptocom' ? 'selected' : ''}>Crypto.com</option>
+                <option value="deribit" ${this.config.exchange === 'deribit' ? 'selected' : ''}>Deribit</option>
+                <option value="gemini" ${this.config.exchange === 'gemini' ? 'selected' : ''}>Gemini</option>
+                <option value="hyperliquid" ${this.config.exchange === 'hyperliquid' ? 'selected' : ''}>Hyperliquid</option>
+                <option value="lbank" ${this.config.exchange === 'lbank' ? 'selected' : ''}>LBank</option>
+                <option value="bingx" ${this.config.exchange === 'bingx' ? 'selected' : ''}>BingX</option>
+                <option value="bitfinex" ${this.config.exchange === 'bitfinex' ? 'selected' : ''}>Bitfinex</option>
+                <option value="phemex" ${this.config.exchange === 'phemex' ? 'selected' : ''}>Phemex</option>
             </select>
         </div>
 
