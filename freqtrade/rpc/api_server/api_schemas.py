@@ -652,6 +652,7 @@ class BacktestRequest(BaseModel):
     backtest_cache: str | None = None
     freqaimodel: str | None = None
     freqai: BacktestFreqAIInputs | None = None
+    pair_whitelist: list[str] | None = None
 
 
 class BacktestResponse(BaseModel):

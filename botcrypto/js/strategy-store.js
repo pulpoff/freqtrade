@@ -230,15 +230,26 @@ const StrategyStorePage = {
 
             <!-- Strategy Grid -->
             <div class="row g-3">
-                ${filtered.map(s => `
+                ${filtered.map(s => {
+                    const icon = this._getStrategyIcon(s.name);
+                    const badges = [];
+                    if (s._stoploss) badges.push(`<span class="badge bg-danger bg-opacity-15 text-danger">SL ${s._stoploss}%</span>`);
+                    if (s._roi) badges.push(`<span class="badge bg-success bg-opacity-15 text-success">ROI ${s._roi}%</span>`);
+                    if (s._leverage) badges.push(`<span class="badge bg-info bg-opacity-15 text-info">${s._leverage}x</span>`);
+                    if (s._trailing) badges.push(`<span class="badge bg-warning bg-opacity-15 text-warning">Trail</span>`);
+                    if (s._canShort) badges.push(`<span class="badge bg-purple bg-opacity-15" style="color:#a78bfa">Short</span>`);
+                    return `
                 <div class="col-lg-4 col-md-6">
                     <div class="card strategy-card h-100">
                         <div class="card-body" onclick="StrategyStorePage.viewDetail(${s.id})" style="cursor:pointer">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="fw-semibold mb-0">${s.name}</h6>
+                                <h6 class="fw-semibold mb-0">
+                                    <i class="bi ${icon} me-2" style="color:var(--bc-accent);opacity:0.8"></i>${s.name}
+                                </h6>
                                 <span class="text-success small fw-semibold">${s.isRemote ? 'Freqtrade' : `Imported ${s.imports} times`}</span>
                             </div>
-                            <p class="text-secondary small mb-3" style="line-height:1.6">${s.desc}</p>
+                            <p class="text-secondary small mb-2" style="line-height:1.6">${s.desc}</p>
+                            ${badges.length > 0 ? `<div class="d-flex gap-1 flex-wrap mb-2">${badges.join('')}</div>` : ''}
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="d-flex gap-1">
                                     <span class="badge bg-primary bg-opacity-10 text-primary">${s.timeframe}</span>
@@ -254,7 +265,7 @@ const StrategyStorePage = {
                             </div>
                         </div>
                     </div>
-                </div>`).join('')}
+                </div>`; }).join('')}
             </div>
 
             ${filtered.length === 0 ? Components.emptyState('search', 'No strategies found', 'Try adjusting your search or filters') : ''}
@@ -431,8 +442,25 @@ const StrategyStorePage = {
         </div>`;
     },
 
+    // Deterministic icon for a strategy name (persistent across sessions)
+    _strategyIcons: [
+        'bi-lightning-charge', 'bi-rocket-takeoff', 'bi-bullseye', 'bi-tsunami',
+        'bi-shield-check', 'bi-fire', 'bi-gem', 'bi-cpu', 'bi-graph-up-arrow',
+        'bi-crosshair', 'bi-trophy', 'bi-bar-chart-line', 'bi-stars', 'bi-signpost',
+        'bi-radar', 'bi-flower1', 'bi-moon-stars', 'bi-compass', 'bi-virus',
+        'bi-hurricane', 'bi-eye', 'bi-lightning', 'bi-globe2', 'bi-broadcast',
+        'bi-peace', 'bi-activity', 'bi-box-seam', 'bi-diamond', 'bi-infinity',
+        'bi-motherboard', 'bi-layers', 'bi-snow3', 'bi-heart-pulse', 'bi-tsunami',
+    ],
+
+    _getStrategyIcon(name) {
+        // Hash the name to get a persistent index
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+        return this._strategyIcons[Math.abs(hash) % this._strategyIcons.length];
+    },
+
     init() {
-        // Load any Freqtrade strategies
         this.loadRemoteStrategies();
     },
 
@@ -441,7 +469,6 @@ const StrategyStorePage = {
             if (API.connected) {
                 const data = await API.getStrategies();
                 if (data && data.strategies) {
-                    // Add as importable templates
                     data.strategies.forEach(name => {
                         if (!this.templates.find(t => t.name === name)) {
                             this.templates.push({
@@ -460,11 +487,40 @@ const StrategyStorePage = {
                             });
                         }
                     });
+                    this.refresh();
+                    // Fetch details for remote strategies in background
+                    this._loadRemoteDetails(data.strategies);
                 }
             }
         } catch (e) {
             console.log('Could not load remote strategies:', e.message);
         }
+    },
+
+    async _loadRemoteDetails(names) {
+        for (const name of names) {
+            try {
+                const detail = await API.getStrategy(name);
+                if (!detail || !detail.code) continue;
+                const code = detail.code;
+                const tpl = this.templates.find(t => t.name === name && t.isRemote);
+                if (!tpl) continue;
+                // Parse key info from code
+                const tfM = code.match(/timeframe\s*=\s*['"]([^'"]+)['"]/);
+                if (tfM) tpl.timeframe = tfM[1];
+                const slM = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
+                if (slM) tpl._stoploss = (parseFloat(slM[1]) * 100).toFixed(1);
+                const roiM = code.match(/minimal_roi\s*=\s*\{[^}]*"0"\s*:\s*([\d.]+)/);
+                if (roiM) tpl._roi = (parseFloat(roiM[1]) * 100).toFixed(1);
+                const leverageM = code.match(/leverage\s*.*?return\s+(\d+)/s) || code.match(/leverage\s*=\s*(\d+)/);
+                if (leverageM) tpl._leverage = leverageM[1];
+                const trailM = code.match(/trailing_stop\s*=\s*True/);
+                if (trailM) tpl._trailing = true;
+                const canShort = code.match(/can_short\s*=\s*True/);
+                if (canShort) tpl._canShort = true;
+            } catch(e) { /* skip */ }
+        }
+        this.refresh();
     },
 
     getFilteredTemplates() {

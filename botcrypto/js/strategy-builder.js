@@ -91,9 +91,198 @@ const StrategyBuilderPage = {
                     <button class="btn btn-warning btn-sm fw-semibold" onclick="StrategyBuilderPage.importStrategy()">
                         IMPORT <i class="bi bi-download ms-1"></i>
                     </button>
-                    <button class="btn btn-success btn-sm fw-semibold" onclick="StrategyBuilderPage.exportStrategy()">
+                    <button class="btn btn-outline-info btn-sm fw-semibold" onclick="StrategyBuilderPage.showAnalysis()" title="Analyze Strategy">
+                        <i class="bi bi-bar-chart-line me-1"></i> ANALYZE
+                    </button>
+                    <button class="btn btn-success btn-sm fw-semibold" onclick="StrategyBuilderPage.toggleBacktestPanel()">
                         <i class="bi bi-play-fill me-1"></i> BACKTEST
                     </button>
+                </div>
+            </div>
+
+            <!-- Backtest Panel (left overlay, botcrypto style) -->
+            <div class="sb-backtest-panel" id="sbBacktestPanel">
+                <div class="sb-bt-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-success"></i>
+                        <span class="fw-semibold">Backtest</span>
+                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.toggleBacktestPanel()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Config Section -->
+                <div class="sb-bt-section" id="sbBtConfig">
+                    <div class="mb-2">
+                        <label class="form-label small text-secondary mb-1">Select Coin</label>
+                        <select class="form-select form-select-sm" id="sbBtPair" style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)" required>
+                            <option value="" disabled selected>Choose a pair...</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Start</label>
+                            <input type="date" class="form-control form-control-sm" id="sbBtStart"
+                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">End</label>
+                            <input type="date" class="form-control form-control-sm" id="sbBtEnd"
+                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Wallet</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control" id="sbBtWallet" value="1000"
+                                    style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                                <span class="input-group-text" style="background:var(--bc-card);border-color:var(--bc-border);color:var(--bc-text-secondary)">USDT</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Max Trades</label>
+                            <input type="number" class="form-control form-control-sm" id="sbBtMaxTrades" value="3"
+                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Stake Amount</label>
+                            <input type="text" class="form-control form-control-sm" id="sbBtStake" value="unlimited"
+                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary mb-1">Timeframe</label>
+                            <select class="form-select form-select-sm" id="sbBtTimeframe"
+                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                                <option value="">Strategy default</option>
+                                <option value="1m">1m</option><option value="5m">5m</option>
+                                <option value="15m">15m</option><option value="1h">1h</option>
+                                <option value="4h">4h</option><option value="1d">1d</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-success w-100 fw-semibold mt-2" id="sbBtRunBtn" onclick="StrategyBuilderPage.runBacktestInPanel()">
+                        <i class="bi bi-play-fill me-1"></i> LAUNCH THE BACKTEST
+                    </button>
+                </div>
+
+                <!-- Progress -->
+                <div class="sb-bt-section d-none" id="sbBtProgress">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-success"></div>
+                        <span class="small" id="sbBtProgressLabel">Preparing...</span>
+                    </div>
+                    <div class="progress mb-1" style="height:6px">
+                        <div class="progress-bar bg-success" id="sbBtProgressBar" style="width:0%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-secondary" id="sbBtProgressDetail">Initializing...</small>
+                        <small class="text-secondary" id="sbBtProgressPct">0%</small>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm w-100 mt-2" onclick="StrategyBuilderPage.abortPanelBacktest()">
+                        <i class="bi bi-x-circle me-1"></i> Abort
+                    </button>
+                </div>
+
+                <!-- Results -->
+                <div class="sb-bt-section d-none" id="sbBtResults">
+                    <!-- Date range -->
+                    <div class="d-flex align-items-center gap-2 mb-2 small text-secondary">
+                        <i class="bi bi-calendar3"></i>
+                        <span id="sbBtDateRange"></span>
+                    </div>
+
+                    <!-- Chart -->
+                    <div class="sb-bt-chart-wrap mb-2">
+                        <div id="sbBtChart" style="height:200px;width:100%"></div>
+                    </div>
+
+                    <!-- Balance -->
+                    <div class="d-flex align-items-center gap-2 mb-3 py-2 px-2 rounded" style="background:var(--bc-bg)">
+                        <i class="bi bi-gem text-warning"></i>
+                        <span class="fw-semibold" id="sbBtBalance">0 USDT</span>
+                    </div>
+
+                    <!-- Equity Curve -->
+                    <div class="mb-3">
+                        <div id="sbBtEquity" style="height:120px;width:100%"></div>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="small text-secondary">Unrealized profits</div>
+                            <div class="fw-bold" id="sbBtUnrealized" style="color:var(--bc-text)">0 USDT</div>
+                            <div class="small text-secondary">Open orders pending</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="small text-secondary">Realized profits</div>
+                            <div class="fw-bold" id="sbBtRealized" style="color:var(--bc-green)">0 USDT</div>
+                            <div class="small text-secondary">Closed orders profits</div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="fw-bold fs-5" id="sbBtWinRate" style="color:var(--bc-green)">0 %</div>
+                            <div class="small text-secondary">Win rate</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold fs-5" id="sbBtAvgProfit" style="color:var(--bc-green)">0 USDT</div>
+                            <div class="small text-secondary">Average profit</div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <div class="small text-secondary">Total trades</div>
+                            <div class="fw-semibold" id="sbBtTotalTrades">0</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="small text-secondary">Max Drawdown</div>
+                            <div class="fw-semibold text-danger" id="sbBtDrawdown">0%</div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="small text-secondary">Avg Duration</div>
+                            <div class="fw-semibold" id="sbBtAvgDuration">-</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="small text-secondary">Profit Factor</div>
+                            <div class="fw-semibold" id="sbBtProfitFactor">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Trades table -->
+                    <div class="sb-bt-trades">
+                        <h6 class="small fw-semibold text-secondary text-uppercase mb-2">Recent Trades</h6>
+                        <div id="sbBtTradesList" style="max-height:200px;overflow-y:auto"></div>
+                    </div>
+
+                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.resetBacktestPanel()">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> New Backtest
+                    </button>
+                </div>
+            </div>
+
+            <!-- Strategy Analysis Panel (right overlay) -->
+            <div class="sb-analysis-panel" id="sbAnalysisPanel">
+                <div class="sb-bt-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-bar-chart-line text-info"></i>
+                        <span class="fw-semibold">Strategy Analysis</span>
+                    </div>
+                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.hideAnalysis()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="sb-bt-section" id="sbAnalysisContent">
+                    <div class="text-center text-secondary py-4">
+                        <i class="bi bi-bar-chart-line fs-1 d-block mb-2 opacity-50"></i>
+                        <p class="small">Import a strategy to see analysis</p>
+                    </div>
                 </div>
             </div>
 
@@ -1096,21 +1285,26 @@ const StrategyBuilderPage = {
         const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
         const originalCode = imported[this.strategyName]?.content;
         const code = originalCode || this._buildFreqtradeStrategy();
+        // Store code for copy button
+        this._lastGeneratedCode = code;
         // Show in modal
         const modal = document.createElement('div');
         modal.innerHTML = `
         <div class="modal fade" tabindex="-1">
-            <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                <div class="modal-content bg-dark border-secondary">
-                    <div class="modal-header border-secondary">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height:90vh">
+                <div class="modal-content bg-dark border-secondary" style="max-height:90vh">
+                    <div class="modal-header border-secondary flex-shrink-0">
                         <h5 class="modal-title"><i class="bi bi-code-slash me-2"></i>Generated Strategy Code</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary">${code.split('\n').length} lines</span>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
                     </div>
-                    <div class="modal-body">
-                        <pre class="bg-black p-3 rounded text-success small" style="max-height:500px;overflow:auto"><code>${this._escapeHtml(code)}</code></pre>
+                    <div class="modal-body p-0" style="overflow-y:auto;max-height:70vh;min-height:200px">
+                        <pre class="bg-black m-0 p-3 text-success small" style="white-space:pre-wrap;word-wrap:break-word;overflow-x:auto;tab-size:4"><code id="codeViewContent"></code></pre>
                     </div>
-                    <div class="modal-footer border-secondary">
-                        <button class="btn btn-outline-success" onclick="navigator.clipboard.writeText(\`${code.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); App.showToast('Copied to clipboard', 'success')">
+                    <div class="modal-footer border-secondary flex-shrink-0">
+                        <button class="btn btn-outline-success" id="codeViewCopyBtn">
                             <i class="bi bi-clipboard me-1"></i> Copy
                         </button>
                         <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -1119,8 +1313,21 @@ const StrategyBuilderPage = {
             </div>
         </div>`;
         document.body.appendChild(modal);
+        // Set code content safely via textContent (handles all special chars)
+        modal.querySelector('#codeViewContent').textContent = code;
+        // Wire copy button safely
+        modal.querySelector('#codeViewCopyBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(this._lastGeneratedCode)
+                .then(() => App.showToast('Copied to clipboard', 'success'))
+                .catch(() => App.showToast('Copy failed', 'error'));
+        });
         const bsModal = new bootstrap.Modal(modal.querySelector('.modal'));
         bsModal.show();
+        // Scroll to top on show
+        modal.querySelector('.modal').addEventListener('shown.bs.modal', () => {
+            const body = modal.querySelector('.modal-body');
+            if (body) body.scrollTop = 0;
+        });
         modal.querySelector('.modal').addEventListener('hidden.bs.modal', () => modal.remove());
     },
 
@@ -1692,6 +1899,510 @@ ${entryConditions.length > 0 ?
         this._applyTransform();
     },
 
+    // ========== BACKTEST PANEL ==========
+    toggleBacktestPanel() {
+        const panel = document.getElementById('sbBacktestPanel');
+        if (!panel) return;
+        const isOpen = panel.classList.contains('open');
+        if (isOpen) {
+            panel.classList.remove('open');
+            if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+        } else {
+            this.hideAnalysis();
+            panel.classList.add('open');
+            this._initBacktestPanel();
+        }
+    },
+
+    _initBacktestPanel() {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        const fmt = d => d.toISOString().split('T')[0];
+        const startEl = document.getElementById('sbBtStart');
+        const endEl = document.getElementById('sbBtEnd');
+        if (startEl && !startEl.value) startEl.value = fmt(start);
+        if (endEl && !endEl.value) endEl.value = fmt(end);
+        this._loadPanelPairs();
+    },
+
+    async _loadPanelPairs() {
+        const sel = document.getElementById('sbBtPair');
+        if (!sel || sel.options.length > 1) return;
+        try {
+            if (!API.connected) return;
+            const wl = await API.getWhitelist();
+            const pairs = wl?.whitelist || [];
+            pairs.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p; opt.textContent = p;
+                sel.appendChild(opt);
+            });
+        } catch(e) {}
+    },
+
+    resetBacktestPanel() {
+        const config = document.getElementById('sbBtConfig');
+        const progress = document.getElementById('sbBtProgress');
+        const results = document.getElementById('sbBtResults');
+        if (config) config.classList.remove('d-none');
+        if (progress) progress.classList.add('d-none');
+        if (results) results.classList.add('d-none');
+    },
+
+    async abortPanelBacktest() {
+        try {
+            if (API.connected) await API.abortBacktest();
+            this._btRunning = false;
+            if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+            this.resetBacktestPanel();
+            App.showToast('Backtest aborted', 'info');
+        } catch(e) { App.showToast(`Abort error: ${e.message}`, 'error'); }
+    },
+
+    async runBacktestInPanel() {
+        if (!API.connected) {
+            App.showToast('Connect to Freqtrade first', 'warning');
+            return;
+        }
+
+        let strategyName = this._importedStrategyName || this.strategyName;
+        if (!strategyName || strategyName === 'My Strategy') {
+            const code = this._generateStrategyCode();
+            if (!code) { App.showToast('Create a strategy first', 'warning'); return; }
+            strategyName = this.strategyName.replace(/[^a-zA-Z0-9_]/g, '_') || 'VisualStrategy';
+        }
+
+        const selectedPair = document.getElementById('sbBtPair')?.value;
+        if (!selectedPair) {
+            App.showToast('Please select a coin pair', 'warning');
+            return;
+        }
+
+        const startDate = (document.getElementById('sbBtStart')?.value || '').replace(/-/g, '');
+        const endDate = (document.getElementById('sbBtEnd')?.value || '').replace(/-/g, '');
+        const wallet = parseFloat(document.getElementById('sbBtWallet')?.value) || 1000;
+        const maxTrades = parseInt(document.getElementById('sbBtMaxTrades')?.value) || 3;
+        const stakeAmount = document.getElementById('sbBtStake')?.value || 'unlimited';
+        const timeframe = document.getElementById('sbBtTimeframe')?.value || '';
+
+        const config = document.getElementById('sbBtConfig');
+        const progress = document.getElementById('sbBtProgress');
+        if (config) config.classList.add('d-none');
+        if (progress) progress.classList.remove('d-none');
+        this._btRunning = true;
+        this._btAutoDownloaded = false;
+        this._btSelectedPair = selectedPair;
+        this._updatePanelProgress(5, 'Preparing...', 'Initializing backtest');
+
+        try {
+            const btConfig = {
+                strategy: strategyName,
+                timerange: `${startDate}-${endDate}`,
+                max_open_trades: maxTrades,
+                stake_amount: stakeAmount === 'unlimited' ? 'unlimited' : parseFloat(stakeAmount),
+                enable_protections: false,
+                dry_run_wallet: wallet,
+                pair_whitelist: [selectedPair],
+            };
+            if (timeframe) btConfig.timeframe = timeframe;
+
+            this._updatePanelProgress(10, 'Resetting...', 'Clearing previous backtest');
+            await API.resetBacktest().catch(() => {});
+
+            this._updatePanelProgress(15, 'Starting backtest...', `Strategy: ${strategyName}`);
+            await API.startBacktest(btConfig);
+
+            this._btStrategyName = strategyName;
+            this._pollPanelBacktest();
+        } catch(e) {
+            this.resetBacktestPanel();
+            App.showToast(`Backtest error: ${e.message}`, 'error');
+            this._btRunning = false;
+        }
+    },
+
+    _updatePanelProgress(pct, label, detail) {
+        const bar = document.getElementById('sbBtProgressBar');
+        const lbl = document.getElementById('sbBtProgressLabel');
+        const det = document.getElementById('sbBtProgressDetail');
+        const pctEl = document.getElementById('sbBtProgressPct');
+        if (bar) bar.style.width = pct + '%';
+        if (lbl) lbl.textContent = label;
+        if (det) det.textContent = detail || '';
+        if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    },
+
+    async _pollPanelBacktest() {
+        if (!this._btRunning) return;
+        try {
+            const status = await API.getBacktestStatus();
+            if (status.running) {
+                const pct = 15 + (status.progress || 0) * 80;
+                const step = status.step || status.status_msg || 'Processing...';
+                this._updatePanelProgress(pct, step, status.trade_count ? `${status.trade_count} trades found` : 'Running...');
+                this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 1500);
+            } else if (status.status === 'ended' || (status.backtest_result && !status.running)) {
+                this._updatePanelProgress(95, 'Processing results...', '');
+                this._btRunning = false;
+                setTimeout(() => this._displayPanelResults(status.backtest_result || status), 300);
+            } else if (status.status === 'error') {
+                const errMsg = status.status_msg || 'Unknown error';
+                if ((errMsg.includes('No data found') || errMsg.includes('No data')) && !this._btAutoDownloaded) {
+                    this._btAutoDownloaded = true;
+                    this._updatePanelProgress(0, 'No data - downloading...', 'Auto-downloading market data');
+                    this._autoDownloadForPanel();
+                    return;
+                }
+                this._btRunning = false;
+                this.resetBacktestPanel();
+                App.showToast(`Backtest error: ${errMsg}`, 'error');
+            } else {
+                this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 2000);
+            }
+        } catch(e) {
+            this._btRunning = false;
+            this.resetBacktestPanel();
+            App.showToast(`Poll error: ${e.message}`, 'error');
+        }
+    },
+
+    async _autoDownloadForPanel() {
+        try {
+            const timeframe = document.getElementById('sbBtTimeframe')?.value || '5m';
+            const startDate = (document.getElementById('sbBtStart')?.value || '').replace(/-/g, '');
+            const endDate = (document.getElementById('sbBtEnd')?.value || '').replace(/-/g, '');
+            const timerange = `${startDate}-${endDate}`;
+            // Use the selected pair (single coin for strategy builder backtests)
+            const pairs = [this._btSelectedPair || document.getElementById('sbBtPair')?.value || 'BTC/USDT'];
+            const timeframes = [timeframe];
+            if (timeframe !== '1h' && timeframe !== '4h') timeframes.push('1h');
+            this._updatePanelProgress(5, `Downloading data for ${pairs.length} pair(s)...`, pairs.join(', '));
+            const result = await API.downloadData({ pairs, timeframes, timerange });
+            if (result && result.job_id) {
+                this._btDownloadJobId = result.job_id;
+                this._pollDownloadForPanel();
+            } else {
+                this.resetBacktestPanel();
+                App.showToast('Failed to start data download', 'error');
+            }
+        } catch(e) {
+            this.resetBacktestPanel();
+            App.showToast(`Download error: ${e.message}`, 'error');
+        }
+    },
+
+    async _pollDownloadForPanel() {
+        try {
+            const job = await API.getBackgroundJob(this._btDownloadJobId);
+            if (job.running || job.status === 'pending') {
+                let pct = 10;
+                if (job.progress_tasks) {
+                    const tasks = Object.values(job.progress_tasks);
+                    let total = 0, done = 0;
+                    tasks.forEach(t => { total += (t.total || 0); done += (t.progress || 0); });
+                    pct = 10 + (total > 0 ? (done / total) * 70 : 0);
+                }
+                this._updatePanelProgress(pct, 'Downloading data...', job.status || 'In progress');
+                this._btPollTimer = setTimeout(() => this._pollDownloadForPanel(), 1000);
+            } else if (job.status === 'success') {
+                this._updatePanelProgress(85, 'Download complete! Starting backtest...', '');
+                App.showToast('Data download complete', 'success');
+                setTimeout(() => this.runBacktestInPanel(), 500);
+            } else {
+                this.resetBacktestPanel();
+                App.showToast(`Download error: ${job.error || 'Failed'}`, 'error');
+            }
+        } catch(e) {
+            this.resetBacktestPanel();
+            App.showToast(`Download poll error: ${e.message}`, 'error');
+        }
+    },
+
+    _displayPanelResults(result) {
+        if (!result) { this.resetBacktestPanel(); return; }
+        let sr;
+        if (result.strategy && typeof result.strategy === 'object') {
+            const vals = Object.values(result.strategy);
+            if (vals.length > 0 && typeof vals[0] === 'object') sr = vals[0];
+        }
+        if (!sr || (!sr.trades && sr.profit_total === undefined)) {
+            if (result.trades || result.profit_total !== undefined) sr = result;
+            else if (result.backtest_result) return this._displayPanelResults(result.backtest_result);
+            else {
+                for (const k of Object.keys(result)) {
+                    const v = result[k];
+                    if (v && typeof v === 'object' && !Array.isArray(v) && (v.trades || v.profit_total !== undefined)) { sr = v; break; }
+                }
+            }
+        }
+        if (result.strategy_comparison && Array.isArray(result.strategy_comparison) && result.strategy_comparison.length > 0) {
+            const comp = result.strategy_comparison[0];
+            if (sr && !sr.profit_total && comp.profit_total !== undefined) {
+                sr.profit_total = comp.profit_total;
+                sr.profit_total_abs = comp.profit_total_abs;
+                if (!sr.wins && comp.wins !== undefined) sr.wins = comp.wins;
+                if (!sr.losses && comp.losses !== undefined) sr.losses = comp.losses;
+            }
+        }
+        if (!sr) { this.resetBacktestPanel(); App.showToast('No results returned', 'warning'); return; }
+
+        const trades = sr.trades || [];
+        const currency = sr.stake_currency || 'USDT';
+        const totalProfit = sr.profit_total_abs || 0;
+        const wins = sr.wins || 0;
+        const losses = sr.losses || 0;
+        const totalTrades = trades.length;
+        const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
+        const avgProfit = totalTrades > 0 ? totalProfit / totalTrades : 0;
+        const maxDD = ((sr.max_drawdown_account || sr.max_drawdown || 0) * 100);
+        const avgDur = sr.holding_avg || sr.duration_avg || '-';
+        const finalBal = sr.final_balance || (sr.starting_balance || 1000) + totalProfit;
+        const profitPct = (sr.profit_total || 0) * 100;
+
+        document.getElementById('sbBtProgress')?.classList.add('d-none');
+        document.getElementById('sbBtResults')?.classList.remove('d-none');
+
+        const dr = document.getElementById('sbBtDateRange');
+        if (dr) dr.textContent = `${sr.backtest_start || ''} \u2192 ${sr.backtest_end || ''}`;
+
+        const bal = document.getElementById('sbBtBalance');
+        if (bal) bal.textContent = `${finalBal.toFixed(2)} ${currency}`;
+
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        const colEl = (id, val, positive) => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = val; el.style.color = positive ? 'var(--bc-green)' : 'var(--bc-red)'; }
+        };
+        colEl('sbBtUnrealized', `0 ${currency}`, true);
+        colEl('sbBtRealized', `${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} ${currency}`, totalProfit >= 0);
+        colEl('sbBtWinRate', `${winRate.toFixed(1)} %`, winRate >= 50);
+        colEl('sbBtAvgProfit', `${avgProfit >= 0 ? '+' : ''}${avgProfit.toFixed(2)} ${currency}`, avgProfit >= 0);
+        setEl('sbBtTotalTrades', totalTrades);
+        setEl('sbBtDrawdown', `${maxDD.toFixed(1)}%`);
+        setEl('sbBtAvgDuration', avgDur);
+        setEl('sbBtProfitFactor', '-');
+
+        const tl = document.getElementById('sbBtTradesList');
+        if (tl) {
+            if (trades.length === 0) {
+                tl.innerHTML = '<div class="text-center text-secondary small py-2">No trades</div>';
+            } else {
+                tl.innerHTML = trades.slice(0, 50).map(t => {
+                    const pct = (t.profit_ratio || 0) * 100;
+                    const isWin = pct >= 0;
+                    return `<div class="trade-row d-flex justify-content-between align-items-center py-1 px-2 mb-1 rounded" style="background:${isWin ? 'rgba(45,212,168,0.08)' : 'rgba(231,76,94,0.08)'}">
+                        <div><span class="fw-semibold small">${t.pair || '-'}</span>
+                            <span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'} bg-opacity-25 ms-1" style="font-size:10px">${t.is_short ? 'S' : 'L'}</span></div>
+                        <div class="text-end"><span class="fw-bold small" style="color:${isWin ? 'var(--bc-green)' : 'var(--bc-red)'}">${isWin ? '+' : ''}${pct.toFixed(2)}%</span>
+                            <div class="text-secondary" style="font-size:10px">${t.trade_duration || '-'}m</div></div>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        setTimeout(() => this._renderPanelCharts(trades, sr), 200);
+        App.showToast(`Backtest done! ${totalTrades} trades, ${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`, totalProfit >= 0 ? 'success' : 'warning');
+    },
+
+    _renderPanelCharts(trades, sr) {
+        const chartEl = document.getElementById('sbBtChart');
+        if (chartEl && typeof LightweightCharts !== 'undefined') {
+            chartEl.innerHTML = '';
+            try {
+                const chart = LightweightCharts.createChart(chartEl, {
+                    width: chartEl.clientWidth, height: 200,
+                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
+                    grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+                    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+                    timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+                    crosshair: { mode: 0 },
+                });
+                const lineSeries = chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
+                let cum = 0;
+                const startBal = sr.starting_balance || 1000;
+                const data = trades.filter(t => t.close_date).map(t => {
+                    cum += (t.profit_abs || 0);
+                    return { time: Math.floor(new Date(t.close_date).getTime() / 1000), value: startBal + cum };
+                });
+                if (data.length > 0) {
+                    const seen = new Set();
+                    const unique = data.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+                    lineSeries.setData(unique);
+                    chart.timeScale().fitContent();
+                }
+                this._btChart = chart;
+            } catch(e) { console.warn('Panel chart error:', e); }
+        }
+
+        const eqEl = document.getElementById('sbBtEquity');
+        if (eqEl && typeof LightweightCharts !== 'undefined') {
+            eqEl.innerHTML = '';
+            try {
+                const chart2 = LightweightCharts.createChart(eqEl, {
+                    width: eqEl.clientWidth, height: 120,
+                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
+                    grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+                    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+                    timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+                    crosshair: { mode: 0 },
+                });
+                const histSeries = chart2.addHistogramSeries({});
+                const histData = trades.filter(t => t.close_date).map(t => ({
+                    time: Math.floor(new Date(t.close_date).getTime() / 1000),
+                    value: t.profit_abs || 0,
+                    color: (t.profit_abs || 0) >= 0 ? 'rgba(45,212,168,0.7)' : 'rgba(231,76,94,0.7)',
+                }));
+                if (histData.length > 0) {
+                    const seen = new Set();
+                    const unique = histData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+                    histSeries.setData(unique);
+                    chart2.timeScale().fitContent();
+                }
+                this._btEquityChart = chart2;
+            } catch(e) { console.warn('Equity chart error:', e); }
+        }
+    },
+
+    // ========== STRATEGY ANALYSIS PANEL ==========
+    showAnalysis() {
+        const panel = document.getElementById('sbAnalysisPanel');
+        if (!panel) return;
+        const btPanel = document.getElementById('sbBacktestPanel');
+        if (btPanel) btPanel.classList.remove('open');
+        panel.classList.add('open');
+        if (this._importedStrategyCode) {
+            this._renderAnalysis(this._importedStrategyCode);
+        } else {
+            const content = document.getElementById('sbAnalysisContent');
+            if (content) content.innerHTML = `<div class="text-center text-secondary py-4">
+                <i class="bi bi-file-earmark-code fs-1 d-block mb-2 opacity-50"></i>
+                <p class="small">Import a Python strategy to see analysis</p>
+                <button class="btn btn-sm btn-outline-info" onclick="StrategyBuilderPage.importStrategy()">
+                    <i class="bi bi-download me-1"></i> Import Strategy
+                </button></div>`;
+        }
+    },
+
+    hideAnalysis() {
+        const panel = document.getElementById('sbAnalysisPanel');
+        if (panel) panel.classList.remove('open');
+    },
+
+    _renderAnalysis(code) {
+        const content = document.getElementById('sbAnalysisContent');
+        if (!content) return;
+        const a = this._analyzeStrategy(code);
+        const badge = (text, color) => `<span class="badge bg-${color} bg-opacity-25 text-${color} me-1 mb-1">${text}</span>`;
+        const section = (title, icon, body) => `<div class="sa-section mb-3">
+            <div class="sa-section-title d-flex align-items-center gap-2 mb-2">
+                <i class="bi ${icon} text-info"></i><span class="fw-semibold small text-uppercase">${title}</span>
+            </div>${body}</div>`;
+
+        const complexityPct = Math.min(100, a.complexity * 10);
+        const complexityColor = a.complexity < 4 ? 'success' : a.complexity < 7 ? 'warning' : 'danger';
+        const complexityLabel = a.complexity < 4 ? 'Simple' : a.complexity < 7 ? 'Moderate' : 'Complex';
+
+        let html = `<div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom border-secondary">
+            <i class="bi bi-robot text-info fs-4"></i>
+            <div><div class="fw-bold">${a.className || 'Strategy'}</div>
+            <div class="small text-secondary">${a.timeframe || '?'} | ${a.direction}</div></div></div>`;
+
+        html += `<div class="mb-3"><div class="d-flex justify-content-between small mb-1">
+            <span class="text-secondary">Complexity</span>
+            <span class="text-${complexityColor} fw-semibold">${complexityLabel} (${a.complexity}/10)</span>
+            </div><div class="progress" style="height:6px"><div class="progress-bar bg-${complexityColor}" style="width:${complexityPct}%"></div></div></div>`;
+
+        html += section('Risk Management', 'bi-shield-check', `
+            <div class="row g-2">
+                <div class="col-6"><div class="small text-secondary">Stoploss</div><div class="fw-semibold text-danger">${a.stoploss || 'N/A'}</div></div>
+                <div class="col-6"><div class="small text-secondary">Trailing</div><div class="fw-semibold">${a.trailing ? 'Yes' : 'No'}</div></div>
+            </div>
+            ${a.roi && Object.keys(a.roi).length > 0 ? `<div class="mt-2"><div class="small text-secondary mb-1">ROI Table</div>
+                <div class="d-flex flex-wrap gap-1">${Object.entries(a.roi).map(([k,v]) => badge(`${k}min: ${(v*100).toFixed(1)}%`, 'success')).join('')}</div></div>` : ''}`);
+
+        if (a.indicators.length > 0) html += section('Indicators', 'bi-graph-up', `<div class="d-flex flex-wrap gap-1">${a.indicators.map(i => badge(i, 'info')).join('')}</div>`);
+        if (a.parameters.length > 0) html += section('Parameters', 'bi-sliders', `${a.parameters.slice(0, 20).map(p => `<div class="sa-param-row d-flex justify-content-between py-1 border-bottom border-secondary" style="border-color:rgba(255,255,255,0.05)!important">
+            <span class="small">${p.name}</span><span class="small text-secondary">${p.type} ${p.range || ''}</span></div>`).join('')}${a.parameters.length > 20 ? `<div class="small text-secondary mt-1">+${a.parameters.length - 20} more</div>` : ''}`);
+        if (a.features.length > 0) html += section('Special Features', 'bi-stars', `<div class="d-flex flex-wrap gap-1">${a.features.map(f => badge(f, 'warning')).join('')}</div>`);
+        if (a.methods.length > 0) html += section('Methods', 'bi-code-square', `<div class="d-flex flex-wrap gap-1">${a.methods.map(m => badge(m, 'secondary')).join('')}</div>`);
+
+        content.innerHTML = html;
+    },
+
+    _analyzeStrategy(code) {
+        const result = { className: '', timeframe: '', direction: 'Long only', stoploss: '', trailing: false, roi: {},
+            indicators: [], parameters: [], methods: [], features: [], complexity: 1 };
+
+        const classMatch = code.match(/class\s+(\w+)\s*\(/);
+        if (classMatch) result.className = classMatch[1];
+
+        const tfMatch = code.match(/timeframe\s*=\s*['"](\w+)['"]/);
+        if (tfMatch) result.timeframe = tfMatch[1];
+
+        if (code.includes('can_short') && code.match(/can_short\s*=\s*True/)) result.direction = 'Long & Short';
+        else if (code.includes('is_short')) result.direction = 'Long & Short';
+
+        const slMatch = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
+        if (slMatch) result.stoploss = (parseFloat(slMatch[1]) * 100).toFixed(1) + '%';
+
+        if (code.match(/trailing_stop\s*=\s*True/)) { result.trailing = true; result.complexity++; }
+
+        const roiMatch = code.match(/minimal_roi\s*=\s*\{([^}]+)\}/);
+        if (roiMatch) {
+            const pairs = roiMatch[1].matchAll(/["']?(\d+)["']?\s*:\s*(-?[\d.]+)/g);
+            for (const p of pairs) result.roi[p[1]] = parseFloat(p[2]);
+        }
+
+        const indPatterns = [
+            [/ta\.EMA|ema_/gi, 'EMA'], [/ta\.SMA|sma_/gi, 'SMA'], [/ta\.RSI|rsi/gi, 'RSI'],
+            [/ta\.MACD|macd/gi, 'MACD'], [/ta\.BBANDS|bollinger|bbands/gi, 'Bollinger Bands'],
+            [/ta\.STOCH|stochrsi|stochastic/gi, 'Stochastic'], [/ta\.ADX|adx/gi, 'ADX'],
+            [/ta\.ATR|atr/gi, 'ATR'], [/ta\.CCI|cci/gi, 'CCI'], [/ta\.MFI|mfi/gi, 'MFI'],
+            [/ta\.OBV|obv/gi, 'OBV'], [/ta\.SAR|parabolic/gi, 'SAR'], [/ta\.WILLR|williams/gi, 'Williams %R'],
+            [/ta\.ROC|roc/gi, 'ROC'], [/supertrend/gi, 'Supertrend'], [/ichimoku/gi, 'Ichimoku'],
+            [/vwap/gi, 'VWAP'], [/pivot/gi, 'Pivot Points'], [/heikin/gi, 'Heikin Ashi'],
+        ];
+        const seenInds = new Set();
+        for (const [pat, name] of indPatterns) {
+            if (pat.test(code) && !seenInds.has(name)) { seenInds.add(name); result.indicators.push(name); }
+        }
+
+        const paramRegex = /(\w+)\s*=\s*(IntParameter|DecimalParameter|CategoricalParameter|BooleanParameter)\s*\(([^)]+)\)/g;
+        let pm;
+        while ((pm = paramRegex.exec(code))) {
+            const pName = pm[1], pType = pm[2].replace('Parameter', ''), pArgs = pm[3];
+            let range = '';
+            if (pType === 'Int' || pType === 'Decimal') {
+                const nums = pArgs.match(/-?[\d.]+/g);
+                if (nums && nums.length >= 2) range = `[${nums[0]}-${nums[1]}]`;
+            }
+            result.parameters.push({ name: pName, type: pType, range });
+        }
+
+        const methodRegex = /def\s+(\w+)\s*\(\s*self/g;
+        let mm;
+        while ((mm = methodRegex.exec(code))) { if (!mm[1].startsWith('_')) result.methods.push(mm[1]); }
+
+        if (code.includes('FreqaiModel') || code.includes('freqai') || code.includes('set_freqai_targets')) result.features.push('FreqAI/ML');
+        if (code.includes('informative_pairs')) result.features.push('Multi-Timeframe');
+        if (code.includes('custom_stoploss')) result.features.push('Custom Stoploss');
+        if (code.includes('custom_exit')) result.features.push('Custom Exit');
+        if (code.includes('leverage')) result.features.push('Leverage');
+        if (code.includes('adjust_trade_position')) result.features.push('DCA / Position Adjust');
+        if (code.includes('confirm_trade_entry')) result.features.push('Trade Confirmation');
+        if (code.includes('custom_stake_amount')) result.features.push('Custom Stake');
+        if (code.match(/buy_params|sell_params/)) result.features.push('Per-Pair Params');
+
+        result.complexity += result.indicators.length > 5 ? 3 : result.indicators.length > 2 ? 2 : 1;
+        result.complexity += result.parameters.length > 10 ? 3 : result.parameters.length > 3 ? 2 : 0;
+        result.complexity += result.features.length > 3 ? 2 : result.features.length > 0 ? 1 : 0;
+        result.complexity += result.methods.length > 8 ? 2 : result.methods.length > 4 ? 1 : 0;
+        result.complexity = Math.min(10, result.complexity);
+
+        return result;
+    },
+
     destroy() {
         this.autoSave();
         if (this._keyHandler) {
@@ -1702,6 +2413,9 @@ ${entryConditions.length > 0 ?
             document.removeEventListener('wheel', this._wheelHandler);
             this._wheelHandler = null;
         }
+        if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+        if (this._btChart) { try { this._btChart.remove(); } catch(e) {} this._btChart = null; }
+        if (this._btEquityChart) { try { this._btEquityChart.remove(); } catch(e) {} this._btEquityChart = null; }
         document.querySelectorAll('.node-context-menu').forEach(m => m.remove());
     }
 };

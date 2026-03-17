@@ -142,14 +142,38 @@ async def api_start_backtest(
 
     verify_strategy(bt_settings.strategy)
 
-    btconfig = deepcopy(config)
+    try:
+        btconfig = deepcopy(config)
+    except TypeError:
+        # Config may contain unpicklable objects (e.g. _thread.lock from strategy manager).
+        # Fall back to a JSON-safe shallow reconstruction.
+        import json
+        def _safe_copy(obj):
+            try:
+                return json.loads(json.dumps(obj))
+            except (TypeError, ValueError):
+                if isinstance(obj, dict):
+                    return {k: _safe_copy(v) for k, v in obj.items()
+                            if not callable(v) and not isinstance(v, type)}
+                elif isinstance(obj, (list, tuple)):
+                    return type(obj)(_safe_copy(i) for i in obj)
+                else:
+                    return obj
+        btconfig = _safe_copy(config)
     remove_exchange_credentials(btconfig["exchange"], True)
     settings = dict(bt_settings)
     if settings.get("freqai", None) is not None:
         settings["freqai"] = dict(settings["freqai"])
     # Pydantic models will contain all keys, but non-provided ones are None
 
+    # Handle pair_whitelist override (for single-coin backtests from strategy builder)
+    pair_whitelist = settings.pop("pair_whitelist", None)
+
     btconfig = deep_merge_dicts(settings, btconfig, allow_null_overrides=False)
+
+    if pair_whitelist:
+        btconfig.setdefault("exchange", {})["pair_whitelist"] = pair_whitelist
+
     try:
         btconfig["stake_amount"] = float(btconfig["stake_amount"])
     except ValueError:
