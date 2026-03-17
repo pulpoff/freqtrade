@@ -116,49 +116,20 @@ const StrategyBuilderPage = {
                     <button class="btn btn-sm btn-outline-secondary ms-1" onclick="StrategyBuilderPage.zoomReset()" title="Reset view"><i class="bi bi-fullscreen"></i></button>
                 </div>
 
-                <!-- Bottom Panel - Tabbed block palette -->
-                <div class="builder-bottom-panel">
-                    <ul class="nav nav-tabs builder-tabs" id="sbPanelTabs">
-                        <li class="nav-item"><a class="nav-link active" data-sb-tab="indicators" onclick="StrategyBuilderPage._switchTab(this, 'indicators')">Indicators</a></li>
-                        <li class="nav-item"><a class="nav-link" data-sb-tab="actions" onclick="StrategyBuilderPage._switchTab(this, 'actions')">Actions</a></li>
-                        <li class="nav-item"><a class="nav-link" data-sb-tab="flow" onclick="StrategyBuilderPage._switchTab(this, 'flow')">Flow</a></li>
-                        <li class="nav-item"><a class="nav-link" data-sb-tab="risk" onclick="StrategyBuilderPage._switchTab(this, 'risk')">Risk</a></li>
-                        <li class="nav-item"><a class="nav-link" data-sb-tab="external" onclick="StrategyBuilderPage._switchTab(this, 'external')">External</a></li>
-                    </ul>
-                    <div class="builder-tab-content">
-                        <div class="builder-tab-pane active" id="sbTab-indicators">
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${this._toolbarBlock('indicator', 'bi-graph-up', 'EMA', 'tb-indicator')}
-                                ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
-                                ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
-                            </div>
-                        </div>
-                        <div class="builder-tab-pane" id="sbTab-actions">
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${this._toolbarBlock('buy', 'bi-cart-plus', 'Buy', 'tb-buy')}
-                                ${this._toolbarBlock('sell', 'bi-cart-dash', 'Sell', 'tb-sell')}
-                                ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Wait', 'tb-wait')}
-                            </div>
-                        </div>
-                        <div class="builder-tab-pane" id="sbTab-flow">
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${this._toolbarBlock('start', 'bi-play-circle', 'Start', 'tb-terminate')}
-                                ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Terminate', 'tb-terminate')}
-                                ${this._toolbarBlock('reset', 'bi-arrow-counterclockwise', 'Reset', 'tb-reset')}
-                            </div>
-                        </div>
-                        <div class="builder-tab-pane" id="sbTab-risk">
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${this._toolbarBlock('stoploss', 'bi-shield-x', 'Stop Loss', 'tb-trailing')}
-                                ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
-                                ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing', 'tb-trailing')}
-                            </div>
-                        </div>
-                        <div class="builder-tab-pane" id="sbTab-external">
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
-                            </div>
-                        </div>
+                <!-- Bottom Toolbar - Single row block palette matching botcrypto.io -->
+                <div class="builder-bottom-toolbar">
+                    <div class="toolbar-blocks-row">
+                        ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicators', 'tb-indicator')}
+                        ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
+                        ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
+                        ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing stop', 'tb-trailing')}
+                        ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Wait', 'tb-wait')}
+                        ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
+                        ${this._toolbarBlock('buy', 'bi-cart-plus', 'Buy', 'tb-buy')}
+                        ${this._toolbarBlock('sell', 'bi-cart-dash', 'Sell', 'tb-sell')}
+                        ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
+                        ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Terminate', 'tb-terminate')}
+                        ${this._toolbarBlock('reset', 'bi-arrow-counterclockwise', 'Reset', 'tb-reset')}
                     </div>
                 </div>
             </div>
@@ -213,7 +184,7 @@ const StrategyBuilderPage = {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            const delta = e.deltaY > 0 ? -0.05 : 0.05;
             const newZoom = Math.min(3, Math.max(0.2, this._zoom + delta));
             // Zoom toward cursor
             const scale = newZoom / this._zoom;
@@ -282,15 +253,13 @@ const StrategyBuilderPage = {
 
         const selected = this.selectedNode === node.id ? 'selected' : '';
         const letter = bt.letter || bt.text || bt.label.charAt(0);
+        const nodeIndex = this.nodes.indexOf(node);
 
-        // Build params label
+        // Build params pill label
         let paramsText = '';
-        if (node.type === 'buy' || node.type === 'sell') {
+        if (node.type === 'indicator') {
             const p = node.params;
-            paramsText = `${p.orderType} ${p.trade} ${p.volume}${p.volumePercent ? '%' : ''} ${p.price} ${p.assetQuote ? 'Quote' : 'Base'}`;
-        } else if (node.type === 'indicator') {
-            const p = node.params;
-            paramsText = `${p.timeframe} | ${p.period} ${p.value} ${p.condition} ${p.compareType} ${p.comparePeriod} ${p.compareValue}`;
+            paramsText = `${p.timeframe} | ${p.type}${p.period ? '+' : ''} ${p.period} ${p.value} ${p.condition} ${p.compareType}...`;
         } else if (node.type === 'gain') {
             const p = node.params;
             paramsText = `${p.condition} ${p.value} ${p.trade}`;
@@ -304,17 +273,25 @@ const StrategyBuilderPage = {
             paramsText = `${node.params.duration}${node.params.unit}`;
         }
 
-        const paramsClass = node.type === 'buy' ? 'params-green' : node.type === 'sell' ? 'params-red' : node.type === 'gain' ? '' : '';
+        // Volume pill for buy/sell nodes
+        const volumeText = (node.type === 'buy' || node.type === 'sell') && node.params
+            ? `${node.params.volume}${node.params.volumePercent ? ' %' : ''}`
+            : '';
+
+        // Node type class for distinctive styling
+        const nodeTypeClass = `node-type-${node.type}`;
+        const paramsClass = node.type === 'indicator' ? 'params-indicator' : node.type === 'gain' ? '' : '';
 
         return `
-        <div class="canvas-node" id="node-${node.id}" style="left:${node.x}px;top:${node.y}px"
+        <div class="canvas-node ${nodeTypeClass}" id="node-${node.id}" style="left:${node.x}px;top:${node.y}px"
              onmousedown="StrategyBuilderPage.onNodeMouseDown(event, ${node.id})"
              ondblclick="StrategyBuilderPage.editNode(${node.id})"
              oncontextmenu="StrategyBuilderPage.onNodeContextMenu(event, ${node.id})">
+            <div class="node-badge">${nodeIndex}</div>
             <div class="node-body ${selected}">
                 ${bt.hasInput ? `<div class="node-connector input" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'input')"></div>` : ''}
                 <div class="node-icon ${bt.iconClass}">
-                    ${bt.letter ? `<span class="fw-bold fs-4">${letter}</span>` : bt.text ? `<span class="fw-bold small">${bt.text}</span>` : `<i class="bi ${bt.icon}"></i>`}
+                    ${bt.letter ? `<span class="fw-bold fs-3">${letter}</span>` : bt.text ? `<span class="fw-bold small">${bt.text}</span>` : `<i class="bi ${bt.icon}"></i>`}
                 </div>
                 <div class="node-label">${node.type === 'indicator' ? (node.params.type || 'EMA') : bt.label}</div>
                 ${bt.hasOutput && !bt.hasTwoOutputs ? `<div class="node-connector output" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'output')"></div>` : ''}
@@ -323,6 +300,7 @@ const StrategyBuilderPage = {
                     <div class="node-connector output-false" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'output-false')"></div>
                 ` : ''}
             </div>
+            ${volumeText ? `<div class="node-volume-pill">${volumeText}</div>` : ''}
             ${paramsText ? `<div class="node-params ${paramsClass}">${paramsText}</div>` : ''}
         </div>`;
     },
@@ -1482,12 +1460,12 @@ ${entryConditions.length > 0 ?
     },
 
     zoomIn() {
-        this._zoom = Math.min(3, this._zoom + 0.15);
+        this._zoom = Math.min(3, this._zoom + 0.1);
         this._applyTransform();
     },
 
     zoomOut() {
-        this._zoom = Math.max(0.2, this._zoom - 0.15);
+        this._zoom = Math.max(0.2, this._zoom - 0.1);
         this._applyTransform();
     },
 
