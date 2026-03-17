@@ -56,12 +56,10 @@ async def index_html(rest_of_path: str):
     if rest_of_path.startswith("api") or rest_of_path.startswith("."):
         raise HTTPException(status_code=404, detail="Not Found")
 
-    uibase = _get_ui_base()
-    filename = uibase / rest_of_path
-
-    # Security: prevent directory traversal
-    uibase = (Path(__file__).parent / "ui/installed/").resolve()
+    uibase = _get_ui_base().resolve()
     filename = (uibase / rest_of_path).resolve()
+
+    # Security: prevent directory traversal.
     # It's security relevant to check "relative_to".
     # Without this, Directory-traversal is possible.
     media_type: str | None = None
