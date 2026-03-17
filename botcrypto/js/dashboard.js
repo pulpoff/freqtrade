@@ -373,30 +373,22 @@ const DashboardPage = {
             console.log('Chart data load error:', e.message);
         }
 
-        // Fallback: demo data
-        if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair || 'XRP/USDT'}, ${this.currentTimeframe || '30m'} (demo)`;
-        const demoData = Components.generateDemoCandles(300, 0.25);
-        this.candleSeries.setData(demoData);
+        // Fallback: show "no data" message when connected, demo data when disconnected
+        if (API.connected) {
+            if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - No chart data available`;
+        } else {
+            if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair || 'BTC/USDT'}, ${this.currentTimeframe || '5m'} (demo - not connected)`;
+            const demoData = Components.generateDemoCandles(300, 0.25);
+            this.candleSeries.setData(demoData);
 
-        const volumes = demoData.map(c => ({
-            time: c.time,
-            value: c.volume || Math.random() * 2000000,
-            color: c.close >= c.open ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)'
-        }));
-        this.volumeSeries.setData(volumes);
-
-        const markers = [];
-        for (let i = 20; i < demoData.length; i += Math.floor(8 + Math.random() * 15)) {
-            markers.push({
-                time: demoData[i].time,
-                position: demoData[i].close < demoData[Math.max(0, i-1)].close ? 'belowBar' : 'aboveBar',
-                color: demoData[i].close > demoData[Math.max(0, i-5)].close ? '#e74c5e' : '#2dd4a8',
-                shape: 'circle',
-                text: demoData[i].close > demoData[Math.max(0, i-5)].close ? 'S' : 'B',
-            });
+            const volumes = demoData.map(c => ({
+                time: c.time,
+                value: c.volume || Math.random() * 2000000,
+                color: c.close >= c.open ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)'
+            }));
+            this.volumeSeries.setData(volumes);
+            this.chart.timeScale().fitContent();
         }
-        this.candleSeries.setMarkers(markers);
-        this.chart.timeScale().fitContent();
     },
 
     initEquityChart() {
@@ -418,9 +410,11 @@ const DashboardPage = {
             lineWidth: 2,
         });
 
-        // Show placeholder until real data loads
-        this._equityAreaSeries.setData(Components.generateDemoEquity(30, 10000));
-        this.equityChart.timeScale().fitContent();
+        // Show placeholder only when not connected; real data loads in loadEquityData()
+        if (!API.connected) {
+            this._equityAreaSeries.setData(Components.generateDemoEquity(30, 10000));
+            this.equityChart.timeScale().fitContent();
+        }
     },
 
     async loadEquityData() {
@@ -486,11 +480,11 @@ const DashboardPage = {
                 API.getTradeCount().catch(() => null),
             ]);
 
-            // Bot info bar
+            // Bot info bar - always show Online if we're connected
+            const statusBadge = el('dashBotStatus');
             if (config) {
-                const statusBadge = el('dashBotStatus');
                 if (statusBadge) {
-                    const state = config.state || 'unknown';
+                    const state = config.state || 'running';
                     if (state === 'running') {
                         statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Running';
                         statusBadge.className = 'badge badge-bc badge-completed';
@@ -515,6 +509,10 @@ const DashboardPage = {
                         <span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'} me-1">${dryRun ? 'Dry Run' : 'Live'}</span>
                         <span class="badge bg-secondary">${mode}</span>`;
                 }
+            } else if (statusBadge && API.connected) {
+                // Config call failed but we are connected - show Online
+                statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Online';
+                statusBadge.className = 'badge badge-bc badge-completed';
             }
 
             // Summary stat cards
