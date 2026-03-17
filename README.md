@@ -1,6 +1,6 @@
 # <img src="docs/assets/icon.svg" alt="freqtrade icon" height="32"> freqtrade
 
-An improved and further developed fork of [Freqtrade](https://github.com/freqtrade/freqtrade) — the free and open source crypto trading bot — featuring a new WebGUI inspired by [botcrypto.io](https://botcrypto.io), C++ performance extensions, and critical bug fixes.
+User-centric fork of [Freqtrade](https://github.com/freqtrade/freqtrade) — the free and open source crypto trading bot — featuring a new WebGUI inspired by [botcrypto.io](https://botcrypto.io), C++ performance extensions, and critical bug fixes.
 
 [![Freqtrade CI](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04864/status.svg)](https://doi.org/10.21105/joss.04864)
