@@ -140,7 +140,15 @@ def plot_config(
             raise RPCException("Strategy is mandatory in webserver mode.")
         return PlotConfig.model_validate(rpc._rpc_plot_config())
     else:
-        config1 = deepcopy(config)
+        try:
+            config1 = deepcopy(config)
+        except TypeError:
+            import json
+            try:
+                config1 = json.loads(json.dumps(config, default=str))
+            except (TypeError, ValueError):
+                config1 = {k: v for k, v in config.items()
+                           if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
         config1.update({"strategy": strategy})
     try:
         return PlotConfig.model_validate(RPC._rpc_plot_config_with_strategy(config1))
@@ -156,7 +164,15 @@ def markets(
 ):
     if not rpc or config["runmode"] == RunMode.WEBSERVER:
         # webserver mode
-        config_loc = deepcopy(config)
+        try:
+            config_loc = deepcopy(config)
+        except TypeError:
+            import json
+            try:
+                config_loc = json.loads(json.dumps(config, default=str))
+            except (TypeError, ValueError):
+                config_loc = {k: v for k, v in config.items()
+                              if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
         handleExchangePayload(query, config_loc)
         exchange = get_exchange(config_loc)
     else:
@@ -179,7 +195,15 @@ def get_strategy(
 
     if not rpc or config["runmode"] == RunMode.WEBSERVER:
         # webserver mode
-        config_ = deepcopy(config)
+        try:
+            config_ = deepcopy(config)
+        except TypeError:
+            import json
+            try:
+                config_ = json.loads(json.dumps(config, default=str))
+            except (TypeError, ValueError):
+                config_ = {k: v for k, v in config.items()
+                           if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
         from freqtrade.resolvers.strategy_resolver import StrategyResolver
 
         try:

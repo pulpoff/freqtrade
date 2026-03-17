@@ -30,7 +30,15 @@ def pair_history(
     verify_strategy(strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
-    config_loc = deepcopy(config)
+    try:
+        config_loc = deepcopy(config)
+    except TypeError:
+        import json
+        try:
+            config_loc = json.loads(json.dumps(config, default=str))
+        except (TypeError, ValueError):
+            config_loc = {k: v for k, v in config.items()
+                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
     config_loc.update(
         {
             "timeframe": timeframe,
@@ -51,7 +59,15 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
     verify_strategy(payload.strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
-    config_loc = deepcopy(config)
+    try:
+        config_loc = deepcopy(config)
+    except TypeError:
+        import json
+        try:
+            config_loc = json.loads(json.dumps(config, default=str))
+        except (TypeError, ValueError):
+            config_loc = {k: v for k, v in config.items()
+                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
     config_loc.update(
         {
             "timeframe": payload.timeframe,

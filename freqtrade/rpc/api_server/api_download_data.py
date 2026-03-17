@@ -54,7 +54,15 @@ def pairlists_evaluate(
 ):
     if ApiBG.download_data_running:
         raise HTTPException(status_code=400, detail="Data Download is already running.")
-    config_loc = deepcopy(config)
+    try:
+        config_loc = deepcopy(config)
+    except TypeError:
+        import json
+        try:
+            config_loc = json.loads(json.dumps(config, default=str))
+        except (TypeError, ValueError):
+            config_loc = {k: v for k, v in config.items()
+                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
     config_loc["stake_currency"] = ""
     config_loc["pairs"] = payload.pairs
     if payload.timerange:
