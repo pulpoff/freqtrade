@@ -755,50 +755,134 @@ const DashboardPage = {
     // ========== INDICATORS ==========
     _indicators: {},       // { ema20: { enabled, series }, ... }
     _indicatorDefs: [
-        { id: 'ema9',   name: 'EMA 9',   type: 'ema',  period: 9,   color: '#f5a623', overlay: true },
-        { id: 'ema21',  name: 'EMA 21',  type: 'ema',  period: 21,  color: '#4a90d9', overlay: true },
-        { id: 'ema50',  name: 'EMA 50',  type: 'ema',  period: 50,  color: '#9b59b6', overlay: true },
-        { id: 'sma20',  name: 'SMA 20',  type: 'sma',  period: 20,  color: '#e74c5e', overlay: true },
-        { id: 'sma50',  name: 'SMA 50',  type: 'sma',  period: 50,  color: '#f1c40f', overlay: true },
-        { id: 'sma200', name: 'SMA 200', type: 'sma',  period: 200, color: '#2ecc71', overlay: true },
-        { id: 'bb',     name: 'Bollinger Bands (20)', type: 'bb', period: 20, color: '#7c819a', overlay: true },
-        { id: 'rsi',    name: 'RSI (14)',   type: 'rsi',  period: 14, color: '#f5a623', overlay: false },
-        { id: 'macd',   name: 'MACD',       type: 'macd', color: '#4a90d9', overlay: false },
+        // ===== MOVING AVERAGES (Overlays) =====
+        { id: 'ema9',    name: 'EMA 9',    type: 'ema',  period: 9,   color: '#f5a623', overlay: true, category: 'Moving Averages' },
+        { id: 'ema12',   name: 'EMA 12',   type: 'ema',  period: 12,  color: '#e67e22', overlay: true, category: 'Moving Averages' },
+        { id: 'ema21',   name: 'EMA 21',   type: 'ema',  period: 21,  color: '#4a90d9', overlay: true, category: 'Moving Averages' },
+        { id: 'ema26',   name: 'EMA 26',   type: 'ema',  period: 26,  color: '#3498db', overlay: true, category: 'Moving Averages' },
+        { id: 'ema50',   name: 'EMA 50',   type: 'ema',  period: 50,  color: '#9b59b6', overlay: true, category: 'Moving Averages' },
+        { id: 'ema100',  name: 'EMA 100',  type: 'ema',  period: 100, color: '#8e44ad', overlay: true, category: 'Moving Averages' },
+        { id: 'ema200',  name: 'EMA 200',  type: 'ema',  period: 200, color: '#6c3483', overlay: true, category: 'Moving Averages' },
+        { id: 'sma5',    name: 'SMA 5',    type: 'sma',  period: 5,   color: '#ff6b6b', overlay: true, category: 'Moving Averages' },
+        { id: 'sma10',   name: 'SMA 10',   type: 'sma',  period: 10,  color: '#ee5a24', overlay: true, category: 'Moving Averages' },
+        { id: 'sma20',   name: 'SMA 20',   type: 'sma',  period: 20,  color: '#e74c5e', overlay: true, category: 'Moving Averages' },
+        { id: 'sma50',   name: 'SMA 50',   type: 'sma',  period: 50,  color: '#f1c40f', overlay: true, category: 'Moving Averages' },
+        { id: 'sma100',  name: 'SMA 100',  type: 'sma',  period: 100, color: '#f39c12', overlay: true, category: 'Moving Averages' },
+        { id: 'sma200',  name: 'SMA 200',  type: 'sma',  period: 200, color: '#2ecc71', overlay: true, category: 'Moving Averages' },
+        { id: 'wma20',   name: 'WMA 20',   type: 'wma',  period: 20,  color: '#00b894', overlay: true, category: 'Moving Averages' },
+        { id: 'dema20',  name: 'DEMA 20',  type: 'dema', period: 20,  color: '#00cec9', overlay: true, category: 'Moving Averages' },
+        { id: 'tema20',  name: 'TEMA 20',  type: 'tema', period: 20,  color: '#0984e3', overlay: true, category: 'Moving Averages' },
+        { id: 'kama10',  name: 'KAMA 10',  type: 'kama', period: 10,  color: '#6c5ce7', overlay: true, category: 'Moving Averages' },
+        { id: 'hma20',   name: 'HMA 20',   type: 'hma',  period: 20,  color: '#fd79a8', overlay: true, category: 'Moving Averages' },
+        { id: 'vwma20',  name: 'VWMA 20',  type: 'vwma', period: 20,  color: '#a29bfe', overlay: true, category: 'Moving Averages' },
+
+        // ===== OVERLAYS =====
+        { id: 'bb',        name: 'Bollinger Bands (20)',   type: 'bb',       period: 20, color: '#7c819a', overlay: true, category: 'Overlays' },
+        { id: 'bb_narrow', name: 'Bollinger Bands (10)',   type: 'bb',       period: 10, color: '#636e72', overlay: true, category: 'Overlays' },
+        { id: 'kc',        name: 'Keltner Channel (20)',   type: 'kc',       period: 20, color: '#e17055', overlay: true, category: 'Overlays' },
+        { id: 'dc',        name: 'Donchian Channel (20)',  type: 'dc',       period: 20, color: '#00b894', overlay: true, category: 'Overlays' },
+        { id: 'envup',     name: 'Envelope (20, 2.5%)',    type: 'envelope', period: 20, pct: 0.025, color: '#74b9ff', overlay: true, category: 'Overlays' },
+        { id: 'psar',      name: 'Parabolic SAR',          type: 'psar',     color: '#fdcb6e', overlay: true, category: 'Overlays' },
+        { id: 'ichimoku',  name: 'Ichimoku Cloud',         type: 'ichimoku', color: '#e74c3c', overlay: true, category: 'Overlays' },
+        { id: 'supertrend', name: 'Supertrend (10,3)',     type: 'supertrend', period: 10, mult: 3, color: '#2ecc71', overlay: true, category: 'Overlays' },
+        { id: 'pivots',    name: 'Pivot Points',           type: 'pivots',   color: '#dfe6e9', overlay: true, category: 'Overlays' },
+        { id: 'vwap',      name: 'VWAP',                   type: 'vwap',     color: '#a29bfe', overlay: true, category: 'Overlays' },
+
+        // ===== MOMENTUM (Oscillators) =====
+        { id: 'rsi',       name: 'RSI (14)',           type: 'rsi',       period: 14, color: '#f5a623', overlay: false, category: 'Momentum' },
+        { id: 'rsi7',      name: 'RSI (7)',            type: 'rsi',       period: 7,  color: '#e67e22', overlay: false, category: 'Momentum' },
+        { id: 'stochrsi',  name: 'Stochastic RSI',    type: 'stochrsi',  period: 14, color: '#00cec9', overlay: false, category: 'Momentum' },
+        { id: 'macd',      name: 'MACD (12,26,9)',    type: 'macd',      color: '#4a90d9', overlay: false, category: 'Momentum' },
+        { id: 'stoch',     name: 'Stochastic (14,3)', type: 'stoch',     period: 14, smooth: 3, color: '#2ecc71', overlay: false, category: 'Momentum' },
+        { id: 'cci',       name: 'CCI (20)',           type: 'cci',      period: 20,  color: '#e74c5e', overlay: false, category: 'Momentum' },
+        { id: 'willr',     name: 'Williams %R (14)',   type: 'willr',    period: 14,  color: '#9b59b6', overlay: false, category: 'Momentum' },
+        { id: 'mom',       name: 'Momentum (10)',      type: 'mom',      period: 10,  color: '#00b894', overlay: false, category: 'Momentum' },
+        { id: 'roc',       name: 'ROC (12)',            type: 'roc',     period: 12,  color: '#6c5ce7', overlay: false, category: 'Momentum' },
+        { id: 'tsi',       name: 'TSI (25,13)',         type: 'tsi',     color: '#fd79a8', overlay: false, category: 'Momentum' },
+        { id: 'uo',        name: 'Ultimate Osc (7,14,28)', type: 'uo',  color: '#ffeaa7', overlay: false, category: 'Momentum' },
+        { id: 'awesome',   name: 'Awesome Oscillator', type: 'awesome', color: '#55efc4', overlay: false, category: 'Momentum' },
+        { id: 'ppo',       name: 'PPO (12,26)',        type: 'ppo',     color: '#74b9ff', overlay: false, category: 'Momentum' },
+        { id: 'cmo',       name: 'CMO (14)',            type: 'cmo',    period: 14,  color: '#a29bfe', overlay: false, category: 'Momentum' },
+        { id: 'fisher',    name: 'Fisher Transform (9)',type: 'fisher',  period: 9,   color: '#81ecec', overlay: false, category: 'Momentum' },
+
+        // ===== VOLATILITY =====
+        { id: 'atr',       name: 'ATR (14)',            type: 'atr',    period: 14,  color: '#e74c5e', overlay: false, category: 'Volatility' },
+        { id: 'natr',      name: 'Normalized ATR (14)', type: 'natr',   period: 14,  color: '#ff7675', overlay: false, category: 'Volatility' },
+        { id: 'bbwidth',   name: 'BB Width (20)',       type: 'bbwidth', period: 20, color: '#7c819a', overlay: false, category: 'Volatility' },
+        { id: 'bbpct',     name: 'BB %B (20)',          type: 'bbpct',  period: 20,  color: '#636e72', overlay: false, category: 'Volatility' },
+        { id: 'stddev',    name: 'Std Deviation (20)',  type: 'stddev', period: 20,  color: '#dfe6e9', overlay: false, category: 'Volatility' },
+        { id: 'chop',      name: 'Choppiness (14)',     type: 'chop',   period: 14,  color: '#ffeaa7', overlay: false, category: 'Volatility' },
+        { id: 'kc_width',  name: 'Keltner Width (20)',  type: 'kc_width', period: 20, color: '#e17055', overlay: false, category: 'Volatility' },
+
+        // ===== VOLUME =====
+        { id: 'obv',       name: 'OBV',                 type: 'obv',    color: '#00b894', overlay: false, category: 'Volume' },
+        { id: 'adosc',     name: 'Chaikin A/D Osc',     type: 'adosc',  color: '#6c5ce7', overlay: false, category: 'Volume' },
+        { id: 'cmf',       name: 'CMF (20)',             type: 'cmf',   period: 20,  color: '#0984e3', overlay: false, category: 'Volume' },
+        { id: 'mfi',       name: 'MFI (14)',             type: 'mfi',   period: 14,  color: '#00cec9', overlay: false, category: 'Volume' },
+        { id: 'eom',       name: 'Ease of Movement',    type: 'eom',   period: 14,  color: '#fd79a8', overlay: false, category: 'Volume' },
+        { id: 'vpt',       name: 'Volume Price Trend',  type: 'vpt',   color: '#a29bfe', overlay: false, category: 'Volume' },
+        { id: 'fi',        name: 'Force Index (13)',     type: 'fi',    period: 13,  color: '#55efc4', overlay: false, category: 'Volume' },
+        { id: 'nvi',       name: 'NVI',                  type: 'nvi',  color: '#74b9ff', overlay: false, category: 'Volume' },
+
+        // ===== TREND =====
+        { id: 'adx',       name: 'ADX (14)',            type: 'adx',    period: 14,  color: '#f1c40f', overlay: false, category: 'Trend' },
+        { id: 'di',        name: '+DI / -DI (14)',      type: 'di',     period: 14,  color: '#2ecc71', overlay: false, category: 'Trend' },
+        { id: 'aroon',     name: 'Aroon (25)',           type: 'aroon', period: 25,  color: '#e74c5e', overlay: false, category: 'Trend' },
+        { id: 'aroonosc',  name: 'Aroon Oscillator',    type: 'aroonosc', period: 25, color: '#9b59b6', overlay: false, category: 'Trend' },
+        { id: 'vortex',    name: 'Vortex (14)',          type: 'vortex', period: 14, color: '#00b894', overlay: false, category: 'Trend' },
+        { id: 'dpo',       name: 'DPO (20)',             type: 'dpo',   period: 20,  color: '#fdcb6e', overlay: false, category: 'Trend' },
+        { id: 'trix',      name: 'TRIX (15)',            type: 'trix',  period: 15,  color: '#81ecec', overlay: false, category: 'Trend' },
+        { id: 'mass',      name: 'Mass Index (25)',      type: 'mass',  period: 25,  color: '#fab1a0', overlay: false, category: 'Trend' },
+        { id: 'copp',      name: 'Coppock Curve',        type: 'copp',  color: '#dfe6e9', overlay: false, category: 'Trend' },
     ],
 
     showIndicatorsModal() {
-        // Build modal dynamically
         let existing = document.getElementById('indicatorsModal');
         if (existing) existing.remove();
 
+        // Group indicators by category
+        const categories = {};
+        this._indicatorDefs.forEach(d => {
+            const cat = d.category || (d.overlay ? 'Overlays' : 'Oscillators');
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(d);
+        });
+
+        const categoryOrder = ['Moving Averages', 'Overlays', 'Momentum', 'Volatility', 'Volume', 'Trend'];
+        const activeCount = Object.keys(this._indicators).filter(k => this._indicators[k]?.enabled).length;
+
         const html = `
         <div class="modal fade" id="indicatorsModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content" style="background:var(--bc-card);border-color:var(--bc-border)">
                     <div class="modal-header border-secondary">
                         <h5 class="modal-title"><i class="bi bi-activity me-2"></i>Chart Indicators</h5>
+                        <span class="badge bg-success ms-2" id="indActiveCount">${activeCount} active</span>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body">
-                        <h6 class="text-secondary small fw-semibold mb-2">OVERLAYS</h6>
-                        ${this._indicatorDefs.filter(d => d.overlay).map(d => `
-                        <div class="form-check form-switch d-flex align-items-center justify-content-between py-2 border-bottom border-secondary">
-                            <div>
-                                <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:8px"></i>${d.name}</span>
-                            </div>
-                            <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
-                                onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
-                        </div>`).join('')}
-                        <h6 class="text-secondary small fw-semibold mt-3 mb-2">OSCILLATORS</h6>
-                        ${this._indicatorDefs.filter(d => !d.overlay).map(d => `
-                        <div class="form-check form-switch d-flex align-items-center justify-content-between py-2 border-bottom border-secondary">
-                            <div>
-                                <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:8px"></i>${d.name}</span>
-                                <small class="text-secondary ms-2">(separate pane)</small>
-                            </div>
-                            <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
-                                onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
-                        </div>`).join('')}
+                    <div class="px-3 pt-3 pb-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search indicators..."
+                            id="indSearchInput" oninput="DashboardPage._filterIndicatorModal(this.value)"
+                            style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                    </div>
+                    <div class="modal-body" style="max-height:55vh;overflow-y:auto" id="indModalBody">
+                        ${categoryOrder.map(cat => {
+                            const items = categories[cat] || [];
+                            if (items.length === 0) return '';
+                            const isOverlay = items[0].overlay;
+                            return `
+                            <div class="ind-category" data-category="${cat}">
+                                <h6 class="text-secondary small fw-semibold mt-2 mb-2 text-uppercase">${cat}${!isOverlay ? ' <small class="fw-normal">(separate pane)</small>' : ''}</h6>
+                                ${items.map(d => `
+                                <div class="ind-row form-check form-switch d-flex align-items-center justify-content-between py-1 border-bottom border-secondary" data-name="${d.name.toLowerCase()}" data-id="${d.id}">
+                                    <div>
+                                        <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>${d.name}</span>
+                                    </div>
+                                    <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
+                                        onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
+                                </div>`).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>
                     <div class="modal-footer border-secondary">
                         <button class="btn btn-outline-secondary btn-sm" onclick="DashboardPage.clearAllIndicators()">Clear All</button>
@@ -810,6 +894,30 @@ const DashboardPage = {
         document.body.insertAdjacentHTML('beforeend', html);
         const modal = new bootstrap.Modal(document.getElementById('indicatorsModal'));
         modal.show();
+        // Focus search on open
+        document.getElementById('indicatorsModal').addEventListener('shown.bs.modal', () => {
+            document.getElementById('indSearchInput')?.focus();
+        });
+    },
+
+    _filterIndicatorModal(query) {
+        const q = query.toLowerCase().trim();
+        document.querySelectorAll('#indModalBody .ind-row').forEach(row => {
+            row.style.display = row.dataset.name.includes(q) ? '' : 'none';
+        });
+        // Hide empty categories
+        document.querySelectorAll('#indModalBody .ind-category').forEach(cat => {
+            const visible = cat.querySelectorAll('.ind-row[style=""], .ind-row:not([style])').length;
+            cat.style.display = visible > 0 ? '' : 'none';
+        });
+    },
+
+    _updateActiveCount() {
+        const el = document.getElementById('indActiveCount');
+        if (el) {
+            const n = Object.keys(this._indicators).filter(k => this._indicators[k]?.enabled).length;
+            el.textContent = n + ' active';
+        }
     },
 
     toggleIndicator(id, enabled) {
@@ -817,80 +925,317 @@ const DashboardPage = {
         if (!def) return;
 
         if (!enabled) {
-            // Remove indicator series from chart
             if (this._indicators[id]?.series) {
-                if (Array.isArray(this._indicators[id].series)) {
-                    this._indicators[id].series.forEach(s => this.chart.removeSeries(s));
-                } else {
-                    this.chart.removeSeries(this._indicators[id].series);
-                }
+                const series = this._indicators[id].series;
+                (Array.isArray(series) ? series : [series]).forEach(s => {
+                    try { this.chart.removeSeries(s); } catch(e){}
+                });
             }
             delete this._indicators[id];
+            this._updateActiveCount();
             return;
         }
 
-        // Get current candle data from cache
         const cached = this._getCached(this.currentPair, this.currentTimeframe);
         if (!cached || !cached.candles || cached.candles.length === 0) {
             App.showToast('Load chart data first', 'warning');
+            const cb = document.getElementById('ind-' + id);
+            if (cb) cb.checked = false;
             return;
         }
 
         const candles = cached.candles;
         this._indicators[id] = { enabled: true };
+        const scaleId = def.overlay ? undefined : id;
+        const lineOpts = (color, extra = {}) => ({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, ...extra });
+        const oscOpts = (color, extra = {}) => ({ ...lineOpts(color, extra), priceScaleId: scaleId, lastValueVisible: true });
+        const setOscScale = () => {
+            if (scaleId) this.chart.priceScale(scaleId).applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
+        };
+        const addLine = (data, opts) => { const s = this.chart.addLineSeries(opts); s.setData(data); return s; };
+        const addHist = (data, opts) => { const s = this.chart.addHistogramSeries(opts); s.setData(data); return s; };
 
+        try {
+        // ========== MOVING AVERAGES ==========
         if (def.type === 'ema' || def.type === 'sma') {
-            const values = this._calcMA(candles, def.period, def.type);
-            const series = this.chart.addLineSeries({
-                color: def.color,
-                lineWidth: 1,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: false,
-            });
-            series.setData(values);
-            this._indicators[id].series = series;
+            this._indicators[id].series = addLine(this._calcMA(candles, def.period, def.type), lineOpts(def.color));
 
+        } else if (def.type === 'wma') {
+            this._indicators[id].series = addLine(this._calcWMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'dema') {
+            this._indicators[id].series = addLine(this._calcDEMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'tema') {
+            this._indicators[id].series = addLine(this._calcTEMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'kama') {
+            this._indicators[id].series = addLine(this._calcKAMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'hma') {
+            this._indicators[id].series = addLine(this._calcHMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'vwma') {
+            this._indicators[id].series = addLine(this._calcVWMA(candles, def.period), lineOpts(def.color));
+
+        // ========== OVERLAYS ==========
         } else if (def.type === 'bb') {
             const bb = this._calcBB(candles, def.period);
-            const upper = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2 });
-            const lower = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2 });
-            const mid = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 1 });
-            upper.setData(bb.upper);
-            lower.setData(bb.lower);
-            mid.setData(bb.mid);
-            this._indicators[id].series = [upper, lower, mid];
+            this._indicators[id].series = [
+                addLine(bb.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(bb.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(bb.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
 
+        } else if (def.type === 'kc') {
+            const kc = this._calcKC(candles, def.period);
+            this._indicators[id].series = [
+                addLine(kc.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(kc.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(kc.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'dc') {
+            const dc = this._calcDC(candles, def.period);
+            this._indicators[id].series = [
+                addLine(dc.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(dc.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(dc.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'envelope') {
+            const env = this._calcEnvelope(candles, def.period, def.pct);
+            this._indicators[id].series = [
+                addLine(env.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(env.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(env.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'psar') {
+            const data = this._calcPSAR(candles);
+            const s = this.chart.addLineSeries({ ...lineOpts(def.color), lineType: 1, pointMarkersVisible: true, lineVisible: false });
+            s.setData(data);
+            this._indicators[id].series = s;
+
+        } else if (def.type === 'ichimoku') {
+            const ich = this._calcIchimoku(candles);
+            this._indicators[id].series = [
+                addLine(ich.tenkan,  lineOpts('#e74c3c')),
+                addLine(ich.kijun,   lineOpts('#3498db')),
+                addLine(ich.senkouA, lineOpts('#2ecc71', { lineStyle: 2 })),
+                addLine(ich.senkouB, lineOpts('#e74c5e', { lineStyle: 2 })),
+                addLine(ich.chikou,  lineOpts('#9b59b6', { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'supertrend') {
+            const st = this._calcSupertrend(candles, def.period, def.mult);
+            const s = this.chart.addLineSeries({ ...lineOpts(def.color), lineWidth: 2 });
+            s.setData(st);
+            this._indicators[id].series = s;
+
+        } else if (def.type === 'pivots') {
+            const piv = this._calcPivots(candles);
+            this._indicators[id].series = [
+                addLine(piv.pivot, lineOpts('#dfe6e9', { lineStyle: 1 })),
+                addLine(piv.r1,    lineOpts('#e74c5e', { lineStyle: 2 })),
+                addLine(piv.s1,    lineOpts('#2ecc71', { lineStyle: 2 })),
+                addLine(piv.r2,    lineOpts('#ff7675', { lineStyle: 2 })),
+                addLine(piv.s2,    lineOpts('#55efc4', { lineStyle: 2 })),
+            ];
+
+        } else if (def.type === 'vwap') {
+            this._indicators[id].series = addLine(this._calcVWAP(candles), lineOpts(def.color, { lineWidth: 2 }));
+
+        // ========== MOMENTUM / OSCILLATORS ==========
         } else if (def.type === 'rsi') {
-            const rsi = this._calcRSI(candles, def.period);
-            const series = this.chart.addLineSeries({
-                color: def.color,
-                lineWidth: 1.5,
-                priceLineVisible: false,
-                lastValueVisible: true,
-                priceScaleId: 'rsi',
-            });
-            series.setData(rsi);
-            this.chart.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
-            this._indicators[id].series = series;
+            this._indicators[id].series = addLine(this._calcRSI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'stochrsi') {
+            const sr = this._calcStochRSI(candles, def.period);
+            this._indicators[id].series = [
+                addLine(sr.k, oscOpts('#00cec9')),
+                addLine(sr.d, oscOpts('#e74c5e', { lineStyle: 2 })),
+            ];
+            setOscScale();
 
         } else if (def.type === 'macd') {
             const macd = this._calcMACD(candles);
-            const macdLine = this.chart.addLineSeries({
-                color: '#4a90d9', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, priceScaleId: 'macd',
-            });
-            const signalLine = this.chart.addLineSeries({
-                color: '#e74c5e', lineWidth: 1, priceLineVisible: false, lastValueVisible: false, priceScaleId: 'macd',
-            });
-            const hist = this.chart.addHistogramSeries({
-                priceScaleId: 'macd', priceLineVisible: false, lastValueVisible: false,
-            });
-            macdLine.setData(macd.macd);
-            signalLine.setData(macd.signal);
-            hist.setData(macd.histogram);
-            this.chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
-            this._indicators[id].series = [macdLine, signalLine, hist];
+            this._indicators[id].series = [
+                addLine(macd.macd, { ...oscOpts('#4a90d9'), lineWidth: 1.5 }),
+                addLine(macd.signal, oscOpts('#e74c5e')),
+                addHist(macd.histogram, { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false }),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'stoch') {
+            const stoch = this._calcStoch(candles, def.period, def.smooth);
+            this._indicators[id].series = [
+                addLine(stoch.k, oscOpts(def.color)),
+                addLine(stoch.d, oscOpts('#e74c5e', { lineStyle: 2 })),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'cci') {
+            this._indicators[id].series = addLine(this._calcCCI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'willr') {
+            this._indicators[id].series = addLine(this._calcWillR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mom') {
+            this._indicators[id].series = addLine(this._calcMomentum(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'roc') {
+            this._indicators[id].series = addLine(this._calcROC(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'tsi') {
+            this._indicators[id].series = addLine(this._calcTSI(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'uo') {
+            this._indicators[id].series = addLine(this._calcUO(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'awesome') {
+            this._indicators[id].series = addHist(this._calcAwesome(candles), { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false });
+            setOscScale();
+
+        } else if (def.type === 'ppo') {
+            this._indicators[id].series = addLine(this._calcPPO(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'cmo') {
+            this._indicators[id].series = addLine(this._calcCMO(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'fisher') {
+            this._indicators[id].series = addLine(this._calcFisher(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        // ========== VOLATILITY ==========
+        } else if (def.type === 'atr') {
+            this._indicators[id].series = addLine(this._calcATR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'natr') {
+            this._indicators[id].series = addLine(this._calcNATR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'bbwidth') {
+            this._indicators[id].series = addLine(this._calcBBWidth(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'bbpct') {
+            this._indicators[id].series = addLine(this._calcBBPct(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'stddev') {
+            this._indicators[id].series = addLine(this._calcStdDev(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'chop') {
+            this._indicators[id].series = addLine(this._calcChop(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'kc_width') {
+            this._indicators[id].series = addLine(this._calcKCWidth(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        // ========== VOLUME ==========
+        } else if (def.type === 'obv') {
+            this._indicators[id].series = addLine(this._calcOBV(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'adosc') {
+            this._indicators[id].series = addLine(this._calcADOsc(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'cmf') {
+            this._indicators[id].series = addLine(this._calcCMF(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mfi') {
+            this._indicators[id].series = addLine(this._calcMFI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'eom') {
+            this._indicators[id].series = addLine(this._calcEOM(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'vpt') {
+            this._indicators[id].series = addLine(this._calcVPT(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'fi') {
+            this._indicators[id].series = addLine(this._calcFI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'nvi') {
+            this._indicators[id].series = addLine(this._calcNVI(candles), oscOpts(def.color));
+            setOscScale();
+
+        // ========== TREND ==========
+        } else if (def.type === 'adx') {
+            this._indicators[id].series = addLine(this._calcADX(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'di') {
+            const di = this._calcDI(candles, def.period);
+            this._indicators[id].series = [
+                addLine(di.plus, oscOpts('#2ecc71')),
+                addLine(di.minus, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'aroon') {
+            const ar = this._calcAroon(candles, def.period);
+            this._indicators[id].series = [
+                addLine(ar.up, oscOpts('#2ecc71')),
+                addLine(ar.down, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'aroonosc') {
+            this._indicators[id].series = addLine(this._calcAroonOsc(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'vortex') {
+            const vt = this._calcVortex(candles, def.period);
+            this._indicators[id].series = [
+                addLine(vt.plus, oscOpts('#2ecc71')),
+                addLine(vt.minus, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'dpo') {
+            this._indicators[id].series = addLine(this._calcDPO(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'trix') {
+            this._indicators[id].series = addLine(this._calcTRIX(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mass') {
+            this._indicators[id].series = addLine(this._calcMass(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'copp') {
+            this._indicators[id].series = addLine(this._calcCoppock(candles), oscOpts(def.color));
+            setOscScale();
         }
+
+        } catch(e) {
+            console.error(`Error adding indicator ${id}:`, e);
+            App.showToast(`Error computing ${def.name}: ${e.message}`, 'error');
+            delete this._indicators[id];
+            const cb = document.getElementById('ind-' + id);
+            if (cb) cb.checked = false;
+        }
+        this._updateActiveCount();
     },
 
     clearAllIndicators() {
