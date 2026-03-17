@@ -620,11 +620,41 @@ const StrategyStorePage = {
         this.refresh();
     },
 
-    importToBuilder(id) {
+    async importToBuilder(id) {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
 
-        // Load into strategy builder state
+        // For remote Freqtrade strategies, fetch code and parse into visual nodes
+        if (s.isRemote && (!s.nodes || s.nodes.length === 0)) {
+            try {
+                App.showToast(`Loading strategy "${s.name}"...`, 'info');
+                const detail = await API.getStrategy(s.name);
+                if (detail && detail.code) {
+                    // Store imported code for analysis and backtesting
+                    StrategyBuilderPage._importedStrategyCode = detail.code;
+                    StrategyBuilderPage._importedStrategyName = s.name;
+                    // Save to imported strategies localStorage
+                    const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+                    imported[s.name] = { content: detail.code, importedAt: new Date().toISOString(), uploaded: true };
+                    localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+                    // Parse code into visual flow nodes
+                    StrategyBuilderPage._parseStrategyToFlow(detail.code, s.name);
+                    StrategyBuilderPage.autoSave();
+                    App.showToast(`Strategy "${s.name}" imported as visual flow`, 'success');
+                    App.navigate('strategy-builder');
+                    setTimeout(() => {
+                        StrategyBuilderPage.renderNodes();
+                        StrategyBuilderPage.zoomFit();
+                    }, 200);
+                    return;
+                }
+            } catch(e) {
+                console.log('Failed to fetch remote strategy:', e.message);
+                App.showToast(`Could not load strategy code: ${e.message}`, 'warning');
+            }
+        }
+
+        // For template strategies with pre-built nodes
         StrategyBuilderPage.nodes = JSON.parse(JSON.stringify(s.nodes));
         StrategyBuilderPage.connections = JSON.parse(JSON.stringify(s.connections));
         StrategyBuilderPage.strategyName = s.name;
@@ -632,22 +662,13 @@ const StrategyStorePage = {
         StrategyBuilderPage.timeUnit = s.timeframe;
         StrategyBuilderPage.nextId = s.nodes.length > 0 ? Math.max(...s.nodes.map(n => n.id)) + 1 : 1;
 
-        // Save to localStorage so init() picks it up
         StrategyBuilderPage.autoSave();
-
         App.showToast(`Strategy "${s.name}" imported as visual flow`, 'success');
-
-        // Force full page re-render by navigating
         App.navigate('strategy-builder');
 
-        // Ensure nodes render after DOM is ready (in case init timing is off)
         setTimeout(() => {
             StrategyBuilderPage.renderNodes();
-            // Update strategy name input if it didn't pick up the new value
-            const nameInput = document.querySelector('#dashboardPage input, .builder-layout input[type="text"]');
-            if (nameInput && nameInput.value !== s.name) {
-                nameInput.value = s.name;
-            }
+            StrategyBuilderPage.zoomFit();
         }, 200);
     },
 

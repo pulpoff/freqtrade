@@ -33,7 +33,7 @@ from freqtrade.rpc.api_server.api_schemas import (
     StatusMsg,
     WhitelistResponse,
 )
-from freqtrade.rpc.api_server.deps import get_config, get_rpc
+from freqtrade.rpc.api_server.deps import get_config, get_rpc, get_rpc_optional
 from freqtrade.rpc.rpc import RPCException
 
 
@@ -43,8 +43,14 @@ router = APIRouter()
 
 
 @router.get("/balance", response_model=Balances, tags=["Trading-info"])
-def balance(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
+def balance(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
     """Account Balances"""
+    if not rpc:
+        return {"currencies": [], "total": 0, "symbol": "", "value": 0,
+                "stake": config.get("stake_currency", "USDT"), "note": "",
+                "starting_capital": 0, "starting_capital_ratio": 0,
+                "starting_capital_pct": 0, "starting_capital_fiat": 0,
+                "starting_capital_fiat_ratio": 0, "starting_capital_fiat_pct": 0}
     return rpc._rpc_balance(
         config["stake_currency"],
         config.get("fiat_display_currency", ""),
@@ -52,7 +58,9 @@ def balance(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
 
 
 @router.get("/count", response_model=Count, tags=["Trading-info"])
-def count(rpc: RPC = Depends(get_rpc)):
+def count(rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return {"current": 0, "max": 0, "total_stake": 0}
     return rpc._rpc_count()
 
 
@@ -77,7 +85,26 @@ def performance(rpc: RPC = Depends(get_rpc)):
 
 
 @router.get("/profit", response_model=Profit, tags=["Trading-info"])
-def profit(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
+def profit(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
+    if not rpc:
+        return {"profit_closed_coin": 0, "profit_closed_percent_mean": 0,
+                "profit_closed_ratio_mean": 0, "profit_closed_percent_sum": 0,
+                "profit_closed_ratio_sum": 0, "profit_closed_percent": 0,
+                "profit_closed_ratio": 0, "profit_closed_fiat": 0,
+                "profit_all_coin": 0, "profit_all_percent_mean": 0,
+                "profit_all_ratio_mean": 0, "profit_all_percent_sum": 0,
+                "profit_all_ratio_sum": 0, "profit_all_percent": 0,
+                "profit_all_ratio": 0, "profit_all_fiat": 0,
+                "trade_count": 0, "closed_trade_count": 0,
+                "first_trade_date": "", "first_trade_humanized": "",
+                "first_trade_timestamp": 0, "latest_trade_date": "",
+                "latest_trade_humanized": "", "latest_trade_timestamp": 0,
+                "avg_duration": "", "best_pair": "", "best_rate": 0,
+                "best_pair_profit_ratio": 0, "winning_trades": 0,
+                "losing_trades": 0, "profit_factor": 0,
+                "max_drawdown": 0, "max_drawdown_abs": 0,
+                "trading_volume": 0, "bot_start_timestamp": 0,
+                "bot_start_date": ""}
     return rpc._rpc_trade_statistics(config["stake_currency"], config.get("fiat_display_currency"))
 
 
@@ -138,7 +165,9 @@ def monthly(
 
 
 @router.get("/status", response_model=list[OpenTradeSchema], tags=["Trading-info"])
-def status(rpc: RPC = Depends(get_rpc)):
+def status(rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return []
     try:
         return rpc._rpc_trade_status()
     except RPCException:
@@ -276,8 +305,16 @@ def blacklist_delete(pairs_to_delete: list[str] = Query([]), rpc: RPC = Depends(
 
 
 @router.get("/whitelist", response_model=WhitelistResponse, tags=["Trading-info", "Pairlist"])
-def whitelist(rpc: RPC = Depends(get_rpc)):
-    return rpc._rpc_whitelist()
+def whitelist(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
+    if rpc:
+        return rpc._rpc_whitelist()
+    # Fallback: return pair_whitelist from config when RPC is not available (engine/webserver mode)
+    pair_whitelist = config.get("exchange", {}).get("pair_whitelist", [])
+    return {
+        "method": ["StaticPairList"],
+        "length": len(pair_whitelist),
+        "whitelist": pair_whitelist,
+    }
 
 
 @router.get("/locks", response_model=Locks, tags=["Trading-info", "Locks"])

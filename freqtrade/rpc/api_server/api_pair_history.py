@@ -77,7 +77,7 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
             payload.live_mode,
         )
     except Exception as e:
-        logger.exception("Error in pair_history_filtered")
+        logger.error(f"Error in pair_history_filtered: {type(e).__name__}: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
 
@@ -129,5 +129,5 @@ def pair_ohlcv(
         }
 
     except Exception as e:
-        logger.exception("Error in pair_ohlcv")
+        logger.error(f"Error in pair_ohlcv: {type(e).__name__}: {e}")
         raise HTTPException(status_code=502, detail=str(e))

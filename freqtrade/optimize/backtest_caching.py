@@ -13,7 +13,16 @@ def get_strategy_run_id(strategy) -> str:
     :return: hex string id.
     """
     digest = hashlib.sha1()  # noqa: S324
-    config = deepcopy(strategy.config)
+    try:
+        config = deepcopy(strategy.config)
+    except TypeError:
+        # Config may contain unpicklable objects (e.g. _thread.lock from strategy manager)
+        import json
+        try:
+            config = json.loads(json.dumps(strategy.config, default=str))
+        except (TypeError, ValueError):
+            config = {k: v for k, v in strategy.config.items()
+                      if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
 
     # Options that have no impact on results of individual backtest.
     not_important_keys = ("strategy_list", "original_config", "telegram", "api_server")
