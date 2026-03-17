@@ -1,0 +1,521 @@
+/* ============================================
+   BotCrypto - Custom Bootstrap Overrides
+   Dark theme matching botcrypto.io design
+   ============================================ */
+
+:root {
+    --bc-primary: #2dd4a8;
+    --bc-primary-hover: #25b890;
+    --bc-primary-rgb: 45, 212, 168;
+    --bc-bg: #1a1e2e;
+    --bc-bg-dark: #141722;
+    --bc-card: #222639;
+    --bc-sidebar: #1e2235;
+    --bc-border: #2e3348;
+    --bc-text: #e8eaf0;
+    --bc-text-secondary: #8a8fa8;
+    --bc-green: #2dd4a8;
+    --bc-red: #e74c5e;
+    --bc-orange: #f5a623;
+    --bc-blue: #4a90d9;
+    --bc-yellow: #f1c40f;
+    --sidebar-width: 220px;
+}
+
+/* Override Bootstrap dark theme colors */
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--bc-bg);
+    --bs-dark-bg-subtle: var(--bc-card);
+    --bs-border-color: var(--bc-border);
+    --bs-success: var(--bc-primary);
+    --bs-success-rgb: var(--bc-primary-rgb);
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bc-bg);
+    overflow: hidden;
+    height: 100vh;
+}
+
+/* ============================================
+   SIDEBAR
+   ============================================ */
+.sidebar {
+    width: var(--sidebar-width);
+    min-height: 100vh;
+    background: var(--bc-sidebar) !important;
+    border-right: 1px solid var(--bc-border);
+    transition: all 0.3s ease;
+    z-index: 1050;
+}
+
+.logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--bc-primary);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bc-bg-dark);
+    font-size: 18px;
+}
+
+.sidebar .nav-link {
+    color: var(--bc-text-secondary);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 1px 0;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.sidebar .nav-link:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--bc-text);
+}
+
+.sidebar .nav-link.active {
+    background: rgba(45, 212, 168, 0.12) !important;
+    color: var(--bc-primary) !important;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.connected {
+    background: var(--bc-green);
+    box-shadow: 0 0 6px var(--bc-green);
+}
+
+.status-dot.disconnected {
+    background: var(--bc-red);
+    box-shadow: 0 0 6px var(--bc-red);
+}
+
+/* ============================================
+   MAIN WRAPPER
+   ============================================ */
+.main-wrapper {
+    min-height: 100vh;
+    max-height: 100vh;
+    background: var(--bc-bg);
+}
+
+.navbar {
+    background: var(--bc-bg-dark) !important;
+}
+
+#pageContainer {
+    background: var(--bc-bg);
+}
+
+/* ============================================
+   CARD OVERRIDES
+   ============================================ */
+.card {
+    background: var(--bc-card);
+    border-color: var(--bc-border);
+    border-radius: 12px;
+}
+
+.card-header {
+    background: transparent;
+    border-bottom-color: var(--bc-border);
+}
+
+/* ============================================
+   BUTTON OVERRIDES
+   ============================================ */
+.btn-success {
+    background: var(--bc-primary);
+    border-color: var(--bc-primary);
+    color: var(--bc-bg-dark);
+}
+
+.btn-success:hover {
+    background: var(--bc-primary-hover);
+    border-color: var(--bc-primary-hover);
+    color: var(--bc-bg-dark);
+}
+
+.btn-outline-success {
+    border-color: var(--bc-primary);
+    color: var(--bc-primary);
+}
+
+.btn-outline-success:hover,
+.btn-outline-success.active {
+    background: var(--bc-primary);
+    border-color: var(--bc-primary);
+    color: var(--bc-bg-dark);
+}
+
+/* Botcrypto DELETE button */
+.btn-bc-delete {
+    background: var(--bc-red);
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 8px;
+}
+
+.btn-bc-delete:hover { opacity: 0.9; color: white; }
+
+/* ============================================
+   FORM OVERRIDES
+   ============================================ */
+.form-control, .form-select {
+    background: rgba(255,255,255,0.05);
+    border-color: var(--bc-border);
+    color: var(--bc-text);
+}
+
+.form-control:focus, .form-select:focus {
+    background: rgba(255,255,255,0.08);
+    border-color: var(--bc-primary);
+    box-shadow: 0 0 0 0.2rem rgba(45, 212, 168, 0.15);
+    color: var(--bc-text);
+}
+
+/* ============================================
+   TABLE OVERRIDES
+   ============================================ */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: rgba(255,255,255,0.03);
+    color: var(--bc-text);
+}
+
+.table > thead > tr > th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--bc-text-secondary);
+    border-bottom-color: var(--bc-border);
+}
+
+.table > tbody > tr > td {
+    border-bottom-color: var(--bc-border);
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+/* ============================================
+   STAT CARDS
+   ============================================ */
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--bc-text-secondary);
+}
+
+.stat-sublabel {
+    font-size: 11px;
+    color: var(--bc-text-secondary);
+    opacity: 0.7;
+}
+
+.text-profit { color: var(--bc-green) !important; }
+.text-loss { color: var(--bc-red) !important; }
+.bg-profit { background: rgba(45, 212, 168, 0.1) !important; }
+.bg-loss { background: rgba(231, 76, 94, 0.1) !important; }
+
+.action-sell { color: var(--bc-red); font-weight: 600; font-size: 12px; }
+.action-buy { color: var(--bc-primary); font-weight: 600; font-size: 12px; }
+
+/* ============================================
+   CHART CONTAINER
+   ============================================ */
+.chart-container {
+    min-height: 400px;
+    position: relative;
+}
+
+.chart-area {
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   STRATEGY BUILDER - VISUAL CANVAS
+   ============================================ */
+.builder-layout {
+    height: calc(100vh - 72px);
+    margin: -1.5rem;
+}
+
+.builder-canvas-wrapper {
+    position: relative;
+    overflow: hidden;
+    background: var(--bc-bg-dark);
+    background-image: radial-gradient(circle, var(--bc-border) 1px, transparent 1px);
+    background-size: 24px 24px;
+    cursor: grab;
+}
+
+.builder-canvas-wrapper:active { cursor: grabbing; }
+
+.builder-canvas {
+    position: absolute;
+    inset: 0;
+}
+
+/* Canvas Nodes */
+.canvas-node {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    z-index: 10;
+}
+
+.node-body {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    min-width: 80px;
+    text-align: center;
+    position: relative;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.node-body:hover { border-color: var(--bc-primary); }
+.node-body.selected { border-color: var(--bc-primary); box-shadow: 0 0 0 3px rgba(45,212,168,0.2); }
+
+.node-icon {
+    width: 64px;
+    height: 64px;
+    margin: 8px auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    border-radius: 10px;
+}
+
+.node-icon.n-start { background: #e8e8e8; color: #666; }
+.node-icon.n-terminate { background: #e8e8e8; color: #666; }
+.node-icon.n-buy { background: var(--bc-green); color: white; }
+.node-icon.n-sell { background: var(--bc-red); color: white; }
+.node-icon.n-indicator { background: #f0f4ff; color: var(--bc-blue); border: 2px solid #ddd; }
+.node-icon.n-gain { background: #f0f0f0; color: var(--bc-blue); }
+.node-icon.n-group { background: var(--bc-blue); color: white; }
+.node-icon.n-stoploss { background: var(--bc-orange); color: white; }
+.node-icon.n-takeprofit { background: var(--bc-primary); color: white; }
+.node-icon.n-trailing { background: var(--bc-orange); color: white; }
+.node-icon.n-wait { background: var(--bc-yellow); color: #333; }
+.node-icon.n-webhook { background: var(--bc-blue); color: white; }
+.node-icon.n-reset { background: var(--bc-blue); color: white; }
+
+.node-label {
+    padding: 4px 10px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+}
+
+.node-params {
+    background: var(--bc-blue);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 5;
+}
+
+.node-params.params-green { background: var(--bc-green); }
+.node-params.params-red { background: var(--bc-red); }
+.node-params.params-orange { background: var(--bc-orange); }
+
+/* Node Connectors */
+.node-connector {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid #aaa;
+    cursor: crosshair;
+    z-index: 15;
+}
+
+.node-connector.output { right: -6px; top: 50%; transform: translateY(-50%); }
+.node-connector.input { left: -6px; top: 50%; transform: translateY(-50%); }
+.node-connector.output-true { border-color: var(--bc-green); right: -6px; top: 35%; }
+.node-connector.output-false { border-color: var(--bc-red); right: -6px; top: 65%; }
+.node-connector:hover { border-color: var(--bc-primary); background: rgba(45,212,168,0.2); }
+
+/* Connections SVG */
+.connections-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.connections-layer path {
+    fill: none;
+    stroke-width: 2.5;
+}
+
+.connections-layer path.conn-true { stroke: var(--bc-orange); }
+.connections-layer path.conn-false { stroke: var(--bc-red); }
+.connections-layer path.conn-normal { stroke: var(--bc-orange); }
+
+/* Bottom Toolbar */
+.builder-toolbar {
+    background: white;
+    border-top: 1px solid #ddd;
+}
+
+.toolbar-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: grab;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.toolbar-block:hover { background: #f5f5f5; }
+.toolbar-block:active { cursor: grabbing; }
+
+.tb-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.tb-icon.tb-indicator { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-group { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-gain { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-trailing { background: rgba(245,166,35,0.12); color: var(--bc-orange); }
+.tb-icon.tb-wait { background: rgba(241,196,15,0.12); color: var(--bc-orange); }
+.tb-icon.tb-fgi { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-webhook { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-buy { background: rgba(45,212,168,0.12); color: var(--bc-green); }
+.tb-icon.tb-sell { background: rgba(231,76,94,0.12); color: var(--bc-red); }
+.tb-icon.tb-takeprofit { background: rgba(45,212,168,0.12); color: var(--bc-primary); }
+.tb-icon.tb-terminate { background: #f0f0f0; color: #666; }
+.tb-icon.tb-reset { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+
+.tb-name { font-size: 11px; font-weight: 500; color: #666; }
+
+/* ============================================
+   STRATEGY STORE CARDS
+   ============================================ */
+.strategy-card {
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.strategy-card:hover {
+    border-color: var(--bc-primary) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* ============================================
+   BACKTEST PAGE
+   ============================================ */
+.backtest-chart-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ============================================
+   CONFIG WIZARD
+   ============================================ */
+.wizard-step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--bc-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.wizard-step-circle.active {
+    border-color: var(--bc-primary);
+    background: rgba(45,212,168,0.12);
+    color: var(--bc-primary);
+}
+
+.wizard-step-circle.completed {
+    border-color: var(--bc-primary);
+    background: var(--bc-primary);
+    color: var(--bc-bg-dark);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: -var(--sidebar-width);
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+    }
+    .sidebar.show {
+        transform: translateX(0);
+    }
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bc-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bc-text-secondary); }
+
+/* ============================================
+   MISC UTILITIES
+   ============================================ */
+.cursor-pointer { cursor: pointer; }
+.fs-7 { font-size: 0.85rem; }
+.fw-semibold { font-weight: 600; }
+.gap-1 { gap: 0.25rem; }
+
+.badge-bc {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-completed { background: rgba(45,212,168,0.12); color: var(--bc-green); }
+.badge-running { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.badge-failed { background: rgba(231,76,94,0.12); color: var(--bc-red); }

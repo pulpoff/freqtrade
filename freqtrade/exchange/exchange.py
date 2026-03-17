@@ -314,7 +314,14 @@ class Exchange:
         if self._exchange_ws:
             self._exchange_ws.cleanup()
         logger.debug("Exchange object destroyed, closing async loop")
-        loop_running = self.loop.is_running() or asyncio.get_event_loop().is_running()
+        try:
+            generic_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            generic_loop = None
+        loop_running = (getattr(self, "loop", None) and self.loop.is_running()) or (
+            generic_loop is not None and generic_loop.is_running()
+        )
+
         if (
             getattr(self, "_api_async", None)
             and inspect.iscoroutinefunction(self._api_async.close)
@@ -1297,6 +1304,7 @@ class Exchange:
         Check dry-run limit order fill and update fee (if it filled).
         """
         if order["status"] != "closed" and order.get("ft_order_type") == "stoploss":
+            # Stoploss branch
             pair = order["symbol"]
             if not orderbook and self.exchange_has("fetchL2OrderBook"):
                 orderbook = self.fetch_l2_order_book(pair, 20)
@@ -1304,6 +1312,11 @@ class Exchange:
             crossed = self._dry_is_price_crossed(
                 pair, order["side"], price, orderbook, is_stop=True
             )
+            if crossed and immediate:
+                raise InvalidOrderException(
+                    "Could not create dry stoploss order. Stoploss would trigger immediately."
+                )
+
             if crossed:
                 average = self.get_dry_market_fill_price(
                     pair,

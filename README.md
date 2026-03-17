@@ -1,6 +1,11 @@
 # <img src="docs/assets/icon.svg" alt="freqtrade icon" height="32"> freqtrade
 
 An improved and further developed fork of [Freqtrade](https://github.com/freqtrade/freqtrade) — the free and open source crypto trading bot — focused on providing a completely new WebGUI inspired by [botcrypto.io](https://botcrypto.io).
+[![Freqtrade CI](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/freqtrade/freqtrade/actions/workflows/ci.yml)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.04864/status.svg)](https://doi.org/10.21105/joss.04864)
+[![codecov](https://codecov.io/gh/freqtrade/freqtrade/branch/develop/graph/badge.svg?token=AD5BG3ATKI)](https://codecov.io/gh/freqtrade/freqtrade)
+[![Documentation](https://readthedocs.org/projects/freqtrade/badge/)](https://www.freqtrade.io)
+[![Discord Server](https://img.shields.io/badge/Freqtrade_Discord-4E4E4E?logo=discord)](https://discord.gg/p7nuUNVfP7)
 
 The goal is to bring a no-code visual strategy builder, real-time trade monitoring, and a modern dashboard experience to Freqtrade — similar to what botcrypto.io offered with its drag-and-drop editor, TradingView widgets, and cloud-based bot management — but fully open source and self-hosted.
 
