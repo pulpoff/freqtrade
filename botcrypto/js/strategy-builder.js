@@ -11,6 +11,11 @@ const StrategyBuilderPage = {
     canvasOffset: { x: 0, y: 0 },
     dragStart: null,
     nextId: 1,
+    _zoom: 1,
+    _panX: 0,
+    _panY: 0,
+    _isPanning: false,
+    _panStart: null,
     strategyName: 'My Strategy',
     strategyDesc: '',
     timeUnit: '5m',
@@ -98,8 +103,17 @@ const StrategyBuilderPage = {
                      onmouseup="StrategyBuilderPage.onCanvasMouseUp(event)"
                      ondrop="StrategyBuilderPage.onDrop(event)"
                      ondragover="event.preventDefault()">
-                    <svg class="connections-layer" id="connectionsLayer"></svg>
-                    <div id="nodesContainer" class="builder-canvas"></div>
+                    <div id="canvasTransform" class="canvas-transform">
+                        <svg class="connections-layer" id="connectionsLayer"></svg>
+                        <div id="nodesContainer" class="builder-canvas"></div>
+                    </div>
+                </div>
+                <!-- Zoom controls -->
+                <div class="builder-zoom-controls">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.zoomIn()" title="Zoom in"><i class="bi bi-plus-lg"></i></button>
+                    <span class="zoom-level" id="sbZoomLevel">100%</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.zoomOut()" title="Zoom out"><i class="bi bi-dash-lg"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="StrategyBuilderPage.zoomReset()" title="Reset view"><i class="bi bi-fullscreen"></i></button>
                 </div>
 
                 <!-- Bottom Panel - Tabbed block palette -->
@@ -186,7 +200,29 @@ const StrategyBuilderPage = {
         } else {
             this.createDefaultNodes();
         }
-        setTimeout(() => this.renderNodes(), 100);
+        setTimeout(() => {
+            this.renderNodes();
+            this._applyTransform();
+        }, 100);
+
+        // Wheel zoom
+        this._wheelHandler = (e) => {
+            const canvas = document.getElementById('builderCanvas');
+            if (!canvas || !canvas.contains(e.target)) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            const newZoom = Math.min(3, Math.max(0.2, this._zoom + delta));
+            // Zoom toward cursor
+            const scale = newZoom / this._zoom;
+            this._panX = mx - scale * (mx - this._panX);
+            this._panY = my - scale * (my - this._panY);
+            this._zoom = newZoom;
+            this._applyTransform();
+        };
+        document.addEventListener('wheel', this._wheelHandler, { passive: false });
 
         // Keyboard shortcuts
         this._keyHandler = (e) => {
@@ -364,8 +400,8 @@ const StrategyBuilderPage = {
 
         const canvas = document.getElementById('builderCanvas');
         const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left - 40;
-        const y = event.clientY - rect.top - 40;
+        const x = (event.clientX - rect.left - this._panX) / this._zoom - 40;
+        const y = (event.clientY - rect.top - this._panY) / this._zoom - 40;
 
         this.addNodeAt(type, x, y);
     },
@@ -374,9 +410,9 @@ const StrategyBuilderPage = {
         const canvas = document.getElementById('builderCanvas');
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
-        // Default position: center of canvas
-        if (!x) x = rect.width / 2 - 40 + Math.random() * 100;
-        if (!y) y = rect.height / 2 - 40 + Math.random() * 100;
+        // Default position: center of visible canvas in canvas coords
+        if (!x) x = (rect.width / 2 - this._panX) / this._zoom - 40 + Math.random() * 100;
+        if (!y) y = (rect.height / 2 - this._panY) / this._zoom - 40 + Math.random() * 100;
         this.addNodeAt(type, x, y);
     },
 
@@ -464,23 +500,36 @@ const StrategyBuilderPage = {
     },
 
     onCanvasMouseDown(event) {
-        if (event.target.id === 'builderCanvas' || event.target.tagName === 'svg' ||
-            event.target.closest('.builder-canvas-wrapper') && !event.target.closest('.canvas-node')) {
+        if (event.target.id === 'builderCanvas' || event.target.id === 'canvasTransform' ||
+            event.target.tagName === 'svg' ||
+            (event.target.closest('.builder-canvas-wrapper') && !event.target.closest('.canvas-node'))) {
             this.selectedNode = null;
             this.connectingFrom = null;
             this._removeTempLine();
+            // Start panning
+            this._isPanning = true;
+            this._panStart = { x: event.clientX, y: event.clientY, panX: this._panX, panY: this._panY };
             this.renderNodes();
         }
     },
 
     onCanvasMouseMove(event) {
+        // Pan the canvas
+        if (this._isPanning && this._panStart) {
+            this._panX = this._panStart.panX + (event.clientX - this._panStart.x);
+            this._panY = this._panStart.panY + (event.clientY - this._panStart.y);
+            this._applyTransform();
+            return;
+        }
+
         // Draw temp connection line while connecting
         if (this.connectingFrom && this._connStartX !== undefined) {
             const canvas = document.getElementById('builderCanvas');
             if (!canvas) return;
             const rect = canvas.getBoundingClientRect();
-            const mx = event.clientX - rect.left;
-            const my = event.clientY - rect.top;
+            // Convert screen coords to canvas coords (account for zoom/pan)
+            const mx = (event.clientX - rect.left - this._panX) / this._zoom;
+            const my = (event.clientY - rect.top - this._panY) / this._zoom;
             const x1 = this._connStartX;
             const y1 = this._connStartY;
             const cx1 = x1 + 60;
@@ -506,8 +555,9 @@ const StrategyBuilderPage = {
             const node = this.nodes.find(n => n.id === this.draggingNode);
             if (!node) return;
 
-            node.x = this.dragStart.nodeX + (event.clientX - this.dragStart.mouseX);
-            node.y = this.dragStart.nodeY + (event.clientY - this.dragStart.mouseY);
+            // Account for zoom when dragging nodes
+            node.x = this.dragStart.nodeX + (event.clientX - this.dragStart.mouseX) / this._zoom;
+            node.y = this.dragStart.nodeY + (event.clientY - this.dragStart.mouseY) / this._zoom;
 
             const el = document.getElementById(`node-${node.id}`);
             if (el) {
@@ -519,14 +569,12 @@ const StrategyBuilderPage = {
     },
 
     onCanvasMouseUp() {
+        this._isPanning = false;
+        this._panStart = null;
         if (this.draggingNode) {
             this.draggingNode = null;
             this.dragStart = null;
             this.autoSave();
-        }
-        // If we were connecting but didn't land on a connector, cancel
-        if (this.connectingFrom) {
-            // Don't cancel immediately - user might still click an input connector
         }
     },
 
@@ -1423,11 +1471,60 @@ ${entryConditions.length > 0 ?
         App.navigate('backtesting');
     },
 
+    // ========== ZOOM & PAN ==========
+    _applyTransform() {
+        const el = document.getElementById('canvasTransform');
+        if (el) {
+            el.style.transform = `translate(${this._panX}px, ${this._panY}px) scale(${this._zoom})`;
+        }
+        const lbl = document.getElementById('sbZoomLevel');
+        if (lbl) lbl.textContent = Math.round(this._zoom * 100) + '%';
+    },
+
+    zoomIn() {
+        this._zoom = Math.min(3, this._zoom + 0.15);
+        this._applyTransform();
+    },
+
+    zoomOut() {
+        this._zoom = Math.max(0.2, this._zoom - 0.15);
+        this._applyTransform();
+    },
+
+    zoomReset() {
+        this._zoom = 1;
+        this._panX = 0;
+        this._panY = 0;
+        this._applyTransform();
+    },
+
+    zoomFit() {
+        if (this.nodes.length === 0) return;
+        const canvas = document.getElementById('builderCanvas');
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const minX = Math.min(...this.nodes.map(n => n.x));
+        const maxX = Math.max(...this.nodes.map(n => n.x + 100));
+        const minY = Math.min(...this.nodes.map(n => n.y));
+        const maxY = Math.max(...this.nodes.map(n => n.y + 100));
+        const w = maxX - minX + 100;
+        const h = maxY - minY + 100;
+        this._zoom = Math.min(rect.width / w, rect.height / h, 1.5);
+        this._zoom = Math.max(0.2, Math.min(3, this._zoom));
+        this._panX = (rect.width - w * this._zoom) / 2 - minX * this._zoom + 50 * this._zoom;
+        this._panY = (rect.height - h * this._zoom) / 2 - minY * this._zoom + 50 * this._zoom;
+        this._applyTransform();
+    },
+
     destroy() {
         this.autoSave();
         if (this._keyHandler) {
             document.removeEventListener('keydown', this._keyHandler);
             this._keyHandler = null;
+        }
+        if (this._wheelHandler) {
+            document.removeEventListener('wheel', this._wheelHandler);
+            this._wheelHandler = null;
         }
         document.querySelectorAll('.node-context-menu').forEach(m => m.remove());
     }

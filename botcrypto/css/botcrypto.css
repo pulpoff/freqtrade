@@ -127,6 +127,7 @@ body {
 .sidebar-collapse-btn {
     opacity: 0.5;
     transition: opacity 0.2s, transform 0.3s;
+    flex-shrink: 0;
 }
 .sidebar-collapse-btn:hover { opacity: 1; }
 .sidebar.collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
@@ -144,9 +145,16 @@ body {
     margin-right: 0 !important;
 }
 .sidebar.collapsed .sidebar-header {
-    justify-content: center;
+    padding: 10px 0 !important;
     flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
+}
+.sidebar.collapsed .sidebar-header a {
+    justify-content: center;
+}
+.sidebar.collapsed .sidebar-collapse-btn {
+    font-size: 12px;
 }
 .sidebar.collapsed .nav-link {
     justify-content: center;
@@ -645,7 +653,7 @@ select option:checked {
    STRATEGY BUILDER - VISUAL CANVAS
    ============================================ */
 .builder-layout {
-    height: calc(100vh - 72px);
+    height: calc(100vh - 2rem);
     margin: -1.25rem -1.5rem;
 }
 @media (max-width: 768px) {
@@ -670,9 +678,47 @@ select option:checked {
 
 .builder-canvas-wrapper:active { cursor: grabbing; }
 
+.canvas-transform {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
 .builder-canvas {
     position: absolute;
     inset: 0;
+}
+
+/* Zoom controls */
+.builder-zoom-controls {
+    position: absolute;
+    bottom: 70px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bc-card);
+    border: 1px solid var(--bc-border);
+    border-radius: var(--bc-radius-sm);
+    padding: 4px 8px;
+    z-index: 20;
+    box-shadow: var(--bc-shadow);
+}
+.builder-zoom-controls .btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.zoom-level {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--bc-text-secondary);
+    min-width: 36px;
+    text-align: center;
 }
 
 /* Canvas Nodes */
@@ -777,9 +823,8 @@ select option:checked {
 /* Connections SVG */
 .connections-layer {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    top: 0;
+    left: 0;
     pointer-events: none;
     z-index: 5;
     overflow: visible;
