@@ -248,6 +248,15 @@ class ApiServer(RPCHandler):
             tags=["Download-data", "Webserver"],
             dependencies=[Depends(http_basic_or_jwt_token), Depends(is_webserver_mode)],
         )
+        # Strategy Manager endpoints (engine mode)
+        from freqtrade.rpc.api_server.api_strategy_manager import router as api_strategy_mgr
+
+        app.include_router(
+            api_strategy_mgr,
+            prefix="/api/v1",
+            dependencies=[Depends(http_basic_or_jwt_token)],
+        )
+
         app.include_router(ws_router, prefix="/api/v1")
         # UI Router MUST be last!
         app.include_router(router_ui, prefix="")

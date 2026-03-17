@@ -284,6 +284,7 @@ NO_CONF_REQURIED = [
     "convert-data",
     "convert-trade-data",
     "download-data",
+    "engine",
     "hyperopt-list",
     "hyperopt-show",
     "list-data",
@@ -680,6 +681,16 @@ class Arguments:
         )
         plot_profit_cmd.set_defaults(func=start_plot_profit)
         self._build_args(optionlist=ARGS_PLOT_PROFIT, parser=plot_profit_cmd)
+
+        # Add engine subcommand (BotCrypto multi-strategy engine)
+        from freqtrade.commands import start_engine
+
+        engine_cmd = subparsers.add_parser(
+            "engine",
+            help="Start BotCrypto engine (GUI + multi-strategy manager). No config required.",
+            parents=[_common_parser],
+        )
+        engine_cmd.set_defaults(func=start_engine)
 
         # Add webserver subcommand
         webserver_cmd = subparsers.add_parser(
