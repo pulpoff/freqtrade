@@ -170,12 +170,13 @@ const App = {
             errEl.classList.add('d-none');
             this.showToast('Connected to Freqtrade!', 'success');
 
-            // Refresh current page
+            // Refresh current page fully to load real data
             if (this.currentPage) {
-                const module = this.currentPage.module();
+                const currentModule = this.currentPage.module();
+                if (currentModule && currentModule.destroy) currentModule.destroy();
                 const container = document.getElementById('pageContainer');
-                container.innerHTML = module.render();
-                if (module.init) module.init();
+                container.innerHTML = currentModule.render();
+                if (currentModule.init) currentModule.init();
             }
         } catch (e) {
             errEl.textContent = `Connection failed: ${e.message}`;

@@ -1,13 +1,12 @@
 /**
  * BotCrypto - Freqtrade API Client
- * Communicates with Freqtrade REST API v2
+ * Communicates with Freqtrade REST API v1
  */
 const API = {
     baseUrl: '',
     token: null,
     refreshToken: null,
     connected: false,
-    wsConnection: null,
 
     /** Initialize from saved settings */
     init() {
@@ -52,10 +51,6 @@ const API = {
         this.refreshToken = null;
         this.connected = false;
         localStorage.removeItem('bc_connection');
-        if (this.wsConnection) {
-            this.wsConnection.close();
-            this.wsConnection = null;
-        }
         App.updateConnectionStatus(false);
         App.showToast('Disconnected from Freqtrade', 'info');
     },
@@ -74,7 +69,6 @@ const API = {
         try {
             const resp = await fetch(url, { ...options, headers });
             if (resp.status === 401) {
-                // Try refresh
                 const refreshed = await this.refreshAccessToken();
                 if (refreshed) {
                     headers['Authorization'] = `Bearer ${this.token}`;
@@ -159,7 +153,8 @@ const API = {
     // ========== BOT CONTROL ==========
     async startBot() { return this.request('/start', { method: 'POST' }); },
     async stopBot() { return this.request('/stop', { method: 'POST' }); },
-    async pauseBot() { return this.request('/pause', { method: 'POST' }); },
+    /** Pause = stop new entries only */
+    async pauseBot() { return this.request('/stopentry', { method: 'POST' }); },
     async reloadConfig() { return this.request('/reload_config', { method: 'POST' }); },
 
     // ========== FORCE TRADE ==========
@@ -172,11 +167,14 @@ const API = {
     async forceExit(tradeId, options = {}) {
         return this.request('/forceexit', {
             method: 'POST',
-            body: JSON.stringify({ tradeid: tradeId, ...options })
+            body: JSON.stringify({ tradeid: String(tradeId), ...options })
         });
     },
     async deleteTrade(id) {
         return this.request(`/trades/${id}`, { method: 'DELETE' });
+    },
+    async cancelOpenOrder(tradeId) {
+        return this.request(`/trades/${tradeId}/open-order`, { method: 'DELETE' });
     },
 
     // ========== PAIRS & DATA ==========
@@ -188,7 +186,13 @@ const API = {
             body: JSON.stringify({ blacklist: pairs })
         });
     },
-    async getPairCandles(pair, timeframe, limit = 500) {
+    async getPairCandles(pair, timeframe, limit = 500, columns) {
+        if (columns) {
+            return this.request('/pair_candles', {
+                method: 'POST',
+                body: JSON.stringify({ pair, timeframe, limit, columns })
+            });
+        }
         return this.request(`/pair_candles?pair=${encodeURIComponent(pair)}&timeframe=${timeframe}&limit=${limit}`);
     },
     async getAvailablePairs(timeframe) {
@@ -222,10 +226,6 @@ const API = {
 
     // ========== EXCHANGES ==========
     async getExchanges() { return this.request('/exchanges'); },
-    async getMarkets(params = {}) {
-        const qs = new URLSearchParams(params).toString();
-        return this.request(`/markets${qs ? '?' + qs : ''}`);
-    },
 
     // ========== BACKGROUND TASKS ==========
     async getBackgroundJobs() { return this.request('/background'); },
@@ -244,15 +244,63 @@ const API = {
         });
     },
 
-    // ========== HYPEROPT LOSS ==========
-    async getHyperoptLoss() { return this.request('/hyperoptloss'); },
-
     // ========== DATA DOWNLOAD ==========
     async downloadData(config) {
         return this.request('/download_data', {
             method: 'POST',
             body: JSON.stringify(config)
         });
+    },
+
+    // ========== HELPER: Parse candle data ==========
+    /** Convert Freqtrade pair_candles response to OHLCV array */
+    parseCandleData(data) {
+        if (!data || !data.columns || !data.data) return [];
+        const cols = data.columns;
+        const dateIdx = cols.indexOf('date');
+        const openIdx = cols.indexOf('open');
+        const highIdx = cols.indexOf('high');
+        const lowIdx = cols.indexOf('low');
+        const closeIdx = cols.indexOf('close');
+        const volIdx = cols.indexOf('volume');
+
+        return data.data.map(row => ({
+            time: Math.floor(row[dateIdx] / 1000),
+            open: row[openIdx],
+            high: row[highIdx],
+            low: row[lowIdx],
+            close: row[closeIdx],
+            volume: volIdx >= 0 ? row[volIdx] : 0,
+        }));
+    },
+
+    /** Extract signal columns from candle data */
+    parseSignals(data) {
+        if (!data || !data.columns || !data.data) return [];
+        const cols = data.columns;
+        const dateIdx = cols.indexOf('date');
+        const enterLongIdx = cols.indexOf('enter_long');
+        const exitLongIdx = cols.indexOf('exit_long');
+        const enterShortIdx = cols.indexOf('enter_short');
+        const exitShortIdx = cols.indexOf('exit_short');
+
+        const signals = [];
+        data.data.forEach(row => {
+            const time = Math.floor(row[dateIdx] / 1000);
+            if (enterLongIdx >= 0 && row[enterLongIdx] === 1) {
+                signals.push({ time, type: 'enter_long' });
+            }
+            if (exitLongIdx >= 0 && row[exitLongIdx] === 1) {
+                signals.push({ time, type: 'exit_long' });
+            }
+            if (enterShortIdx >= 0 && row[enterShortIdx] === 1) {
+                signals.push({ time, type: 'enter_short' });
+            }
+            if (exitShortIdx >= 0 && row[exitShortIdx] === 1) {
+                signals.push({ time, type: 'exit_short' });
+            }
+        });
+        return signals;
     }
 };
 
