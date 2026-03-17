@@ -424,6 +424,19 @@ const DashboardPage = {
                     }
                 }
 
+                // Try 3: pair_ohlcv — raw exchange data, no strategy needed (engine mode)
+                if (!candles || candles.length === 0) {
+                    try {
+                        if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - <span class="spinner-border spinner-border-sm me-1"></span>Loading from exchange...`;
+                        const data = await API.getPairOhlcv(pair, tf, limit);
+                        if (data && data.columns && data.data && data.data.length > 0) {
+                            candles = API.parseCandleData(data);
+                        }
+                    } catch (e) {
+                        console.log('pair_ohlcv fallback failed:', e.message);
+                    }
+                }
+
                 if (candles && candles.length > 0) {
                     const volumes = candles.map(c => ({
                         time: c.time,
@@ -634,8 +647,10 @@ const DashboardPage = {
                         statusBadge.className = 'badge badge-bc';
                     }
                 }
-                if (el('dashStrategyName') && config.strategy) {
-                    el('dashStrategyName').innerHTML = `<i class="bi bi-diagram-3 me-1"></i>${config.strategy}`;
+                if (el('dashStrategyName')) {
+                    el('dashStrategyName').innerHTML = config.strategy
+                        ? `<i class="bi bi-diagram-3 me-1"></i>${config.strategy}`
+                        : `<i class="bi bi-diagram-3 me-1"></i><span class="text-muted">No strategy</span>`;
                 }
                 if (el('dashExchangeName') && config.exchange) {
                     el('dashExchangeName').innerHTML = `<i class="bi bi-bank me-1"></i>${config.exchange}`;
@@ -648,7 +663,7 @@ const DashboardPage = {
                         <span class="badge bg-secondary">${mode}</span>`;
                 }
             } else if (statusBadge && API.connected) {
-                // Connected but no config (backtesting mode) - still show connected
+                // Connected but no config (engine/backtesting mode) - still show connected
                 statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Connected';
                 statusBadge.className = 'badge badge-bc badge-completed';
             }
