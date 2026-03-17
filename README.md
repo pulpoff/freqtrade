@@ -1,13 +1,23 @@
 # <img src="docs/assets/icon.svg" alt="freqtrade icon" height="32"> freqtrade
 
-An improved and further developed version of [Freqtrade](https://github.com/freqtrade/freqtrade) — free and open source crypto trading bot — to provide a new WebGUI based on [botcrypto.io](https://botcrypto.io).
+An improved and further developed fork of [Freqtrade](https://github.com/freqtrade/freqtrade) — the free and open source crypto trading bot — focused on providing a completely new WebGUI inspired by [botcrypto.io](https://botcrypto.io).
 
-## Features
+The goal is to bring a no-code visual strategy builder, real-time trade monitoring, and a modern dashboard experience to Freqtrade — similar to what botcrypto.io offered with its drag-and-drop editor, TradingView widgets, and cloud-based bot management — but fully open source and self-hosted.
 
-- **New WebGUI** — Modern web interface inspired by botcrypto.io for strategy management and live monitoring
-- **WhiteBit Support** — Spot and futures trading on [WhiteBit](https://whitebit.com/) with full ccxt compatibility fixes
+## New WebGUI (In Development)
+
+- **Visual Strategy Editor** — Drag-and-drop strategy builder with technical indicators, no coding required
+- **Real-Time Dashboard** — Live trade monitoring with TradingView-style charting and bot performance metrics
+- **Strategy Store** — Browse, share, and import community-built strategies
+- **Backtesting UI** — Run and visualize backtests directly from the browser
+- **Notifications** — Discord, webhooks, and Telegram alerts from the GUI
+
+## Core Features
+
+- **All Freqtrade Features** — Backtesting, hyperopt, FreqAI, Telegram control, dry-run mode, and more
 - **Performance Optimized** — Reduced redundant DB queries, O(n) filtering, thread-safe singletons, vectorized analysis
-- **All Freqtrade Features** — Backtesting, hyperopt, FreqAI, Telegram control, and 15+ supported exchanges
+- **15+ Exchanges** — Binance, Bybit, OKX, Bitget, Gate.io, Kraken, HTX, Hyperliquid, BingX, Bitmart, and more
+- **WhiteBit Support** — Full spot and futures trading on [WhiteBit](https://whitebit.com/) with ccxt compatibility fixes (in addition to all other supported exchanges)
 
 ## Quick Start
 
@@ -19,10 +29,6 @@ freqtrade trade --config user_data/config.json --strategy YourStrategy
 ```
 
 See the full [Freqtrade documentation](https://www.freqtrade.io) for detailed setup and configuration.
-
-## Supported Exchanges
-
-Binance, Bybit, OKX, Bitget, Gate.io, Kraken, HTX, Hyperliquid, BingX, Bitmart, WhiteBit, and [more](https://www.freqtrade.io/en/stable/exchanges/).
 
 ## Monitoring
 
