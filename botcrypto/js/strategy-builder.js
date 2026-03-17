@@ -118,30 +118,29 @@ const StrategyBuilderPage = {
                     <button class="btn btn-sm btn-outline-secondary ms-1" onclick="StrategyBuilderPage.zoomReset()" title="Reset view"><i class="bi bi-fullscreen"></i></button>
                 </div>
 
-                <!-- Indicator Picker Popup (hidden by default) -->
-                <div class="indicator-picker-popup" id="indicatorPickerPopup">
-                    <div class="indicator-picker-header">
-                        <span class="fw-semibold">Choose an Indicator</span>
-                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.closeIndicatorPicker()">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
-                    <input type="text" class="indicator-picker-search" id="indicatorSearch"
-                        placeholder="Search indicators..." oninput="StrategyBuilderPage.filterIndicators(this.value)">
-                    <div class="indicator-picker-list" id="indicatorPickerList">
-                        ${this.indicatorTypes.map(t => `
-                            <div class="indicator-picker-item" draggable="true"
-                                 ondragstart="StrategyBuilderPage.onIndicatorDragStart(event, '${t}')"
-                                 onclick="StrategyBuilderPage.addIndicatorNode('${t}')">
-                                <i class="bi bi-graph-up text-info me-2"></i>
-                                <span>${t}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
                 <!-- Bottom Toolbar - Single row block palette matching botcrypto.io -->
                 <div class="builder-bottom-toolbar">
+                    <!-- Indicator Picker Popup (positioned above toolbar) -->
+                    <div class="indicator-picker-popup" id="indicatorPickerPopup">
+                        <div class="indicator-picker-header">
+                            <span class="fw-semibold">Choose an Indicator</span>
+                            <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.closeIndicatorPicker()">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <input type="text" class="indicator-picker-search" id="indicatorSearch"
+                            placeholder="Search indicators..." oninput="StrategyBuilderPage.filterIndicators(this.value)">
+                        <div class="indicator-picker-list" id="indicatorPickerList">
+                            ${this.indicatorTypes.map(t => `
+                                <div class="indicator-picker-item" draggable="true"
+                                     ondragstart="StrategyBuilderPage.onIndicatorDragStart(event, '${t}')"
+                                     onclick="StrategyBuilderPage.addIndicatorNode('${t}')">
+                                    <i class="bi bi-graph-up text-info me-2"></i>
+                                    <span>${t}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                     <div class="toolbar-blocks-row">
                         <div class="toolbar-block" onclick="StrategyBuilderPage.toggleIndicatorPicker(event)">
                             <div class="tb-icon tb-indicator position-relative">
@@ -250,7 +249,8 @@ const StrategyBuilderPage = {
     onIndicatorDragStart(event, indicatorType) {
         event.dataTransfer.setData('blockType', 'indicator');
         event.dataTransfer.setData('indicatorType', indicatorType);
-        this.closeIndicatorPicker();
+        // Delay close so drag operation can initialize properly
+        setTimeout(() => this.closeIndicatorPicker(), 100);
     },
 
     _toolbarBlock(type, icon, name, tbClass) {

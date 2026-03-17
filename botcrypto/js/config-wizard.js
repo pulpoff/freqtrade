@@ -5,7 +5,7 @@
  */
 const ConfigWizardPage = {
     currentStep: 1,
-    totalSteps: 5,
+    totalSteps: 4,
     config: {
         // Exchange
         exchange: 'binance',
@@ -30,13 +30,6 @@ const ConfigWizardPage = {
         trailingStopPositive: 0.01,
         minimalRoi: { '0': 0.04, '20': 0.02, '40': 0.01, '60': 0 },
 
-        // API Server
-        apiServerEnabled: true,
-        apiHost: '0.0.0.0',
-        apiPort: 8080,
-        apiUsername: 'freqtrader',
-        apiPassword: '',
-        corsOrigins: ['http://localhost:3000'],
     },
 
     render() {
@@ -134,7 +127,7 @@ const ConfigWizardPage = {
     },
 
     _stepIndicators() {
-        const steps = ['Exchange', 'Trading', 'Pairs', 'Risk', 'API Server'];
+        const steps = ['Exchange', 'Trading', 'Pairs', 'Risk'];
         return steps.map((name, i) => {
             const num = i + 1;
             const isActive = num === this.currentStep;
@@ -159,7 +152,6 @@ const ConfigWizardPage = {
             case 2: return this._stepTrading();
             case 3: return this._stepPairs();
             case 4: return this._stepRisk();
-            case 5: return this._stepApiServer();
             default: return '';
         }
     },
@@ -353,54 +345,6 @@ const ConfigWizardPage = {
         </button>`;
     },
 
-    _stepApiServer() {
-        return `
-        <h5 class="fw-semibold mb-3"><i class="bi bi-hdd-network me-2"></i>API Server</h5>
-        <p class="text-secondary mb-4">Configure the Freqtrade API server that BotCrypto connects to.</p>
-
-        <div class="form-check form-switch mb-3">
-            <input type="checkbox" class="form-check-input" id="apiEnabledSwitch"
-                ${this.config.apiServerEnabled ? 'checked' : ''}
-                onchange="ConfigWizardPage.config.apiServerEnabled = this.checked">
-            <label class="form-check-label" for="apiEnabledSwitch">Enable API Server</label>
-        </div>
-
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Listen Host</label>
-                <input type="text" class="form-control" value="${this.config.apiHost}"
-                    onchange="ConfigWizardPage.config.apiHost = this.value">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Listen Port</label>
-                <input type="number" class="form-control" value="${this.config.apiPort}"
-                    onchange="ConfigWizardPage.config.apiPort = parseInt(this.value)">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Username</label>
-                <input type="text" class="form-control" value="${this.config.apiUsername}"
-                    onchange="ConfigWizardPage.config.apiUsername = this.value">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Password</label>
-                <input type="password" class="form-control" value="${this.config.apiPassword}"
-                    placeholder="Enter API password"
-                    onchange="ConfigWizardPage.config.apiPassword = this.value">
-            </div>
-            <div class="col-12">
-                <label class="form-label">CORS Origins</label>
-                <input type="text" class="form-control" value="${this.config.corsOrigins.join(', ')}"
-                    onchange="ConfigWizardPage.config.corsOrigins = this.value.split(',').map(s => s.trim()).filter(s => s)">
-                <small class="text-secondary">Comma-separated list of allowed origins</small>
-            </div>
-        </div>
-
-        <div class="alert alert-success small mt-4">
-            <i class="bi bi-check-circle me-2"></i>
-            <strong>Ready!</strong> Click "Save & Apply" to generate your config.json file.
-        </div>`;
-    },
-
     // Navigation
     nextStep() {
         if (this.currentStep < this.totalSteps) {
@@ -461,14 +405,6 @@ const ConfigWizardPage = {
                 pair_blacklist: this.config.pairBlacklist,
             },
             pairlists: [{ method: 'StaticPairList' }],
-            api_server: {
-                enabled: this.config.apiServerEnabled,
-                listen_ip_address: this.config.apiHost,
-                listen_port: this.config.apiPort,
-                username: this.config.apiUsername,
-                password: this.config.apiPassword,
-                CORS_origins: this.config.corsOrigins,
-            },
         };
     },
 
@@ -544,14 +480,6 @@ const ConfigWizardPage = {
         if (config.stoploss !== undefined) this.config.stoploss = config.stoploss;
         if (config.trailing_stop !== undefined) this.config.trailingStop = config.trailing_stop;
         if (config.minimal_roi) this.config.minimalRoi = config.minimal_roi;
-        if (config.api_server) {
-            this.config.apiServerEnabled = config.api_server.enabled !== false;
-            this.config.apiHost = config.api_server.listen_ip_address || this.config.apiHost;
-            this.config.apiPort = config.api_server.listen_port || this.config.apiPort;
-            this.config.apiUsername = config.api_server.username || this.config.apiUsername;
-            this.config.apiPassword = config.api_server.password || '';
-            this.config.corsOrigins = config.api_server.CORS_origins || this.config.corsOrigins;
-        }
     },
 
     addTopPairs() {
