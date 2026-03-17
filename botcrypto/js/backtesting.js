@@ -18,7 +18,7 @@ const BacktestingPage = {
             <!-- Config Section -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="fw-semibold mb-3"><i class="bi bi-flask me-2 text-success"></i>Run Backtest</h5>
+                    <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h5>
 
                     <div class="row g-3">
                         <!-- Strategy Selection -->
@@ -37,6 +37,19 @@ const BacktestingPage = {
                             <small class="text-secondary mt-1 d-block" id="btStrategyInfo"></small>
                         </div>
 
+                        <!-- Pair Filter -->
+                        <div class="col-md-2">
+                            <label class="form-label small text-secondary">Pair Filter</label>
+                            <select class="form-select" id="btPair">
+                                <option value="" selected>All (from config)</option>
+                                <option value="BTC/USDT">BTC/USDT</option>
+                                <option value="ETH/USDT">ETH/USDT</option>
+                                <option value="XRP/USDT">XRP/USDT</option>
+                                <option value="SOL/USDT">SOL/USDT</option>
+                                <option value="ADA/USDT">ADA/USDT</option>
+                                <option value="DOGE/USDT">DOGE/USDT</option>
+                                <option value="OP/USDT">OP/USDT</option>
+                                <option value="GRT/USDT">GRT/USDT</option>
                         <!-- Trading Pair (informational - backtest uses strategy's pair config) -->
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Pair Filter</label>
@@ -49,6 +62,7 @@ const BacktestingPage = {
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Timeframe</label>
                             <select class="form-select" id="btTimeframe">
+                                <option value="" selected>Strategy default</option>
                                 <option value="">Strategy default</option>
                                 <option value="1m">1m</option>
                                 <option value="5m">5m</option>
@@ -63,6 +77,11 @@ const BacktestingPage = {
                         <!-- Date Range -->
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Start Date</label>
+                            <input type="date" class="form-control" id="btStartDate">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-secondary">End Date</label>
+                            <input type="date" class="form-control" id="btEndDate">
                             <input type="date" class="form-control" id="btStartDate" value="${this._defaultStartDate()}">
                         </div>
                         <div class="col-md-2">
@@ -190,6 +209,15 @@ const BacktestingPage = {
     },
 
     async init() {
+        // Set default dates: last 7 days
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        const btStart = document.getElementById('btStartDate');
+        const btEnd = document.getElementById('btEndDate');
+        if (btStart) btStart.value = startDate.toISOString().split('T')[0];
+        if (btEnd) btEnd.value = endDate.toISOString().split('T')[0];
+
         await this.loadStrategies();
         await this.loadPairList();
         this.loadHistory();
@@ -337,6 +365,8 @@ const BacktestingPage = {
                 enable_protections: protections,
                 dry_run_wallet: wallet,
             };
+            // Only set timeframe if explicitly selected (otherwise use strategy default)
+            if (timeframe) btConfig.timeframe = timeframe;
 
             // Only include timeframe if explicitly set
             if (timeframe) {

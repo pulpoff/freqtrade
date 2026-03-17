@@ -146,21 +146,42 @@ const Components = {
         </div>`;
     },
 
+    /** Common trading pairs for dropdown */
+    commonPairs: [
+        'BTC/USDT', 'ETH/USDT', 'XRP/USDT', 'SOL/USDT', 'ADA/USDT',
+        'DOGE/USDT', 'AVAX/USDT', 'DOT/USDT', 'MATIC/USDT', 'LINK/USDT',
+        'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'OP/USDT', 'ARB/USDT',
+        'GRT/USDT', 'FIL/USDT', 'NEAR/USDT', 'APT/USDT', 'INJ/USDT',
+    ],
+
+    /** Chart toolbar like botcrypto - with working pair selector and timeframe buttons */
+    chartToolbar(pair = 'BTC/USDT', timeframe = '5m', onPairChange = '', onTimeframeChange = '') {
+        const tfs = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'];
     /** Chart toolbar */
     chartToolbar(pair = 'XRPUSDT', timeframe = '30m') {
         return `
         <div class="d-flex align-items-center justify-content-between border-bottom border-secondary pb-2 mb-2">
-            <div class="d-flex align-items-center gap-3">
-                <span class="fw-semibold">${pair}</span>
-                <span class="text-secondary">${timeframe}</span>
-                <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-bar-chart me-1"></i></button>
-                <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-arrow-left-right me-1"></i> Compare</button>
+            <div class="d-flex align-items-center gap-2">
+                <div class="position-relative" style="width:140px">
+                    <input type="text" class="form-control form-control-sm fw-semibold" id="chartPairInput"
+                        value="${pair}" list="pairList"
+                        onchange="${onPairChange || ''}"
+                        onfocus="this.select()"
+                        style="background:rgba(255,255,255,0.08);border-color:var(--bc-border)">
+                    <datalist id="pairList">
+                        ${this.commonPairs.map(p => `<option value="${p}">`).join('')}
+                    </datalist>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    ${tfs.map(tf => `
+                        <button type="button" class="btn ${tf === timeframe ? 'btn-outline-success active' : 'btn-outline-secondary'}"
+                            onclick="${onTimeframeChange ? onTimeframeChange + "('" + tf + "')" : ''}">${tf}</button>
+                    `).join('')}
+                </div>
                 <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-activity me-1"></i> Indicators</button>
             </div>
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-camera"></i></button>
-                <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-bookmark"></i> Save</button>
-                <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-gear"></i></button>
+                <button class="btn btn-sm btn-link text-secondary" onclick="${onPairChange || ''}"><i class="bi bi-arrow-clockwise"></i></button>
                 <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-arrows-fullscreen"></i></button>
             </div>
         </div>`;

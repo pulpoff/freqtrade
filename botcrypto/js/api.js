@@ -47,6 +47,8 @@ const API = {
             localStorage.setItem('bc_connection', JSON.stringify({
                 url: this.baseUrl, token: this.token, refreshToken: this.refreshToken
             }));
+            // Save credentials for auto-reconnect on session expiry
+            localStorage.setItem('bc_credentials', JSON.stringify({ username, password }));
             return data;
         } catch (e) {
             this.connected = false;
@@ -60,6 +62,11 @@ const API = {
         this.refreshToken = null;
         this.connected = false;
         localStorage.removeItem('bc_connection');
+        localStorage.removeItem('bc_credentials');
+        if (this.wsConnection) {
+            this.wsConnection.close();
+            this.wsConnection = null;
+        }
         App.updateConnectionStatus(false);
         App.showToast('Disconnected from Freqtrade', 'info');
     },
@@ -84,6 +91,7 @@ const API = {
         try {
             const resp = await fetch(url, { ...options, headers });
             if (resp.status === 401) {
+                // Try refresh token first
                 const refreshed = await this.refreshAccessToken();
                 if (refreshed) {
                     headers['Authorization'] = `Bearer ${this.token}`;
@@ -91,7 +99,19 @@ const API = {
                     if (!retry.ok) throw new Error(`API Error: ${retry.status}`);
                     return await retry.json();
                 }
-                throw new Error('Session expired');
+
+                // Refresh failed - try re-login with saved credentials
+                const relogged = await this.tryRelogin();
+                if (relogged) {
+                    headers['Authorization'] = `Bearer ${this.token}`;
+                    const retry = await fetch(url, { ...options, headers });
+                    if (!retry.ok) throw new Error(`API Error: ${retry.status}`);
+                    return await retry.json();
+                }
+
+                this.connected = false;
+                App.updateConnectionStatus(false);
+                throw new Error('Session expired - please reconnect');
             }
             if (!resp.ok) {
                 const errBody = await resp.text();
@@ -119,6 +139,23 @@ const API = {
                 App.updateConnectionStatus(false);
             }
             throw e;
+        }
+    },
+
+    /** Try to re-login using saved credentials */
+    async tryRelogin() {
+        const saved = localStorage.getItem('bc_connection');
+        const creds = localStorage.getItem('bc_credentials');
+        if (!saved || !creds) return false;
+        try {
+            const { url } = JSON.parse(saved);
+            const { username, password } = JSON.parse(creds);
+            if (!url || !username || !password) return false;
+            await this.login(url, username, password);
+            console.log('Auto re-login successful');
+            return true;
+        } catch {
+            return false;
         }
     },
 
