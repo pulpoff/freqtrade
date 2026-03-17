@@ -118,8 +118,7 @@ const API = {
                 // Detect backtesting mode errors and disable the endpoint
                 const isTradeEndpoint = this._tradeEndpoints.some(ep => baseEndpoint === ep || baseEndpoint.startsWith(ep + '/'));
                 const isBacktestError = errBody.includes('not supported in backtesting mode') ||
-                    errBody.includes('NotImplementedError') ||
-                    (resp.status === 500 && isTradeEndpoint);
+                    (errBody.includes('NotImplementedError') && isTradeEndpoint);
                 if (isBacktestError) {
                     this._disabledEndpoints.add(baseEndpoint);
                     if (!this.isBacktestingMode) {
