@@ -13,6 +13,30 @@ const DashboardPage = {
     refreshTimer: null,
     botConfig: null,
 
+    /** Candle data cache: key = "pair|tf", value = { data, volumes, signals, timestamp } */
+    _cache: {},
+    _cacheTTL: {
+        '1m': 60_000,      // 1 min candles: cache 1 min
+        '3m': 90_000,
+        '5m': 2 * 60_000,  // 5 min candles: cache 2 min
+        '15m': 5 * 60_000,
+        '30m': 10 * 60_000,
+        '1h': 15 * 60_000,
+        '4h': 30 * 60_000,
+        '1d': 60 * 60_000,
+    },
+    /** How many candles to request per timeframe */
+    _candleLimits: {
+        '1m': 5000,   // ~3.5 days
+        '3m': 4000,   // ~8 days
+        '5m': 3000,   // ~10 days
+        '15m': 2000,  // ~21 days
+        '30m': 2000,  // ~42 days
+        '1h': 2000,   // ~83 days
+        '4h': 1500,   // ~250 days
+        '1d': 1000,   // ~2.7 years
+    },
+
     render() {
         return `
         <div id="dashboardPage">
@@ -254,55 +278,106 @@ const DashboardPage = {
         this.loadChartData();
     },
 
+    /** Get cache key for pair + timeframe */
+    _cacheKey(pair, tf) { return `${pair}|${tf}`; },
+
+    /** Check if cached data is still fresh */
+    _getCached(pair, tf) {
+        const key = this._cacheKey(pair, tf);
+        const entry = this._cache[key];
+        if (!entry) return null;
+        const ttl = this._cacheTTL[tf] || 60_000;
+        if (Date.now() - entry.timestamp > ttl) return null;
+        return entry;
+    },
+
+    /** Store parsed candle data in cache */
+    _setCache(pair, tf, candles, volumes, signals) {
+        const key = this._cacheKey(pair, tf);
+        this._cache[key] = { candles, volumes, signals, timestamp: Date.now() };
+        // Limit cache size: keep max 20 entries
+        const keys = Object.keys(this._cache);
+        if (keys.length > 20) {
+            const oldest = keys.sort((a, b) => this._cache[a].timestamp - this._cache[b].timestamp);
+            delete this._cache[oldest[0]];
+        }
+    },
+
+    /** Apply candle + volume + marker data to chart */
+    _applyChartData(candles, volumes, signals) {
+        if (!this.candleSeries || !candles || candles.length === 0) return;
+        this.candleSeries.setData(candles);
+        if (this.volumeSeries && volumes) this.volumeSeries.setData(volumes);
+        if (signals && signals.length > 0) {
+            const markers = signals.map(s => {
+                const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
+                return {
+                    time: s.time,
+                    position: isBuy ? 'belowBar' : 'aboveBar',
+                    color: isBuy ? '#2dd4a8' : '#e74c5e',
+                    shape: 'circle',
+                    text: isBuy ? 'B' : 'S',
+                };
+            }).sort((a, b) => a.time - b.time);
+            this.candleSeries.setMarkers(markers);
+        }
+    },
+
     async loadChartData() {
         if (!this.candleSeries) return;
 
         const info = document.getElementById('dashChartInfo');
+        const pair = this.currentPair;
+        const tf = this.currentTimeframe;
         let loaded = false;
 
+        // 1) Show cached data instantly if available
+        const cached = this._getCached(pair, tf);
+        if (cached) {
+            this._applyChartData(cached.candles, cached.volumes, cached.signals);
+            if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${cached.candles.length} candles, cached)`;
+            this.chart.timeScale().fitContent();
+            loaded = true;
+
+            // Add open trade markers on top of cached data
+            this._addTradeMarkers(pair);
+            return;
+        }
+
         try {
-            if (API.connected && this.currentPair) {
-                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - Loading...`;
+            if (API.connected && pair) {
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - Loading...`;
 
+                const limit = this._candleLimits[tf] || 2000;
                 let candles = null;
+                let signals = [];
 
-                // Try 1: pair_candles (requires strategy-analyzed data in cache)
+                // Try 1: pair_candles (strategy-analyzed data)
                 try {
-                    const data = await API.getPairCandles(this.currentPair, this.currentTimeframe, 500);
+                    const data = await API.getPairCandles(pair, tf, limit);
                     if (data && data.columns && data.data && data.data.length > 0) {
                         candles = API.parseCandleData(data);
-
-                        // Add signal markers
-                        const signals = API.parseSignals(data);
-                        if (signals.length > 0) {
-                            const markers = signals.map(s => {
-                                const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
-                                return {
-                                    time: s.time,
-                                    position: isBuy ? 'belowBar' : 'aboveBar',
-                                    color: isBuy ? '#2dd4a8' : '#e74c5e',
-                                    shape: 'circle',
-                                    text: isBuy ? 'B' : 'S',
-                                };
-                            }).sort((a, b) => a.time - b.time);
-                            this.candleSeries.setMarkers(markers);
-                        }
+                        signals = API.parseSignals(data);
                     }
                 } catch (e) {
                     console.log('pair_candles failed:', e.message);
                 }
 
-                // Try 2: pair_history (loads from disk/exchange, works in webserver mode)
+                // Try 2: pair_history (loads from disk/exchange)
                 if (!candles) {
                     try {
                         const now = new Date();
-                        const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        // Request more history based on timeframe
+                        const tfDays = { '1m': 7, '3m': 14, '5m': 30, '15m': 60, '30m': 90, '1h': 180, '4h': 365, '1d': 1000 };
+                        const days = tfDays[tf] || 30;
+                        const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
                         const timerange = `${start.toISOString().slice(0,10).replace(/-/g,'')}-${now.toISOString().slice(0,10).replace(/-/g,'')}`;
                         const strategy = this.botConfig?.strategy || '';
 
-                        const data = await API.getPairHistory(this.currentPair, this.currentTimeframe, timerange, strategy);
+                        const data = await API.getPairHistory(pair, tf, timerange, strategy);
                         if (data && data.columns && data.data && data.data.length > 0) {
                             candles = API.parseCandleData(data);
+                            signals = API.parseSignals(data);
                         }
                     } catch (e) {
                         console.log('pair_history failed:', e.message);
@@ -310,46 +385,28 @@ const DashboardPage = {
                 }
 
                 if (candles && candles.length > 0) {
-                    this.candleSeries.setData(candles);
-
                     const volumes = candles.map(c => ({
                         time: c.time,
                         value: c.volume || 0,
                         color: c.close >= c.open ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)'
                     }));
-                    this.volumeSeries.setData(volumes);
+
+                    // Cache the data
+                    this._setCache(pair, tf, candles, volumes, signals);
+
+                    // Apply to chart
+                    this._applyChartData(candles, volumes, signals);
                     loaded = true;
 
                     // Add open trade markers
-                    try {
-                        const openTrades = await API.getOpenTrades();
-                        if (Array.isArray(openTrades)) {
-                            const tradeMarkers = [];
-                            for (const t of openTrades) {
-                                if (t.pair === this.currentPair && t.open_date) {
-                                    const ts = Math.floor(new Date(t.open_date).getTime() / 1000);
-                                    tradeMarkers.push({
-                                        time: ts,
-                                        position: 'belowBar',
-                                        color: '#2dd4a8',
-                                        shape: 'arrowUp',
-                                        text: `Buy ${Components.formatNumber(t.stake_amount, 2)}`,
-                                    });
-                                }
-                            }
-                            if (tradeMarkers.length > 0) {
-                                const all = tradeMarkers.sort((a, b) => a.time - b.time);
-                                this.candleSeries.setMarkers(all);
-                            }
-                        }
-                    } catch (e) { /* optional */ }
+                    this._addTradeMarkers(pair);
 
                     this.chart.timeScale().fitContent();
-                    if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} (${candles.length} candles)`;
+                    if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${candles.length} candles)`;
                     return;
                 }
 
-                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - No data available`;
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - No data available`;
             }
         } catch (e) {
             console.log('API chart data not available:', e.message);
@@ -358,9 +415,9 @@ const DashboardPage = {
         // Fallback: demo data when disconnected, "no data" message when connected
         if (!loaded) {
             if (API.connected) {
-                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - No chart data available`;
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - No chart data available`;
             } else {
-                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair || 'BTC/USDT'}, ${this.currentTimeframe || '5m'} (demo - not connected)`;
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair || 'BTC/USDT'}, ${tf || '5m'} (demo - not connected)`;
                 const demoData = Components.generateDemoCandles(300, this.getDemoPrice());
                 this.candleSeries.setData(demoData);
 
@@ -371,7 +428,6 @@ const DashboardPage = {
                 }));
                 this.volumeSeries.setData(volumes);
 
-                // Add demo buy/sell markers
                 const markers = [];
                 for (let i = 20; i < demoData.length; i += Math.floor(8 + Math.random() * 15)) {
                     markers.push({
@@ -387,6 +443,46 @@ const DashboardPage = {
 
             if (this.chart) this.chart.timeScale().fitContent();
         }
+    },
+
+    /** Add open trade buy markers to the chart */
+    async _addTradeMarkers(pair) {
+        try {
+            const openTrades = await API.getOpenTrades();
+            if (!Array.isArray(openTrades)) return;
+            const tradeMarkers = [];
+            for (const t of openTrades) {
+                if (t.pair === pair && t.open_date) {
+                    const ts = Math.floor(new Date(t.open_date).getTime() / 1000);
+                    tradeMarkers.push({
+                        time: ts,
+                        position: 'belowBar',
+                        color: '#2dd4a8',
+                        shape: 'arrowUp',
+                        text: `Buy ${Components.formatNumber(t.stake_amount, 2)}`,
+                    });
+                }
+            }
+            if (tradeMarkers.length > 0) {
+                // Merge with existing signal markers
+                const existing = [];
+                const cached = this._getCached(pair, this.currentTimeframe);
+                if (cached && cached.signals && cached.signals.length > 0) {
+                    cached.signals.forEach(s => {
+                        const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
+                        existing.push({
+                            time: s.time,
+                            position: isBuy ? 'belowBar' : 'aboveBar',
+                            color: isBuy ? '#2dd4a8' : '#e74c5e',
+                            shape: 'circle',
+                            text: isBuy ? 'B' : 'S',
+                        });
+                    });
+                }
+                const all = [...existing, ...tradeMarkers].sort((a, b) => a.time - b.time);
+                this.candleSeries.setMarkers(all);
+            }
+        } catch (e) { /* optional */ }
     },
 
     getDemoPrice() {
