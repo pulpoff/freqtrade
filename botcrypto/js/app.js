@@ -24,6 +24,11 @@ const App = {
         // Initialize ConfigDB
         try { await ConfigDB.init(); } catch (e) { console.error('ConfigDB init:', e); }
 
+        // Restore sidebar collapsed state
+        if (localStorage.getItem('bc_sidebar_collapsed') === 'true') {
+            document.getElementById('sidebar').classList.add('collapsed');
+        }
+
         // Check GUI access
         this.checkGuiAccess();
 
@@ -128,6 +133,12 @@ const App = {
         backdrop.classList.remove('show');
     },
 
+    toggleSidebarCollapse() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('bc_sidebar_collapsed', sidebar.classList.contains('collapsed'));
+    },
+
     navigate(page, updateHash = true) {
         // Always close mobile sidebar on navigation
         this.closeSidebar();
@@ -152,7 +163,8 @@ const App = {
         // Update UI
         this.currentPage = pageConfig;
         if (updateHash) location.hash = page;
-        document.getElementById('pageTitle').textContent = pageConfig.title;
+        const pt = document.getElementById('pageTitle');
+        if (pt) pt.textContent = pageConfig.title;
 
         // Update sidebar
         document.querySelectorAll('#sidebarNav .nav-link').forEach(el => {

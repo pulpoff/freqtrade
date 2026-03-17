@@ -22,6 +22,7 @@
     --bc-yellow: #f1c40f;
     --bc-purple: #9b59b6;
     --sidebar-width: 230px;
+    --sidebar-collapsed-width: 60px;
     --bc-radius: 10px;
     --bc-radius-sm: 6px;
     --bc-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -120,6 +121,47 @@ body {
 .sidebar .nav-link.active i {
     opacity: 1;
     color: var(--bc-primary);
+}
+
+/* Collapse button */
+.sidebar-collapse-btn {
+    opacity: 0.5;
+    transition: opacity 0.2s, transform 0.3s;
+}
+.sidebar-collapse-btn:hover { opacity: 1; }
+.sidebar.collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
+
+/* Collapsed sidebar */
+.sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+}
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .nav-link span,
+.sidebar.collapsed .status-text {
+    display: none;
+}
+.sidebar.collapsed .sidebar-header a .logo-icon {
+    margin-right: 0 !important;
+}
+.sidebar.collapsed .sidebar-header {
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+}
+.sidebar.collapsed .nav-link {
+    justify-content: center;
+    padding: 10px;
+    border-left: none !important;
+}
+.sidebar.collapsed .nav-link.active {
+    padding-left: 10px;
+}
+.sidebar.collapsed .nav-link i {
+    margin-right: 0 !important;
+    font-size: 18px;
+}
+.sidebar.collapsed #connectionStatus {
+    justify-content: center;
 }
 
 .status-dot {

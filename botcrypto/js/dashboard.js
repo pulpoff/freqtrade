@@ -118,7 +118,7 @@ const DashboardPage = {
                                 <option value="">Loading...</option>
                             </select>
                             <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
-                            <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.showIndicatorsModal()"><i class="bi bi-activity me-1"></i> Indicators</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="DashboardPage.showIndicatorsModal()"><i class="bi bi-activity me-1"></i> Indicators</button>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.refreshChart()"><i class="bi bi-arrow-clockwise"></i></button>

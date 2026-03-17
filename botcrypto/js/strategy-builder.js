@@ -161,20 +161,6 @@ const StrategyBuilderPage = {
         if (pane) pane.classList.add('active');
     },
 
-    _paletteBlock(type) {
-        const bt = this.blockTypes[type];
-        return `
-        <div class="d-flex align-items-center gap-2 p-2 rounded cursor-pointer"
-             draggable="true"
-             ondragstart="StrategyBuilderPage.onDragStart(event, '${type}')"
-             onclick="StrategyBuilderPage.addNode('${type}')">
-            <div class="tb-icon tb-${bt.category === 'action' && type === 'buy' ? 'buy' : bt.category === 'action' && type === 'sell' ? 'sell' : type}" style="width:28px;height:28px;font-size:14px;border-radius:6px">
-                <i class="bi ${bt.icon}"></i>
-            </div>
-            <small class="text-light">${bt.label}</small>
-        </div>`;
-    },
-
     _toolbarBlock(type, icon, name, tbClass) {
         return `
         <div class="toolbar-block" draggable="true"
