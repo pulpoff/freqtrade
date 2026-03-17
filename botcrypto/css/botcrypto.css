@@ -736,7 +736,7 @@ select option:checked {
 }
 
 .connections-layer path.conn-true { stroke: var(--bc-orange); }
-.connections-layer path.conn-false { stroke: var(--bc-red); }
+.connections-layer path.conn-false { stroke: var(--bc-red); stroke-dasharray: 6,3; }
 .connections-layer path.conn-normal { stroke: var(--bc-orange); }
 
 /* Bottom Toolbar */
