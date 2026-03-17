@@ -50,7 +50,7 @@ const App = {
         this.navigate(initialPage, false);
     },
 
-    /** Auto-connect to Freqtrade using credentials from ConfigDB */
+    /** Auto-connect to Freqtrade using credentials from ConfigDB or same-origin */
     async autoConnectFromConfig() {
         try {
             // Try active config first, then any config with API credentials
@@ -59,27 +59,45 @@ const App = {
                 const allConfigs = await ConfigDB.getAllConfigs();
                 config = allConfigs.find(c => c.apiPassword) || allConfigs[0];
             }
-            if (!config) {
-                this.updateConnectionStatus(false);
+
+            if (config) {
+                const host = config.apiHost || '0.0.0.0';
+                const port = config.apiPort || 8080;
+                const user = config.apiUsername || 'freqtrader';
+                const pass = config.apiPassword || '';
+
+                // Build URL - use localhost if host is 0.0.0.0
+                const connectHost = (host === '0.0.0.0' || host === '::') ? 'localhost' : host;
+                const url = `http://${connectHost}:${port}`;
+
+                await API.login(url, user, pass);
+                this.updateConnectionStatus(true);
+                this.showToast('Connected to Freqtrade', 'success');
                 return;
             }
+        } catch (e) {
+            console.warn('Auto-connect from ConfigDB failed:', e.message);
+        }
 
-            const host = config.apiHost || '0.0.0.0';
-            const port = config.apiPort || 8080;
-            const user = config.apiUsername || 'freqtrader';
-            const pass = config.apiPassword || '';
-
-            // Build URL - use localhost if host is 0.0.0.0
-            const connectHost = (host === '0.0.0.0' || host === '::') ? 'localhost' : host;
-            const url = `http://${connectHost}:${port}`;
-
+        // Fallback: try connecting to same origin (engine mode — GUI served by API server)
+        try {
+            const url = window.location.origin;
+            const creds = localStorage.getItem('bc_credentials');
+            let user = 'freqtrader', pass = '';
+            if (creds) {
+                const parsed = JSON.parse(creds);
+                user = parsed.username || user;
+                pass = parsed.password || pass;
+            }
             await API.login(url, user, pass);
             this.updateConnectionStatus(true);
             this.showToast('Connected to Freqtrade', 'success');
+            return;
         } catch (e) {
-            console.warn('Auto-connect failed:', e.message);
-            this.updateConnectionStatus(false);
+            console.warn('Auto-connect to same origin failed:', e.message);
         }
+
+        this.updateConnectionStatus(false);
     },
 
     checkGuiAccess() {
