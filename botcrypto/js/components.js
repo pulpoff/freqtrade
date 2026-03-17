@@ -154,11 +154,9 @@ const Components = {
         'GRT/USDT', 'FIL/USDT', 'NEAR/USDT', 'APT/USDT', 'INJ/USDT',
     ],
 
-    /** Chart toolbar like botcrypto - with working pair selector and timeframe buttons */
+    /** Chart toolbar with working pair selector and timeframe buttons */
     chartToolbar(pair = 'BTC/USDT', timeframe = '5m', onPairChange = '', onTimeframeChange = '') {
         const tfs = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'];
-    /** Chart toolbar */
-    chartToolbar(pair = 'XRPUSDT', timeframe = '30m') {
         return `
         <div class="d-flex align-items-center justify-content-between border-bottom border-secondary pb-2 mb-2">
             <div class="d-flex align-items-center gap-2">

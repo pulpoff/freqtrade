@@ -179,6 +179,11 @@ const App = {
                 container.innerHTML = currentModule.render();
                 if (currentModule.init) currentModule.init();
             }
+
+            // Re-sync sidebar status after page load (API calls in init may temporarily reset it)
+            setTimeout(() => {
+                if (API.connected) this.updateConnectionStatus(true);
+            }, 2000);
         } catch (e) {
             errEl.textContent = `Connection failed: ${e.message}`;
             errEl.classList.remove('d-none');

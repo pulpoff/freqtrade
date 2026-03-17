@@ -331,7 +331,20 @@ const StrategyBuilderPage = {
         const svg = document.getElementById('connectionsLayer');
         if (!svg) return;
 
-        svg.innerHTML = this.connections.map(conn => {
+        // SVG defs for arrowhead markers
+        const defs = `<defs>
+            <marker id="arrowNormal" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-orange, #f0ad4e)"/>
+            </marker>
+            <marker id="arrowTrue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-orange, #f0ad4e)"/>
+            </marker>
+            <marker id="arrowFalse" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="var(--bc-red, #e74c5e)"/>
+            </marker>
+        </defs>`;
+
+        const paths = this.connections.map(conn => {
             const fromNode = this.nodes.find(n => n.id === conn.from);
             const toNode = this.nodes.find(n => n.id === conn.to);
             if (!fromNode || !toNode) return '';
@@ -351,9 +364,12 @@ const StrategyBuilderPage = {
             const cx1 = x1 + 60;
             const cx2 = x2 - 60;
             const pathClass = conn.type === 'true' ? 'conn-true' : conn.type === 'false' ? 'conn-false' : 'conn-normal';
+            const markerRef = conn.type === 'true' ? 'arrowTrue' : conn.type === 'false' ? 'arrowFalse' : 'arrowNormal';
 
-            return `<path class="${pathClass}" d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}"/>`;
+            return `<path class="${pathClass}" d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" marker-end="url(#${markerRef})"/>`;
         }).join('');
+
+        svg.innerHTML = defs + paths;
     },
 
     // ========== EVENT HANDLERS ==========
