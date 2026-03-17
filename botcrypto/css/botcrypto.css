@@ -1035,9 +1035,7 @@ select option:checked {
 .builder-bottom-toolbar { position: relative; }
 
 .indicator-picker-popup {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 12px;
+    position: fixed;
     width: 280px;
     max-height: 0;
     overflow: hidden;
@@ -1045,7 +1043,7 @@ select option:checked {
     border: 1px solid var(--bc-border);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    z-index: 1000;
+    z-index: 1100;
     opacity: 0;
     transform: translateY(10px);
     transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease;

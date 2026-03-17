@@ -92,16 +92,31 @@ const RobotsPage = {
     },
 
     _renderStrategyCard(s, index) {
-        const timeUnit = s.timeUnit || s.timeframe || '';
-        const nodesCount = s.nodes ? s.nodes.length : 0;
-        const savedAt = s.savedAt || s.importedAt || '';
         const isImported = this.activeTab === 'imported';
+        let timeUnit = s.timeUnit || s.timeframe || '';
+        const nodesCount = s.nodes ? s.nodes.length : 0;
+        let paramsHtml = '';
+
+        // Extract params from .py content for imported strategies
+        if (isImported && s.content) {
+            const code = s.content;
+            const tf = code.match(/timeframe\s*=\s*['"]([^'"]+)['"]/);
+            const sl = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
+            const ts = code.match(/trailing_stop\s*=\s*(True|False)/);
+            const roi = code.match(/minimal_roi\s*=\s*\{[^}]*"0"\s*:\s*([\d.]+)/);
+            if (tf) timeUnit = tf[1];
+            const badges = [];
+            if (sl) badges.push(`<span class="badge bg-danger bg-opacity-25 text-danger">SL ${(parseFloat(sl[1]) * 100).toFixed(1)}%</span>`);
+            if (roi) badges.push(`<span class="badge bg-success bg-opacity-25 text-success">ROI ${(parseFloat(roi[1]) * 100).toFixed(1)}%</span>`);
+            if (ts && ts[1] === 'True') badges.push(`<span class="badge bg-warning bg-opacity-25 text-warning">Trailing</span>`);
+            if (badges.length) paramsHtml = `<div class="d-flex gap-1 mt-2 flex-wrap">${badges.join('')}</div>`;
+        }
 
         return `
         <div class="strategy-card" onclick="RobotsPage.openStrategy('${s.name.replace(/'/g, "\\'")}', ${isImported})">
             <div class="d-flex align-items-start justify-content-between">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-diagram-3 text-warning"></i>
+                    <i class="bi ${isImported ? 'bi-file-earmark-code text-success' : 'bi-diagram-3 text-warning'}"></i>
                     <span class="fw-semibold strategy-card-name">${s.name}</span>
                 </div>
                 <div class="dropdown" onclick="event.stopPropagation()">
@@ -119,8 +134,9 @@ const RobotsPage = {
                     </ul>
                 </div>
             </div>
-            <div class="d-flex align-items-center justify-content-between mt-3">
-                <span class="text-secondary small">${nodesCount > 0 ? nodesCount + ' blocks' : 'No blocks'}</span>
+            ${paramsHtml}
+            <div class="d-flex align-items-center justify-content-between mt-2">
+                <span class="text-secondary small">${isImported ? 'Python' : (nodesCount > 0 ? nodesCount + ' blocks' : 'No blocks')}</span>
                 <div class="d-flex align-items-center gap-3">
                     ${!isImported && s.desc ? `<span class="text-success small">${s.desc.substring(0, 20)}</span>` : ''}
                     ${timeUnit ? `<span class="text-secondary small">${timeUnit}<i class="bi bi-clock ms-1"></i></span>` : ''}

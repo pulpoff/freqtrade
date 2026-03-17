@@ -87,6 +87,25 @@ def ping():
     return {"status": "pong"}
 
 
+@router_public.get("/engine_info", tags=["Info"])
+def engine_info():
+    """
+    Public endpoint for GUI auto-connect in engine mode.
+    Returns API credentials so the GUI served by the same server can authenticate.
+    """
+    from freqtrade.rpc.api_server.deps import get_config
+
+    config = get_config()
+    if not config.get("engine_mode"):
+        return {"engine_mode": False}
+    api_cfg = config.get("api_server", {})
+    return {
+        "engine_mode": True,
+        "username": api_cfg.get("username", "freqtrader"),
+        "password": api_cfg.get("password", ""),
+    }
+
+
 @router.get("/version", response_model=Version, tags=["Info"])
 def version():
     """Bot Version info"""

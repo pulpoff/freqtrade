@@ -82,17 +82,26 @@ const App = {
         // Fallback: try connecting to same origin (engine mode — GUI served by API server)
         try {
             const url = window.location.origin;
+            // First try saved credentials
             const creds = localStorage.getItem('bc_credentials');
-            let user = 'freqtrader', pass = '';
             if (creds) {
                 const parsed = JSON.parse(creds);
-                user = parsed.username || user;
-                pass = parsed.password || pass;
+                await API.login(url, parsed.username || 'freqtrader', parsed.password || '');
+                this.updateConnectionStatus(true);
+                this.showToast('Connected to Freqtrade', 'success');
+                return;
             }
-            await API.login(url, user, pass);
-            this.updateConnectionStatus(true);
-            this.showToast('Connected to Freqtrade', 'success');
-            return;
+            // Then try engine_info endpoint for auto-connect credentials
+            const resp = await fetch(`${url}/api/v1/engine_info`);
+            if (resp.ok) {
+                const info = await resp.json();
+                if (info.engine_mode) {
+                    await API.login(url, info.username, info.password);
+                    this.updateConnectionStatus(true);
+                    this.showToast('Connected to Freqtrade', 'success');
+                    return;
+                }
+            }
         } catch (e) {
             console.warn('Auto-connect to same origin failed:', e.message);
         }

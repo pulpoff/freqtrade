@@ -183,6 +183,13 @@ const StrategyBuilderPage = {
         if (!popup) return;
         popup.classList.toggle('open');
         if (popup.classList.contains('open')) {
+            // Position fixed popup above the Indicators button
+            const btn = event.currentTarget || event.target.closest('.toolbar-block');
+            if (btn) {
+                const rect = btn.getBoundingClientRect();
+                popup.style.left = rect.left + 'px';
+                popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+            }
             const search = document.getElementById('indicatorSearch');
             if (search) { search.value = ''; search.focus(); }
             this.filterIndicators('');
@@ -788,7 +795,14 @@ const StrategyBuilderPage = {
         </button>`;
 
         body.innerHTML = html;
-        new bootstrap.Offcanvas(offcanvas).show();
+        // Reuse existing Offcanvas instance to avoid stacking backdrops
+        let bsOffcanvas = bootstrap.Offcanvas.getInstance(offcanvas);
+        if (!bsOffcanvas) {
+            bsOffcanvas = new bootstrap.Offcanvas(offcanvas);
+        }
+        if (!offcanvas.classList.contains('show')) {
+            bsOffcanvas.show();
+        }
     },
 
     _getBlockDescription(type) {
@@ -1078,7 +1092,10 @@ const StrategyBuilderPage = {
 
     // ========== STRATEGY CODE GENERATION ==========
     generateCode() {
-        const code = this._buildFreqtradeStrategy();
+        // Show original .py code for imported strategies
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const originalCode = imported[this.strategyName]?.content;
+        const code = originalCode || this._buildFreqtradeStrategy();
         // Show in modal
         const modal = document.createElement('div');
         modal.innerHTML = `
