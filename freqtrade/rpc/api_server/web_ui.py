@@ -60,6 +60,10 @@ async def index_html(rest_of_path: str):
     filename = uibase / rest_of_path
 
     # Security: prevent directory traversal
+    uibase = (Path(__file__).parent / "ui/installed/").resolve()
+    filename = (uibase / rest_of_path).resolve()
+    # It's security relevant to check "relative_to".
+    # Without this, Directory-traversal is possible.
     media_type: str | None = None
     if filename.suffix == ".js":
         media_type = "application/javascript"
