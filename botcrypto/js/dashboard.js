@@ -252,6 +252,9 @@ const DashboardPage = {
         this.currentTimeframe = tf;
         const tfBtns = document.getElementById('dashTfBtns');
         if (tfBtns) tfBtns.innerHTML = Components.timeframeSelector(tf, 'DashboardPage.changeTimeframe');
+        // Clear cache for this pair+tf to force fresh fetch
+        const key = this._cacheKey(this.currentPair, tf);
+        delete this._cache[key];
         this.refreshChart();
     },
 
