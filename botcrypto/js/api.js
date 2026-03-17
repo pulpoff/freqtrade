@@ -1,13 +1,19 @@
 /**
  * BotCrypto - Freqtrade API Client
- * Communicates with Freqtrade REST API v2
+ * Communicates with Freqtrade REST API v1
  */
 const API = {
     baseUrl: '',
     token: null,
     refreshToken: null,
     connected: false,
-    wsConnection: null,
+    /** Track endpoints that fail with "not supported in backtesting mode" */
+    _disabledEndpoints: new Set(),
+    isBacktestingMode: false,
+    /** Known trade-related endpoints that fail in backtesting mode */
+    _tradeEndpoints: ['/profit', '/status', '/trades', '/stats', '/balance', '/count',
+        '/daily', '/weekly', '/monthly', '/performance', '/stopentry', '/forceexit',
+        '/forceenter'],
 
     /** Initialize from saved settings */
     init() {
@@ -23,6 +29,8 @@ const API = {
     /** Connect to Freqtrade instance */
     async login(url, username, password) {
         this.baseUrl = url.replace(/\/+$/, '');
+        this._disabledEndpoints.clear();
+        this.isBacktestingMode = false;
         try {
             const resp = await fetch(`${this.baseUrl}/api/v1/token/login`, {
                 method: 'POST',
@@ -65,6 +73,12 @@ const API = {
 
     /** Make authenticated request */
     async request(endpoint, options = {}) {
+        // Skip endpoints known to be unsupported in backtesting mode
+        const baseEndpoint = endpoint.split('?')[0];
+        if (this._disabledEndpoints.has(baseEndpoint)) {
+            throw new Error('Endpoint not available in backtesting mode');
+        }
+
         const url = `${this.baseUrl}/api/v1${endpoint}`;
         const headers = {
             'Content-Type': 'application/json',
@@ -101,6 +115,21 @@ const API = {
             }
             if (!resp.ok) {
                 const errBody = await resp.text();
+                // Detect backtesting mode errors and disable the endpoint
+                const isTradeEndpoint = this._tradeEndpoints.some(ep => baseEndpoint === ep || baseEndpoint.startsWith(ep + '/'));
+                const isBacktestError = errBody.includes('not supported in backtesting mode') ||
+                    errBody.includes('NotImplementedError') ||
+                    (resp.status === 500 && isTradeEndpoint);
+                if (isBacktestError) {
+                    this._disabledEndpoints.add(baseEndpoint);
+                    if (!this.isBacktestingMode) {
+                        this.isBacktestingMode = true;
+                        // Pre-disable all known trade endpoints
+                        this._tradeEndpoints.forEach(ep => this._disabledEndpoints.add(ep));
+                        console.log('Backtesting mode detected - trade endpoints disabled');
+                    }
+                    throw new Error('Endpoint not available in backtesting mode');
+                }
                 throw new Error(`API Error ${resp.status}: ${errBody}`);
             }
             return await resp.json();
@@ -191,7 +220,8 @@ const API = {
     // ========== BOT CONTROL ==========
     async startBot() { return this.request('/start', { method: 'POST' }); },
     async stopBot() { return this.request('/stop', { method: 'POST' }); },
-    async pauseBot() { return this.request('/pause', { method: 'POST' }); },
+    /** Pause = stop new entries only */
+    async pauseBot() { return this.request('/stopentry', { method: 'POST' }); },
     async reloadConfig() { return this.request('/reload_config', { method: 'POST' }); },
 
     // ========== FORCE TRADE ==========
@@ -204,11 +234,14 @@ const API = {
     async forceExit(tradeId, options = {}) {
         return this.request('/forceexit', {
             method: 'POST',
-            body: JSON.stringify({ tradeid: tradeId, ...options })
+            body: JSON.stringify({ tradeid: String(tradeId), ...options })
         });
     },
     async deleteTrade(id) {
         return this.request(`/trades/${id}`, { method: 'DELETE' });
+    },
+    async cancelOpenOrder(tradeId) {
+        return this.request(`/trades/${tradeId}/open-order`, { method: 'DELETE' });
     },
 
     // ========== PAIRS & DATA ==========
@@ -220,7 +253,13 @@ const API = {
             body: JSON.stringify({ blacklist: pairs })
         });
     },
-    async getPairCandles(pair, timeframe, limit = 500) {
+    async getPairCandles(pair, timeframe, limit = 500, columns) {
+        if (columns) {
+            return this.request('/pair_candles', {
+                method: 'POST',
+                body: JSON.stringify({ pair, timeframe, limit, columns })
+            });
+        }
         return this.request(`/pair_candles?pair=${encodeURIComponent(pair)}&timeframe=${timeframe}&limit=${limit}`);
     },
     async getAvailablePairs(timeframe) {
@@ -254,10 +293,6 @@ const API = {
 
     // ========== EXCHANGES ==========
     async getExchanges() { return this.request('/exchanges'); },
-    async getMarkets(params = {}) {
-        const qs = new URLSearchParams(params).toString();
-        return this.request(`/markets${qs ? '?' + qs : ''}`);
-    },
 
     // ========== BACKGROUND TASKS ==========
     async getBackgroundJobs() { return this.request('/background'); },
@@ -276,15 +311,63 @@ const API = {
         });
     },
 
-    // ========== HYPEROPT LOSS ==========
-    async getHyperoptLoss() { return this.request('/hyperoptloss'); },
-
     // ========== DATA DOWNLOAD ==========
     async downloadData(config) {
         return this.request('/download_data', {
             method: 'POST',
             body: JSON.stringify(config)
         });
+    },
+
+    // ========== HELPER: Parse candle data ==========
+    /** Convert Freqtrade pair_candles response to OHLCV array */
+    parseCandleData(data) {
+        if (!data || !data.columns || !data.data) return [];
+        const cols = data.columns;
+        const dateIdx = cols.indexOf('date');
+        const openIdx = cols.indexOf('open');
+        const highIdx = cols.indexOf('high');
+        const lowIdx = cols.indexOf('low');
+        const closeIdx = cols.indexOf('close');
+        const volIdx = cols.indexOf('volume');
+
+        return data.data.map(row => ({
+            time: Math.floor(row[dateIdx] / 1000),
+            open: row[openIdx],
+            high: row[highIdx],
+            low: row[lowIdx],
+            close: row[closeIdx],
+            volume: volIdx >= 0 ? row[volIdx] : 0,
+        }));
+    },
+
+    /** Extract signal columns from candle data */
+    parseSignals(data) {
+        if (!data || !data.columns || !data.data) return [];
+        const cols = data.columns;
+        const dateIdx = cols.indexOf('date');
+        const enterLongIdx = cols.indexOf('enter_long');
+        const exitLongIdx = cols.indexOf('exit_long');
+        const enterShortIdx = cols.indexOf('enter_short');
+        const exitShortIdx = cols.indexOf('exit_short');
+
+        const signals = [];
+        data.data.forEach(row => {
+            const time = Math.floor(row[dateIdx] / 1000);
+            if (enterLongIdx >= 0 && row[enterLongIdx] === 1) {
+                signals.push({ time, type: 'enter_long' });
+            }
+            if (exitLongIdx >= 0 && row[exitLongIdx] === 1) {
+                signals.push({ time, type: 'exit_long' });
+            }
+            if (enterShortIdx >= 0 && row[enterShortIdx] === 1) {
+                signals.push({ time, type: 'enter_short' });
+            }
+            if (exitShortIdx >= 0 && row[exitShortIdx] === 1) {
+                signals.push({ time, type: 'exit_short' });
+            }
+        });
+        return signals;
     }
 };
 

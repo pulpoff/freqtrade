@@ -66,13 +66,17 @@ def get_message_stream():
 
 
 def is_webserver_mode(config=Depends(get_config)):
-    if config["runmode"] != RunMode.WEBSERVER:
+    # BotCrypto: Allow webserver endpoints in trade mode too,
+    # so a single instance can serve both trading and backtesting/strategy features.
+    if config["runmode"] not in (RunMode.WEBSERVER, *TRADE_MODES):
         raise HTTPException(status_code=503, detail="Bot is not in the correct state.")
     return None
 
 
 def is_trading_mode(config=Depends(get_config)):
-    if config["runmode"] not in TRADE_MODES:
+    # BotCrypto: Allow trading endpoints in webserver mode too,
+    # so the GUI can display trade info even when running as webserver.
+    if config["runmode"] not in (*TRADE_MODES, RunMode.WEBSERVER):
         raise HTTPException(status_code=503, detail="Bot is not in the correct state.")
     return None
 

@@ -1,6 +1,7 @@
 import logging
+import re
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from freqtrade.data.history.datahandlers import get_datahandler
 from freqtrade.enums import CandleType, TradingMode
@@ -10,6 +11,8 @@ from freqtrade.rpc.api_server.api_schemas import (
     FreqAIModelListResponse,
     HyperoptLossListResponse,
     StrategyListResponse,
+    StrategyUploadRequest,
+    StrategyUploadResponse,
 )
 from freqtrade.rpc.api_server.deps import get_config
 
@@ -30,6 +33,38 @@ def list_strategies(config=Depends(get_config)):
     strategies = sorted(strategies, key=lambda x: x["name"])
 
     return {"strategies": [x["name"] for x in strategies]}
+
+
+@router.post("/strategies/upload", response_model=StrategyUploadResponse, tags=["Strategy"])
+def upload_strategy(payload: StrategyUploadRequest, config=Depends(get_config)):
+    """Upload a .py strategy file to the user_data/strategies directory."""
+    from pathlib import Path
+
+    code = payload.strategy
+    name = payload.name
+
+    # If no name provided, try to extract class name from code
+    if not name:
+        match = re.search(r"class\s+(\w+)\s*\(", code)
+        if match:
+            name = match.group(1)
+        else:
+            raise HTTPException(status_code=400, detail="Could not determine strategy name")
+
+    # Sanitize filename - only allow alphanumeric and underscores
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid strategy name")
+
+    # Write to strategies directory
+    strategies_dir = Path(config.get("user_data_dir", "user_data")) / "strategies"
+    strategies_dir.mkdir(parents=True, exist_ok=True)
+
+    filepath = strategies_dir / f"{safe_name}.py"
+    filepath.write_text(code, encoding="utf-8")
+
+    logger.info(f"Strategy uploaded: {safe_name} -> {filepath}")
+    return {"status": "ok", "name": safe_name}
 
 
 @router.get("/exchanges", response_model=ExchangeListResponse, tags=[])

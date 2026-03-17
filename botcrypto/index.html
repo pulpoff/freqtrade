@@ -22,7 +22,7 @@
         <!-- Sidebar -->
         <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0">
             <div class="sidebar-header px-3 py-3 border-bottom border-secondary">
-                <a href="#" class="d-flex align-items-center text-decoration-none" onclick="App.navigate('dashboard')">
+                <a href="#dashboard" class="d-flex align-items-center text-decoration-none" onclick="event.preventDefault(); App.navigate('dashboard')">
                     <div class="logo-icon me-2">
                         <i class="bi bi-robot"></i>
                     </div>
@@ -31,32 +31,34 @@
             </div>
             <ul class="nav nav-pills flex-column px-2 py-3 flex-grow-1" id="sidebarNav">
                 <li class="nav-item">
-                    <a class="nav-link active" href="#" data-page="dashboard" onclick="App.navigate('dashboard')">
+                    <a class="nav-link active" href="#dashboard" data-page="dashboard" onclick="event.preventDefault(); App.navigate('dashboard')">
                         <i class="bi bi-grid-1x2 me-2"></i><span>Dashboard</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" data-page="strategy-builder" onclick="App.navigate('strategy-builder')">
+                    <a class="nav-link" href="#strategy-builder" data-page="strategy-builder" onclick="event.preventDefault(); App.navigate('strategy-builder')">
                         <i class="bi bi-diagram-3 me-2"></i><span>Strategy Builder</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="backtesting" onclick="App.navigate('backtesting')">
                         <i class="bi bi-clock-history me-2"></i><span>Backtesting</span>
+                    <a class="nav-link" href="#backtesting" data-page="backtesting" onclick="event.preventDefault(); App.navigate('backtesting')">
+                        <i class="bi bi-flask me-2"></i><span>Backtesting</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" data-page="strategy-store" onclick="App.navigate('strategy-store')">
+                    <a class="nav-link" href="#strategy-store" data-page="strategy-store" onclick="event.preventDefault(); App.navigate('strategy-store')">
                         <i class="bi bi-shop me-2"></i><span>Strategy Store</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" data-page="trades" onclick="App.navigate('trades')">
+                    <a class="nav-link" href="#trades" data-page="trades" onclick="event.preventDefault(); App.navigate('trades')">
                         <i class="bi bi-arrow-left-right me-2"></i><span>Trades</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" data-page="config" onclick="App.navigate('config')">
+                    <a class="nav-link" href="#config" data-page="config" onclick="event.preventDefault(); App.navigate('config')">
                         <i class="bi bi-gear me-2"></i><span>Configuration</span>
                     </a>
                 </li>
@@ -80,13 +82,6 @@
                     <h5 class="mb-0 fw-semibold" id="pageTitle">Dashboard</h5>
                 </div>
                 <div class="d-flex align-items-center gap-3">
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">EN</button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#">English</a></li>
-                            <li><a class="dropdown-item" href="#">Français</a></li>
-                        </ul>
-                    </div>
                     <button class="btn btn-link text-secondary position-relative">
                         <i class="bi bi-bell fs-5"></i>
                     </button>

@@ -66,19 +66,17 @@ const StrategyBuilderPage = {
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <a href="#" class="btn btn-sm btn-link text-info"><i class="bi bi-info-circle me-1"></i>Helpdesk</a>
-                    <span class="badge bg-dark border border-secondary px-3 py-2">
-                        <i class="bi bi-clock me-1"></i> Time unit
-                        <select class="form-select form-select-sm d-inline-block bg-transparent border-0 text-white" style="width:60px"
-                            onchange="StrategyBuilderPage.timeUnit = this.value">
-                            <option value="1m">1m</option>
-                            <option value="5m" selected>5m</option>
-                            <option value="15m">15m</option>
-                            <option value="30m">30m</option>
-                            <option value="1h">1h</option>
-                            <option value="4h">4h</option>
-                            <option value="1d">1d</option>
-                        </select>
-                    </span>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:100px"
+                        id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
+                        <option value="1m">1m</option>
+                        <option value="3m">3m</option>
+                        <option value="5m" selected>5m</option>
+                        <option value="15m">15m</option>
+                        <option value="30m">30m</option>
+                        <option value="1h">1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d">1d</option>
+                    </select>
                     <button class="btn btn-warning btn-sm fw-semibold" onclick="StrategyBuilderPage.importStrategy()">
                         IMPORT <i class="bi bi-download ms-1"></i>
                     </button>
@@ -225,6 +223,24 @@ const StrategyBuilderPage = {
             this.createDefaultNodes();
         }
         setTimeout(() => this.renderNodes(), 100);
+
+        // Keyboard shortcuts
+        this._keyHandler = (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                // Don't delete if typing in an input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+                if (this.selectedNode) {
+                    this.deleteNode(this.selectedNode);
+                }
+            }
+            if (e.key === 'Escape') {
+                this.connectingFrom = null;
+                this._removeTempLine();
+                this.selectedNode = null;
+                this.renderNodes();
+            }
+        };
+        document.addEventListener('keydown', this._keyHandler);
     },
 
     createDefaultNodes() {
@@ -293,7 +309,8 @@ const StrategyBuilderPage = {
         return `
         <div class="canvas-node" id="node-${node.id}" style="left:${node.x}px;top:${node.y}px"
              onmousedown="StrategyBuilderPage.onNodeMouseDown(event, ${node.id})"
-             ondblclick="StrategyBuilderPage.editNode(${node.id})">
+             ondblclick="StrategyBuilderPage.editNode(${node.id})"
+             oncontextmenu="StrategyBuilderPage.onNodeContextMenu(event, ${node.id})">
             <div class="node-body ${selected}">
                 ${bt.hasInput ? `<div class="node-connector input" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'input')"></div>` : ''}
                 <div class="node-icon ${bt.iconClass}">
@@ -410,6 +427,12 @@ const StrategyBuilderPage = {
         if (connType === 'input') {
             // Complete connection
             if (this.connectingFrom) {
+                // Don't connect to self
+                if (this.connectingFrom.nodeId === nodeId) return;
+                // Don't create duplicate connections
+                const exists = this.connections.find(c => c.from === this.connectingFrom.nodeId && c.to === nodeId);
+                if (exists) { App.showToast('Connection already exists', 'warning'); return; }
+
                 this.connections.push({
                     from: this.connectingFrom.nodeId,
                     to: nodeId,
@@ -417,26 +440,72 @@ const StrategyBuilderPage = {
                           this.connectingFrom.type === 'output-false' ? 'false' : 'normal'
                 });
                 this.connectingFrom = null;
+                this._removeTempLine();
                 this.renderConnections();
                 this.autoSave();
                 App.showToast('Connection created', 'success');
             }
         } else {
-            // Start connection
+            // Start connection from output
             this.connectingFrom = { nodeId, type: connType };
-            App.showToast('Click an input connector to complete connection', 'info');
+            // Store starting position for temp line
+            const node = this.nodes.find(n => n.id === nodeId);
+            const bt = this.blockTypes[node.type];
+            this._connStartX = node.x + 45;
+            this._connStartY = node.y + 45;
+            if (bt && bt.hasTwoOutputs) {
+                this._connStartY = connType === 'output-true' ? node.y + 30 : node.y + 60;
+            }
+        }
+    },
+
+    _removeTempLine() {
+        const svg = document.getElementById('connectionsLayer');
+        if (svg) {
+            const temp = svg.querySelector('#tempConnection');
+            if (temp) temp.remove();
         }
     },
 
     onCanvasMouseDown(event) {
-        if (event.target.id === 'builderCanvas' || event.target.tagName === 'svg') {
+        if (event.target.id === 'builderCanvas' || event.target.tagName === 'svg' ||
+            event.target.closest('.builder-canvas-wrapper') && !event.target.closest('.canvas-node')) {
             this.selectedNode = null;
             this.connectingFrom = null;
+            this._removeTempLine();
             this.renderNodes();
         }
     },
 
     onCanvasMouseMove(event) {
+        // Draw temp connection line while connecting
+        if (this.connectingFrom && this._connStartX !== undefined) {
+            const canvas = document.getElementById('builderCanvas');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = event.clientX - rect.left;
+            const my = event.clientY - rect.top;
+            const x1 = this._connStartX;
+            const y1 = this._connStartY;
+            const cx1 = x1 + 60;
+            const cx2 = mx - 60;
+
+            const svg = document.getElementById('connectionsLayer');
+            if (svg) {
+                let temp = svg.querySelector('#tempConnection');
+                if (!temp) {
+                    temp = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    temp.id = 'tempConnection';
+                    temp.setAttribute('stroke', '#2dd4a8');
+                    temp.setAttribute('stroke-width', '2');
+                    temp.setAttribute('stroke-dasharray', '6,4');
+                    temp.setAttribute('fill', 'none');
+                    svg.appendChild(temp);
+                }
+                temp.setAttribute('d', `M${x1},${y1} C${cx1},${y1} ${cx2},${my} ${mx},${my}`);
+            }
+        }
+
         if (this.draggingNode && this.dragStart) {
             const node = this.nodes.find(n => n.id === this.draggingNode);
             if (!node) return;
@@ -459,6 +528,83 @@ const StrategyBuilderPage = {
             this.dragStart = null;
             this.autoSave();
         }
+        // If we were connecting but didn't land on a connector, cancel
+        if (this.connectingFrom) {
+            // Don't cancel immediately - user might still click an input connector
+        }
+    },
+
+    /** Right-click context menu on nodes */
+    onNodeContextMenu(event, nodeId) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Remove existing menu
+        document.querySelectorAll('.node-context-menu').forEach(m => m.remove());
+
+        this.selectedNode = nodeId;
+        this.renderNodes();
+
+        const menu = document.createElement('div');
+        menu.className = 'node-context-menu';
+        menu.style.cssText = `position:fixed;left:${event.clientX}px;top:${event.clientY}px;z-index:9999;
+            background:var(--bc-card-bg,#1c2128);border:1px solid var(--bc-border,#30363d);border-radius:8px;
+            padding:4px 0;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,0.5)`;
+
+        menu.innerHTML = `
+            <div class="px-3 py-2 text-light small cursor-pointer" style="cursor:pointer"
+                onmouseover="this.style.background='rgba(45,212,168,0.1)'" onmouseout="this.style.background=''"
+                onclick="StrategyBuilderPage.editNode(${nodeId}); this.parentElement.remove()">
+                <i class="bi bi-pencil me-2"></i>Edit Properties
+            </div>
+            <div class="px-3 py-2 text-light small" style="cursor:pointer"
+                onmouseover="this.style.background='rgba(45,212,168,0.1)'" onmouseout="this.style.background=''"
+                onclick="StrategyBuilderPage.duplicateNode(${nodeId}); this.parentElement.remove()">
+                <i class="bi bi-copy me-2"></i>Duplicate
+            </div>
+            <div class="px-3 py-2 text-light small" style="cursor:pointer"
+                onmouseover="this.style.background='rgba(45,212,168,0.1)'" onmouseout="this.style.background=''"
+                onclick="StrategyBuilderPage.disconnectNode(${nodeId}); this.parentElement.remove()">
+                <i class="bi bi-scissors me-2"></i>Disconnect All
+            </div>
+            <hr class="border-secondary my-1">
+            <div class="px-3 py-2 text-danger small" style="cursor:pointer"
+                onmouseover="this.style.background='rgba(248,81,73,0.1)'" onmouseout="this.style.background=''"
+                onclick="StrategyBuilderPage.deleteNode(${nodeId}); this.parentElement.remove()">
+                <i class="bi bi-trash me-2"></i>Delete
+            </div>`;
+
+        document.body.appendChild(menu);
+        // Close on outside click
+        setTimeout(() => {
+            const handler = (e) => {
+                if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', handler); }
+            };
+            document.addEventListener('click', handler);
+        }, 10);
+    },
+
+    duplicateNode(nodeId) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const newNode = {
+            id: this.nextId++,
+            type: node.type,
+            x: node.x + 80,
+            y: node.y + 80,
+            params: JSON.parse(JSON.stringify(node.params))
+        };
+        this.nodes.push(newNode);
+        this.renderNodes();
+        this.autoSave();
+        App.showToast('Block duplicated', 'success');
+    },
+
+    disconnectNode(nodeId) {
+        this.connections = this.connections.filter(c => c.from !== nodeId && c.to !== nodeId);
+        this.renderConnections();
+        this.autoSave();
+        App.showToast('All connections removed', 'info');
     },
 
     // ========== NODE EDITING ==========
@@ -985,7 +1131,284 @@ ${entryConditions.length > 0 ?
     },
 
     importStrategy() {
-        App.navigate('strategy-store');
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.py';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const content = await file.text();
+                const name = file.name.replace(/\.py$/, '');
+
+                // Upload to Freqtrade strategies directory if connected
+                if (API.connected) {
+                    try {
+                        await API.request('/strategies/upload', {
+                            method: 'POST',
+                            body: JSON.stringify({ strategy: content, name })
+                        });
+                        App.showToast(`Strategy "${name}" uploaded to Freqtrade`, 'success');
+                    } catch (err) {
+                        console.log('Upload to Freqtrade failed:', err.message);
+                    }
+                }
+
+                // Parse the Python strategy into visual flow nodes
+                this._parseStrategyToFlow(content, name);
+                this.renderNodes();
+                this.autoSave();
+                App.showToast(`Strategy "${name}" imported as visual flow`, 'success');
+
+            } catch (err) {
+                App.showToast(`Import failed: ${err.message}`, 'error');
+            }
+        };
+        input.click();
+    },
+
+    /** Parse a Freqtrade .py strategy file into visual flow nodes */
+    _parseStrategyToFlow(code, fileName) {
+        // Reset
+        this.nodes = [];
+        this.connections = [];
+        this.nextId = 1;
+
+        // Extract class name
+        const classMatch = code.match(/class\s+(\w+)\s*\(/);
+        this.strategyName = classMatch ? classMatch[1] : fileName;
+
+        // Extract docstring as description
+        const docMatch = code.match(/class\s+\w+[^:]*:\s*\n\s*"""([\s\S]*?)"""/);
+        this.strategyDesc = docMatch ? docMatch[1].trim().split('\n')[0] : '';
+
+        // Extract timeframe
+        const tfMatch = code.match(/timeframe\s*=\s*['"](\w+)['"]/);
+        if (tfMatch) {
+            this.timeUnit = tfMatch[1];
+            const sel = document.getElementById('sbTimeUnit');
+            if (sel) sel.value = tfMatch[1];
+        }
+
+        // Extract stoploss
+        const slMatch = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
+        const stoplossVal = slMatch ? parseFloat(slMatch[1]) * 100 : -5;
+
+        // Extract trailing stop
+        const trailMatch = code.match(/trailing_stop\s*=\s*True/);
+        const trailPosMatch = code.match(/trailing_stop_positive\s*=\s*([\d.]+)/);
+        const trailOffMatch = code.match(/trailing_stop_positive_offset\s*=\s*([\d.]+)/);
+
+        // Extract minimal_roi
+        const roiMatch = code.match(/minimal_roi\s*=\s*\{([^}]+)\}/);
+        let roiVal = 4;
+        if (roiMatch) {
+            const roiEntries = roiMatch[1].match(/:\s*([\d.]+)/g);
+            if (roiEntries && roiEntries.length > 0) {
+                roiVal = parseFloat(roiEntries[0].replace(':', '').trim()) * 100;
+            }
+        }
+
+        // Extract indicators from populate_indicators
+        const indSection = this._extractFunction(code, 'populate_indicators');
+        const indicators = this._parseIndicators(indSection);
+
+        // Extract entry conditions from populate_entry_trend
+        const entrySection = this._extractFunction(code, 'populate_entry_trend');
+        const entryConditions = this._parseConditions(entrySection, 'entry');
+
+        // Extract exit conditions from populate_exit_trend
+        const exitSection = this._extractFunction(code, 'populate_exit_trend');
+        const exitConditions = this._parseConditions(exitSection, 'exit');
+
+        // Build visual flow
+        const xStep = 200;
+        const yCenter = 250;
+        let x = 50;
+
+        // 1. START node
+        const startNode = { id: this.nextId++, type: 'start', x, y: yCenter, params: {} };
+        this.nodes.push(startNode);
+        x += xStep;
+
+        // 2. Indicator nodes
+        const indicatorNodes = [];
+        indicators.forEach((ind, i) => {
+            const node = {
+                id: this.nextId++, type: 'indicator',
+                x, y: yCenter - 80 + i * 160,
+                params: {
+                    type: ind.type, timeframe: this.timeUnit || '5m',
+                    period: ind.period, value: ind.value || 0,
+                    condition: ind.condition || 'Crosses Over',
+                    compareType: ind.compareType || 'Value',
+                    comparePeriod: ind.comparePeriod || 0,
+                    compareValue: ind.compareValue || 0
+                }
+            };
+            this.nodes.push(node);
+            indicatorNodes.push(node);
+            // Connect start → indicator
+            this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
+        });
+        if (indicatorNodes.length > 0) x += xStep;
+
+        // 3. Group node if multiple indicators
+        let preEntryNode = startNode;
+        if (indicatorNodes.length > 1) {
+            const groupNode = { id: this.nextId++, type: 'group', x, y: yCenter, params: { logic: 'AND' } };
+            this.nodes.push(groupNode);
+            indicatorNodes.forEach(ind => {
+                this.connections.push({ from: ind.id, to: groupNode.id, type: 'normal' });
+            });
+            preEntryNode = groupNode;
+            x += xStep;
+        } else if (indicatorNodes.length === 1) {
+            preEntryNode = indicatorNodes[0];
+        }
+
+        // 4. BUY node
+        const buyNode = {
+            id: this.nextId++, type: 'buy', x, y: yCenter,
+            params: { orderType: 'Market', trade: 'First', volume: 100, volumePercent: true, price: 0, assetQuote: true }
+        };
+        this.nodes.push(buyNode);
+        this.connections.push({ from: preEntryNode.id, to: buyNode.id, type: 'normal' });
+        x += xStep;
+
+        // 5. Take profit (gain) node
+        const gainNode = {
+            id: this.nextId++, type: 'gain', x, y: yCenter - 100,
+            params: { condition: 'Above', value: roiVal, trade: 'Last' }
+        };
+        this.nodes.push(gainNode);
+        this.connections.push({ from: buyNode.id, to: gainNode.id, type: 'normal' });
+
+        // 6. Stoploss node
+        const slNode = {
+            id: this.nextId++, type: 'stoploss', x, y: yCenter + 100,
+            params: { value: stoplossVal, trade: 'All' }
+        };
+        this.nodes.push(slNode);
+        this.connections.push({ from: buyNode.id, to: slNode.id, type: 'normal' });
+        x += xStep;
+
+        // 7. SELL node (from gain)
+        const sellNode = {
+            id: this.nextId++, type: 'sell', x, y: yCenter,
+            params: { orderType: 'Market', trade: 'All', volume: 100, volumePercent: true, price: 0, assetQuote: false }
+        };
+        this.nodes.push(sellNode);
+        this.connections.push({ from: gainNode.id, to: sellNode.id, type: 'true' });
+        this.connections.push({ from: slNode.id, to: sellNode.id, type: 'normal' });
+
+        // 8. Trailing stop if enabled
+        if (trailMatch) {
+            const trailNode = {
+                id: this.nextId++, type: 'trailing', x: x - xStep, y: yCenter + 200,
+                params: {
+                    activation: trailPosMatch ? parseFloat(trailPosMatch[1]) * 100 : 1,
+                    callback: trailOffMatch ? (parseFloat(trailOffMatch[1]) - (trailPosMatch ? parseFloat(trailPosMatch[1]) : 0)) * 100 : 0.5
+                }
+            };
+            this.nodes.push(trailNode);
+            this.connections.push({ from: buyNode.id, to: trailNode.id, type: 'normal' });
+        }
+        x += xStep;
+
+        // 9. TERMINATE node
+        const endNode = { id: this.nextId++, type: 'terminate', x, y: yCenter, params: {} };
+        this.nodes.push(endNode);
+        this.connections.push({ from: sellNode.id, to: endNode.id, type: 'normal' });
+
+        // Update name input
+        const nameInput = document.querySelector('input[onchange*="strategyName"]');
+        if (nameInput) nameInput.value = this.strategyName;
+        const descInput = document.querySelector('textarea[onchange*="strategyDesc"]');
+        if (descInput) descInput.value = this.strategyDesc;
+    },
+
+    /** Extract a function body from Python code */
+    _extractFunction(code, funcName) {
+        const regex = new RegExp(`def\\s+${funcName}\\s*\\([^)]*\\)[^:]*:[\\s\\S]*?(?=\\n    def |\\nclass |$)`, 'g');
+        const match = regex.exec(code);
+        return match ? match[0] : '';
+    },
+
+    /** Parse indicator definitions from populate_indicators code */
+    _parseIndicators(code) {
+        const indicators = [];
+        // EMA
+        const emaMatches = code.matchAll(/ta\.EMA\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/g);
+        const emaPeriods = new Set();
+        for (const m of emaMatches) {
+            const period = parseInt(m[1]);
+            if (!emaPeriods.has(period)) {
+                emaPeriods.add(period);
+            }
+        }
+        // Check for crossover in entry to pair EMAs
+        const emaPeriodArr = [...emaPeriods];
+        if (emaPeriodArr.length >= 2) {
+            indicators.push({
+                type: 'EMA', period: emaPeriodArr[0],
+                condition: 'Crosses Over', compareType: 'EMA',
+                comparePeriod: emaPeriodArr[1], value: 0, compareValue: 0
+            });
+        } else if (emaPeriodArr.length === 1) {
+            indicators.push({ type: 'EMA', period: emaPeriodArr[0], condition: 'Above', compareType: 'Value', value: 0 });
+        }
+
+        // SMA
+        const smaMatches = code.matchAll(/ta\.SMA\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/g);
+        const smaPeriods = new Set();
+        for (const m of smaMatches) { smaPeriods.add(parseInt(m[1])); }
+        const smaPeriodArr = [...smaPeriods];
+        if (smaPeriodArr.length >= 2) {
+            indicators.push({ type: 'SMA', period: smaPeriodArr[0], condition: 'Crosses Over', compareType: 'SMA', comparePeriod: smaPeriodArr[1], value: 0, compareValue: 0 });
+        } else if (smaPeriodArr.length === 1) {
+            indicators.push({ type: 'SMA', period: smaPeriodArr[0], condition: 'Above', compareType: 'Value', value: 0 });
+        }
+
+        // RSI
+        const rsiMatch = code.match(/ta\.RSI\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/);
+        if (rsiMatch) {
+            indicators.push({ type: 'RSI', period: parseInt(rsiMatch[1]), condition: 'Below', compareType: 'Value', value: 30, compareValue: 30 });
+        }
+
+        // MACD
+        if (code.includes('ta.MACD')) {
+            indicators.push({ type: 'MACD', period: 12, condition: 'Crosses Over', compareType: 'Value', value: 0, compareValue: 0 });
+        }
+
+        // Bollinger Bands
+        const bbMatch = code.match(/ta\.BBANDS\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/);
+        if (bbMatch) {
+            indicators.push({ type: 'Bollinger Bands', period: parseInt(bbMatch[1]), condition: 'Below', compareType: 'Value', value: 0, compareValue: 0 });
+        }
+
+        return indicators;
+    },
+
+    /** Parse entry/exit conditions */
+    _parseConditions(code, type) {
+        const conditions = [];
+        // Look for crossed_above / crossed_below
+        const crossAbove = code.matchAll(/crossed_above\s*\(\s*dataframe\['([^']+)'\]\s*,\s*dataframe\['([^']+)'\]/g);
+        for (const m of crossAbove) conditions.push({ col1: m[1], col2: m[2], op: 'Crosses Over' });
+
+        const crossBelow = code.matchAll(/crossed_below\s*\(\s*dataframe\['([^']+)'\]\s*,\s*dataframe\['([^']+)'\]/g);
+        for (const m of crossBelow) conditions.push({ col1: m[1], col2: m[2], op: 'Crosses Under' });
+
+        // Simple comparisons
+        const gtMatch = code.matchAll(/dataframe\['([^']+)'\]\s*>\s*(\d+[\d.]*)/g);
+        for (const m of gtMatch) conditions.push({ col1: m[1], value: parseFloat(m[2]), op: 'Above' });
+
+        const ltMatch = code.matchAll(/dataframe\['([^']+)'\]\s*<\s*(\d+[\d.]*)/g);
+        for (const m of ltMatch) conditions.push({ col1: m[1], value: parseFloat(m[2]), op: 'Below' });
+
+        return conditions;
     },
 
     exportStrategy() {
@@ -996,5 +1419,10 @@ ${entryConditions.length > 0 ?
 
     destroy() {
         this.autoSave();
+        if (this._keyHandler) {
+            document.removeEventListener('keydown', this._keyHandler);
+            this._keyHandler = null;
+        }
+        document.querySelectorAll('.node-context-menu').forEach(m => m.remove());
     }
 };

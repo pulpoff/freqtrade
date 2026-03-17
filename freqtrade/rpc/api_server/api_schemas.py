@@ -475,6 +475,16 @@ class StrategyListResponse(BaseModel):
     strategies: list[str]
 
 
+class StrategyUploadRequest(BaseModel):
+    strategy: str  # Python source code
+    name: str | None = None  # Optional filename (without .py)
+
+
+class StrategyUploadResponse(BaseModel):
+    status: str
+    name: str
+
+
 class ExchangeListResponse(BaseModel):
     exchanges: list[ValidExchangesType]
 

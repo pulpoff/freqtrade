@@ -599,9 +599,51 @@ const ConfigWizardPage = {
             } catch {}
         }
 
+        // Load live config from Freqtrade if connected
+        await this.loadLiveConfig();
+
         // Load saved configs list
         this.refreshSavedConfigs();
         this.refreshStrategyFiles();
+    },
+
+    /** Load configuration from running Freqtrade instance */
+    async loadLiveConfig() {
+        try {
+            if (!API.connected) return;
+            const config = await API.getConfig();
+            if (!config) return;
+
+            // Map Freqtrade show_config response to our config format
+            if (config.exchange) this.config.exchange = config.exchange;
+            if (config.trading_mode) this.config.tradingMode = config.trading_mode;
+            if (config.stake_currency) this.config.stakeCurrency = config.stake_currency;
+            if (config.stake_amount !== undefined) this.config.stakeAmount = String(config.stake_amount);
+            if (config.max_open_trades !== undefined) this.config.maxOpenTrades = config.max_open_trades;
+            if (config.dry_run !== undefined) this.config.dryRun = config.dry_run;
+            if (config.dry_run_wallet !== undefined) this.config.dryRunWallet = config.dry_run_wallet;
+            if (config.stoploss !== undefined) this.config.stoploss = config.stoploss;
+            if (config.trailing_stop !== undefined) this.config.trailingStop = config.trailing_stop;
+            if (config.trailing_stop_positive !== undefined) this.config.trailingStopPositive = config.trailing_stop_positive;
+            if (config.minimal_roi) this.config.minimalRoi = config.minimal_roi;
+
+            // Try to get whitelist/blacklist
+            try {
+                const whitelist = await API.getWhitelist();
+                if (whitelist && whitelist.whitelist) {
+                    this.config.pairWhitelist = whitelist.whitelist;
+                }
+                if (whitelist && whitelist.blacklist) {
+                    this.config.pairBlacklist = whitelist.blacklist;
+                }
+            } catch (e) {}
+
+            // Update the preview
+            this.updateConfigPreview();
+            App.showToast('Live config loaded from Freqtrade', 'info');
+        } catch (e) {
+            console.log('Could not load live config:', e.message);
+        }
     },
 
     // ========== DATABASE CONFIG MANAGEMENT ==========

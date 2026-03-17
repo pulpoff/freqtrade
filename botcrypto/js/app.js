@@ -33,9 +33,10 @@ const App = {
             if (e.key === 'Enter') this.connect();
         });
 
-        // Check existing connection
+        // Check existing connection - MUST await before navigating
+        // so pages see API.connected = true and load real data
         if (API.token && API.baseUrl) {
-            this.tryReconnect();
+            await this.tryReconnect();
         } else {
             this.updateConnectionStatus(false);
         }
@@ -170,12 +171,13 @@ const App = {
             errEl.classList.add('d-none');
             this.showToast('Connected to Freqtrade!', 'success');
 
-            // Refresh current page
+            // Refresh current page fully to load real data
             if (this.currentPage) {
-                const module = this.currentPage.module();
+                const currentModule = this.currentPage.module();
+                if (currentModule && currentModule.destroy) currentModule.destroy();
                 const container = document.getElementById('pageContainer');
-                container.innerHTML = module.render();
-                if (module.init) module.init();
+                container.innerHTML = currentModule.render();
+                if (currentModule.init) currentModule.init();
             }
         } catch (e) {
             errEl.textContent = `Connection failed: ${e.message}`;
