@@ -1,0 +1,2 @@
+# Keep .env out of git (contains GUI_ACCESS password)
+# .env is committed with default password for demo - change in production!

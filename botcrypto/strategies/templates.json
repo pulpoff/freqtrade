@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "templates": [
+    {
+      "id": 1,
+      "name": "Buy & Sell 1m -5% Stop-Loss",
+      "description": "This strategy runs a regular Buy&Sell 1 minute bot in loop. Plus, if you lose more than 5%, the bot sells everything and terminates.",
+      "timeframe": "1m",
+      "pair": "BTC/USDT",
+      "category": "Trend Following",
+      "indicators": ["EMA"],
+      "risk": {
+        "stoploss": -0.05,
+        "takeprofit": 0.02,
+        "trailing": false
+      }
+    },
+    {
+      "id": 2,
+      "name": "Bullish Trend Following",
+      "description": "Uses EMA crossover strategy to identify bullish trends. Enters on EMA 9/26 golden cross and exits on death cross or when RSI becomes overbought.",
+      "timeframe": "30m",
+      "pair": "XRP/USDT",
+      "category": "Trend Following",
+      "indicators": ["EMA", "RSI"],
+      "risk": {
+        "stoploss": -0.03,
+        "takeprofit": 0.03,
+        "trailing": false
+      }
+    },
+    {
+      "id": 3,
+      "name": "RSI Oversold/Overbought",
+      "description": "Simple RSI strategy that buys when RSI drops below 30 (oversold) and sells when RSI goes above 70 (overbought). Good for ranging markets.",
+      "timeframe": "15m",
+      "pair": "ETH/USDT",
+      "category": "Mean Reversion",
+      "indicators": ["RSI"],
+      "risk": {
+        "stoploss": -0.05,
+        "takeprofit": 0.05,
+        "trailing": false
+      }
+    },
+    {
+      "id": 4,
+      "name": "MACD + Bollinger Bands",
+      "description": "Combines MACD crossover signals with Bollinger Band squeeze for high-probability entries.",
+      "timeframe": "1h",
+      "pair": "BTC/USDT",
+      "category": "Momentum",
+      "indicators": ["MACD", "Bollinger Bands"],
+      "risk": {
+        "stoploss": -0.04,
+        "takeprofit": 0.05,
+        "trailing": false
+      }
+    },
+    {
+      "id": 5,
+      "name": "Trailing Stop Scalper",
+      "description": "Quick scalping strategy using EMA crossover with tight trailing stop. Designed for volatile pairs on short timeframes.",
+      "timeframe": "5m",
+      "pair": "SOL/USDT",
+      "category": "Scalping",
+      "indicators": ["EMA"],
+      "risk": {
+        "stoploss": -0.02,
+        "takeprofit": 0.015,
+        "trailing": true,
+        "trailing_activation": 0.015,
+        "trailing_callback": 0.005
+      }
+    },
+    {
+      "id": 6,
+      "name": "Webhook Signal Bot",
+      "description": "Receives buy/sell signals from external sources (TradingView, custom scripts) via webhook. No built-in indicators.",
+      "timeframe": "1m",
+      "pair": "Any",
+      "category": "External Signals",
+      "indicators": [],
+      "risk": {
+        "stoploss": -0.05,
+        "takeprofit": null,
+        "trailing": false
+      }
+    }
+  ]
+}
