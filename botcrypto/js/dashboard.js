@@ -523,13 +523,14 @@ const DashboardPage = {
                 const avgProfit = totalTrades > 0 ? (profit.profit_closed_coin || 0) / totalTrades : 0;
                 const currency = profit.stake_currency || 'USDT';
 
+                // Show total profit (including unrealized from open trades)
                 if (el('dashTotalProfit')) {
-                    const val = profit.profit_closed_coin || 0;
+                    const val = profit.profit_all_coin || profit.profit_closed_coin || 0;
                     el('dashTotalProfit').textContent = `${val >= 0 ? '+' : ''}${Components.formatNumber(val, 2)}`;
                     el('dashTotalProfit').className = `stat-value ${val >= 0 ? 'text-profit' : 'text-loss'}`;
                 }
                 if (el('dashProfitPct')) {
-                    const pct = profit.profit_closed_percent || (profit.profit_closed_ratio_mean || 0) * 100;
+                    const pct = profit.profit_all_percent || profit.profit_closed_percent || (profit.profit_all_ratio_sum || profit.profit_closed_ratio_mean || 0) * 100;
                     el('dashProfitPct').textContent = `${pct >= 0 ? '+' : ''}${Components.formatNumber(pct, 2)}%`;
                     el('dashProfitPct').className = `stat-value ${pct >= 0 ? 'text-profit' : 'text-loss'}`;
                 }
