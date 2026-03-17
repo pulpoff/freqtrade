@@ -88,24 +88,33 @@ def performance(rpc: RPC = Depends(get_rpc)):
 @router.get("/profit", response_model=Profit, tags=["Trading-info"])
 def profit(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
     if not rpc:
-        return {"profit_closed_coin": 0, "profit_closed_percent_mean": 0,
-                "profit_closed_ratio_mean": 0, "profit_closed_percent_sum": 0,
-                "profit_closed_ratio_sum": 0, "profit_closed_percent": 0,
-                "profit_closed_ratio": 0, "profit_closed_fiat": 0,
-                "profit_all_coin": 0, "profit_all_percent_mean": 0,
-                "profit_all_ratio_mean": 0, "profit_all_percent_sum": 0,
-                "profit_all_ratio_sum": 0, "profit_all_percent": 0,
-                "profit_all_ratio": 0, "profit_all_fiat": 0,
-                "trade_count": 0, "closed_trade_count": 0,
-                "first_trade_date": "", "first_trade_humanized": "",
-                "first_trade_timestamp": 0, "latest_trade_date": "",
-                "latest_trade_humanized": "", "latest_trade_timestamp": 0,
-                "avg_duration": "", "best_pair": "", "best_rate": 0,
-                "best_pair_profit_ratio": 0, "winning_trades": 0,
-                "losing_trades": 0, "profit_factor": 0,
-                "max_drawdown": 0, "max_drawdown_abs": 0,
-                "trading_volume": 0, "bot_start_timestamp": 0,
-                "bot_start_date": ""}
+        return {
+            "profit_closed_coin": 0, "profit_closed_percent_mean": 0,
+            "profit_closed_ratio_mean": 0, "profit_closed_percent_sum": 0,
+            "profit_closed_ratio_sum": 0, "profit_closed_percent": 0,
+            "profit_closed_ratio": 0, "profit_closed_fiat": 0,
+            "profit_all_coin": 0, "profit_all_percent_mean": 0,
+            "profit_all_ratio_mean": 0, "profit_all_percent_sum": 0,
+            "profit_all_ratio_sum": 0, "profit_all_percent": 0,
+            "profit_all_ratio": 0, "profit_all_fiat": 0,
+            "trade_count": 0, "closed_trade_count": 0,
+            "first_trade_date": "", "first_trade_humanized": "",
+            "first_trade_timestamp": 0, "latest_trade_date": "",
+            "latest_trade_humanized": "", "latest_trade_timestamp": 0,
+            "avg_duration": "", "best_pair": "", "best_rate": 0,
+            "best_pair_profit_ratio": 0, "best_pair_profit_abs": 0,
+            "winning_trades": 0, "losing_trades": 0, "profit_factor": 0,
+            "winrate": 0, "expectancy": 0, "expectancy_ratio": 0,
+            "sharpe": 0, "sortino": 0, "sqn": 0, "calmar": 0, "cagr": 0,
+            "max_drawdown": 0, "max_drawdown_abs": 0,
+            "max_drawdown_start": "", "max_drawdown_start_timestamp": 0,
+            "max_drawdown_end": "", "max_drawdown_end_timestamp": 0,
+            "current_drawdown": 0, "current_drawdown_abs": 0,
+            "current_drawdown_high": 0, "current_drawdown_start": "",
+            "current_drawdown_start_timestamp": 0,
+            "trading_volume": 0, "bot_start_timestamp": 0,
+            "bot_start_date": "",
+        }
     return rpc._rpc_trade_statistics(config["stake_currency"], config.get("fiat_display_currency"))
 
 
