@@ -310,6 +310,11 @@ const API = {
         });
     },
 
+    // ========== PAIR OHLCV (raw exchange data, no strategy needed) ==========
+    async getPairOhlcv(pair, timeframe, limit = 500) {
+        return this.request(`/pair_ohlcv?pair=${encodeURIComponent(pair)}&timeframe=${timeframe}&limit=${limit}`);
+    },
+
     // ========== DATA DOWNLOAD ==========
     async downloadData(config) {
         return this.request('/download_data', {

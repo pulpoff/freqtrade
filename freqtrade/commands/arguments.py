@@ -284,7 +284,6 @@ NO_CONF_REQURIED = [
     "convert-data",
     "convert-trade-data",
     "download-data",
-    "engine",
     "hyperopt-list",
     "hyperopt-show",
     "list-data",
@@ -687,7 +686,7 @@ class Arguments:
 
         engine_cmd = subparsers.add_parser(
             "engine",
-            help="Start BotCrypto engine (GUI + multi-strategy manager). No config required.",
+            help="Start BotCrypto engine (GUI + multi-strategy manager). No strategy required.",
             parents=[_common_parser],
         )
         engine_cmd.set_defaults(func=start_engine)
