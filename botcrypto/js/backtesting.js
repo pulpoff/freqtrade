@@ -134,33 +134,45 @@ const BacktestingPage = {
                 </div>
             </div>
 
-            <!-- Results Section -->
+            <!-- Results Section (botcrypto-style analytics dashboard) -->
             <div id="btResults" class="d-none">
                 <!-- Results Header -->
                 <div class="card mb-3" id="btResultsHeader"></div>
 
-                <!-- Summary Stats -->
-                <div class="row g-3 mb-3" id="btSummaryStats"></div>
-
-                <!-- Chart -->
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div id="btChartToolbar"></div>
-                        <div id="btChart" class="chart-container" style="height:400px"></div>
+                <!-- Top: Chart + Key Metrics (botcrypto layout) -->
+                <div class="row g-3 mb-3">
+                    <!-- Left: Market Chart with buy/sell markers -->
+                    <div class="col-lg-8">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <div id="btChartToolbar"></div>
+                                <div id="btChart" class="chart-container" style="height:400px"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Right: Key Metrics (large typography like botcrypto) -->
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart me-2 text-success"></i>Performance</h6>
+                                <div id="btKeyMetrics" class="flex-grow-1"></div>
+                                <div id="btBalanceDisplay" class="d-flex align-items-center gap-2 mt-3 pt-3 border-top border-secondary">
+                                    <i class="bi bi-gem text-warning"></i>
+                                    <span class="fw-semibold">0 USDT</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Bottom: Stats + Trades -->
+                <!-- Bottom: Equity Chart + Trade Log -->
                 <div class="row g-3">
                     <div class="col-lg-4">
                         <div class="card h-100">
                             <div class="card-body">
-                                <div class="d-flex align-items-center gap-2 mb-3" id="btBalanceDisplay">
-                                    <i class="bi bi-gem text-warning"></i>
-                                    <span class="fw-semibold">0 USDT</span>
-                                </div>
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Equity Curve</h6>
                                 <div id="btEquityChart" style="height:180px"></div>
-                                <div id="btProfitDisplay"></div>
+                                <div id="btProfitDisplay" class="mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -232,6 +244,32 @@ const BacktestingPage = {
             }
         } catch (e) {
             console.log('Could not load strategies:', e.message);
+        }
+
+        // Add imported strategies that aren't in the API list yet
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const apiNames = this.strategies || [];
+        for (const [name, info] of Object.entries(imported)) {
+            if (!apiNames.includes(name)) {
+                // Try to upload if connected and not yet uploaded
+                if (API.connected && !info.uploaded && info.content) {
+                    try {
+                        await API.request('/strategies/upload', {
+                            method: 'POST',
+                            body: JSON.stringify({ strategy: info.content, name })
+                        });
+                        info.uploaded = true;
+                        localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+                        // Add to list since it's now available
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = `${name} (imported)`;
+                        select.appendChild(opt);
+                    } catch (e) {
+                        console.log(`Could not upload imported strategy ${name}:`, e.message);
+                    }
+                }
+            }
         }
 
         // Also add strategies from visual builder
@@ -545,9 +583,9 @@ const BacktestingPage = {
             )}</div>`;
         }
 
-        // Summary stats row
-        const statsEl = document.getElementById('btSummaryStats');
-        if (statsEl) {
+        // Key metrics panel (botcrypto-style large typography)
+        const metricsEl = document.getElementById('btKeyMetrics');
+        if (metricsEl) {
             const totalProfit = stratResult.profit_total_abs || 0;
             const profitPct = (stratResult.profit_total || 0) * 100;
             const maxDrawdownPct = ((stratResult.max_drawdown_account || stratResult.max_drawdown || 0) * 100);
@@ -555,31 +593,45 @@ const BacktestingPage = {
             const lossTrades = stratResult.losses || 0;
             const totalTrades = trades.length;
             const winRate = totalTrades > 0 ? (winTrades / totalTrades * 100) : 0;
+            const avgDuration = stratResult.holding_avg || stratResult.duration_avg || '-';
 
-            statsEl.innerHTML = `
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value">${totalTrades}</div><div class="stat-label">Total Trades</div>
-                </div></div></div>
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value ${totalProfit >= 0 ? 'text-profit' : 'text-loss'}">${totalProfit >= 0 ? '+' : ''}${Components.formatNumber(totalProfit, 2)} ${stakeCurrency}</div>
-                    <div class="stat-label">Total Profit</div>
-                </div></div></div>
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value ${profitPct >= 0 ? 'text-profit' : 'text-loss'}">${profitPct >= 0 ? '+' : ''}${Components.formatPercent(profitPct)}</div>
-                    <div class="stat-label">Profit %</div>
-                </div></div></div>
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value ${winRate >= 50 ? 'text-profit' : 'text-loss'}">${Components.formatPercent(winRate)}</div>
-                    <div class="stat-label">Win Rate (${winTrades}W/${lossTrades}L)</div>
-                </div></div></div>
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value text-loss">${Components.formatPercent(maxDrawdownPct)}</div>
-                    <div class="stat-label">Max Drawdown</div>
-                </div></div></div>
-                <div class="col-md-2"><div class="card"><div class="card-body py-2 text-center">
-                    <div class="stat-value">${Components.formatNumber(stratResult.final_balance || 0, 2)} ${stakeCurrency}</div>
-                    <div class="stat-label">Final Balance</div>
-                </div></div></div>`;
+            metricsEl.innerHTML = `
+                <div class="mb-3">
+                    <div class="text-secondary small mb-1">Total Profit</div>
+                    <div class="fs-3 fw-bold ${totalProfit >= 0 ? 'text-profit' : 'text-loss'}">
+                        ${totalProfit >= 0 ? '+' : ''}${Components.formatNumber(totalProfit, 2)} ${stakeCurrency}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-secondary small mb-1">ROI</div>
+                    <div class="fs-4 fw-bold ${profitPct >= 0 ? 'text-profit' : 'text-loss'}">
+                        ${profitPct >= 0 ? '+' : ''}${Components.formatPercent(profitPct)}
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <div class="text-secondary small mb-1">Win Rate</div>
+                        <div class="fs-5 fw-semibold ${winRate >= 50 ? 'text-profit' : 'text-loss'}">${Components.formatPercent(winRate)}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-secondary small mb-1">Trades</div>
+                        <div class="fs-5 fw-semibold">${totalTrades}</div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <div class="text-secondary small mb-1">Wins / Losses</div>
+                        <div class="fw-semibold"><span class="text-profit">${winTrades}W</span> / <span class="text-loss">${lossTrades}L</span></div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-secondary small mb-1">Max Drawdown</div>
+                        <div class="fw-semibold text-loss">${Components.formatPercent(maxDrawdownPct)}</div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <div class="text-secondary small mb-1">Avg Trade Duration</div>
+                    <div class="fw-semibold">${avgDuration}</div>
+                </div>`;
         }
 
         // Balance display
@@ -605,32 +657,56 @@ const BacktestingPage = {
             );
         }
 
-        // Trades table
+        // Trades table (botcrypto-style with color-coded gains and status pills)
         const tt = document.getElementById('btTradesTable');
         if (tt) {
             if (trades.length > 0) {
                 tt.innerHTML = `
-                <h6 class="fw-semibold mb-3">Trades (${trades.length})</h6>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="fw-semibold mb-0"><i class="bi bi-arrow-left-right me-2"></i>Trades <span class="badge bg-secondary ms-1">${trades.length}</span></h6>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary active" onclick="BacktestingPage._filterTrades('all', this)">All</button>
+                        <button class="btn btn-outline-success" onclick="BacktestingPage._filterTrades('wins', this)">Wins</button>
+                        <button class="btn btn-outline-danger" onclick="BacktestingPage._filterTrades('losses', this)">Losses</button>
+                    </div>
+                </div>
                 <div class="table-responsive" style="max-height:400px;overflow:auto">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead><tr>
-                            <th>#</th><th>Pair</th><th>Profit</th><th>Open Rate</th><th>Close Rate</th>
-                            <th>Duration</th><th>Exit Reason</th>
+                    <table class="table table-hover table-sm mb-0" id="btTradesTableInner">
+                        <thead class="sticky-top bg-dark"><tr>
+                            <th>Gain</th><th>Pair</th><th>Action</th><th>Open</th><th>Close</th>
+                            <th>Volume</th><th>Duration</th><th>Status</th>
                         </tr></thead>
                         <tbody>
-                            ${trades.map((t, i) => `
-                            <tr>
-                                <td>${i + 1}</td>
-                                <td class="fw-semibold">${t.pair || '-'}</td>
-                                <td class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'} fw-semibold">
-                                    ${Components.formatPercent((t.profit_ratio || 0) * 100)}
-                                    <br><small>${(t.profit_abs || 0) >= 0 ? '+' : ''}${Components.formatNumber(t.profit_abs || 0)}</small>
+                            ${trades.map((t, i) => {
+                                const profitPctTrade = (t.profit_ratio || 0) * 100;
+                                const isWin = profitPctTrade >= 0;
+                                return `
+                            <tr class="trade-row ${isWin ? 'trade-win' : 'trade-loss'}">
+                                <td>
+                                    <span class="fw-bold ${isWin ? 'text-profit' : 'text-loss'}" style="font-size:14px">
+                                        ${isWin ? '+' : ''}${Components.formatPercent(profitPctTrade)}
+                                    </span>
+                                    <br><small class="${isWin ? 'text-profit' : 'text-loss'}">${(t.profit_abs || 0) >= 0 ? '+' : ''}${Components.formatNumber(t.profit_abs || 0, 2)} ${stakeCurrency}</small>
                                 </td>
-                                <td>${Components.formatNumber(t.open_rate, 6)}</td>
-                                <td>${Components.formatNumber(t.close_rate, 6)}</td>
+                                <td class="fw-semibold">${Components.cleanPairName ? Components.cleanPairName(t.pair || '-') : (t.pair || '-')}</td>
+                                <td><span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'} bg-opacity-75">${t.is_short ? 'Short' : 'Long'}</span></td>
+                                <td>
+                                    <small>${Components.formatNumber(t.open_rate, 6)}</small>
+                                    <br><small class="text-secondary">${t.open_date ? new Date(t.open_date).toLocaleString() : '-'}</small>
+                                </td>
+                                <td>
+                                    <small>${Components.formatNumber(t.close_rate, 6)}</small>
+                                    <br><small class="text-secondary">${t.close_date ? new Date(t.close_date).toLocaleString() : '-'}</small>
+                                </td>
+                                <td class="small">${Components.formatNumber(t.stake_amount || 0, 2)}</td>
                                 <td class="small">${t.trade_duration || '-'} min</td>
-                                <td><span class="badge bg-secondary">${t.exit_reason || t.sell_reason || '-'}</span></td>
-                            </tr>`).join('')}
+                                <td>
+                                    <span class="badge ${isWin ? 'bg-success' : 'bg-danger'} bg-opacity-25 ${isWin ? 'text-success' : 'text-danger'}">
+                                        ${t.exit_reason || t.sell_reason || 'Completed'}
+                                    </span>
+                                </td>
+                            </tr>`;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>`;
@@ -867,6 +943,23 @@ const BacktestingPage = {
 
     _defaultEndDate() {
         return new Date().toISOString().slice(0, 10);
+    },
+
+    /** Filter trades table by wins/losses/all */
+    _filterTrades(filter, btn) {
+        const table = document.getElementById('btTradesTableInner');
+        if (!table) return;
+        const rows = table.querySelectorAll('.trade-row');
+        rows.forEach(row => {
+            if (filter === 'all') row.style.display = '';
+            else if (filter === 'wins') row.style.display = row.classList.contains('trade-win') ? '' : 'none';
+            else if (filter === 'losses') row.style.display = row.classList.contains('trade-loss') ? '' : 'none';
+        });
+        // Update active button
+        if (btn) {
+            btn.closest('.btn-group').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
     },
 
     destroy() {

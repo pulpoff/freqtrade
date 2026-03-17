@@ -193,6 +193,12 @@ const StrategyStorePage = {
             <div class="d-flex align-items-center justify-content-between mb-4">
                 <h4 class="fw-semibold mb-0"><i class="bi bi-shop me-2"></i>Strategy Store</h4>
                 <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-outline-success btn-sm" onclick="StrategyStorePage.importPyFile()">
+                        <i class="bi bi-file-earmark-code me-1"></i> Import .py File
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="StrategyStorePage.newCodeStrategy()">
+                        <i class="bi bi-plus-lg me-1"></i> New Strategy
+                    </button>
                     <div class="input-group" style="width:280px">
                         <span class="input-group-text bg-transparent border-secondary">
                             <i class="bi bi-search text-secondary"></i>
@@ -226,11 +232,11 @@ const StrategyStorePage = {
             <div class="row g-3">
                 ${filtered.map(s => `
                 <div class="col-lg-4 col-md-6">
-                    <div class="card strategy-card h-100" onclick="StrategyStorePage.viewDetail(${s.id})">
-                        <div class="card-body">
+                    <div class="card strategy-card h-100">
+                        <div class="card-body" onclick="StrategyStorePage.viewDetail(${s.id})" style="cursor:pointer">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <h6 class="fw-semibold mb-0">${s.name}</h6>
-                                <span class="text-success small fw-semibold">Imported ${s.imports} times</span>
+                                <span class="text-success small fw-semibold">${s.isRemote ? 'Freqtrade' : `Imported ${s.imports} times`}</span>
                             </div>
                             <p class="text-secondary small mb-3" style="line-height:1.6">${s.desc}</p>
                             <div class="d-flex justify-content-between align-items-center">
@@ -239,8 +245,11 @@ const StrategyStorePage = {
                                     <span class="badge bg-success bg-opacity-10 text-success">${s.pair}</span>
                                     <span class="badge bg-warning bg-opacity-10 text-warning">${s.category}</span>
                                 </div>
-                                <div class="text-warning small">
-                                    ${Array(5).fill(0).map((_, i) => `<i class="bi bi-star${i < s.rating ? '-fill' : ''}"></i>`).join('')}
+                                <div class="d-flex gap-1 align-items-center">
+                                    ${s.isRemote ? `<button class="btn btn-outline-primary btn-sm py-0 px-1" onclick="event.stopPropagation(); StrategyStorePage.editCode('remote', '${s.name}')" title="Edit code"><i class="bi bi-code-slash"></i></button>` : ''}
+                                    <span class="text-warning small">
+                                        ${Array(5).fill(0).map((_, i) => `<i class="bi bi-star${i < s.rating ? '-fill' : ''}"></i>`).join('')}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -260,37 +269,94 @@ const StrategyStorePage = {
 
     renderUserStrategies() {
         const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
-        if (saved.length === 0) {
-            return `<div class="col-12"><div class="text-center text-secondary py-4">
-                <p>No saved strategies yet. Build one in the Strategy Builder!</p>
-                <button class="btn btn-outline-success btn-sm" onclick="App.navigate('strategy-builder')">
-                    <i class="bi bi-plus me-1"></i> Create Strategy
-                </button>
-            </div></div>`;
-        }
-        return saved.map((s, i) => `
-        <div class="col-lg-4 col-md-6">
-            <div class="card strategy-card h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="fw-semibold mb-0">${s.name}</h6>
-                        <small class="text-secondary">${Components.formatDate(s.savedAt)}</small>
-                    </div>
-                    <p class="text-secondary small mb-3">${s.desc || 'No description'}</p>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-outline-success btn-sm" onclick="StrategyStorePage.loadUserStrategy(${i})">
-                            <i class="bi bi-pencil me-1"></i> Edit
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="StrategyStorePage.backtestUserStrategy(${i})">
-                            <i class="bi bi-clock-history me-1"></i> Backtest
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="StrategyStorePage.deleteUserStrategy(${i})">
-                            <i class="bi bi-trash"></i>
-                        </button>
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+
+        const cards = [];
+
+        // Visual flow strategies
+        saved.forEach((s, i) => {
+            const hasCode = imported[s.name] && imported[s.name].content;
+            cards.push(`
+            <div class="col-lg-4 col-md-6">
+                <div class="card strategy-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-semibold mb-0">${s.name}</h6>
+                            <small class="text-secondary">${Components.formatDate(s.savedAt)}</small>
+                        </div>
+                        <p class="text-secondary small mb-3">${s.desc || 'No description'}</p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-success btn-sm" onclick="StrategyStorePage.loadUserStrategy(${i})"
+                                title="Open in visual flow editor">
+                                <i class="bi bi-diagram-3 me-1"></i> Visual
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" onclick="StrategyStorePage.editCode('visual', ${i})"
+                                title="Open in code editor">
+                                <i class="bi bi-code-slash me-1"></i> Code
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="StrategyStorePage.backtestUserStrategy(${i})">
+                                <i class="bi bi-clock-history me-1"></i> Backtest
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="StrategyStorePage.deleteUserStrategy(${i})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>`).join('');
+            </div>`);
+        });
+
+        // Imported .py strategies (code-only, no visual flow)
+        Object.entries(imported).forEach(([name, info]) => {
+            // Skip if already in visual strategies list
+            if (saved.find(s => s.name === name)) return;
+            cards.push(`
+            <div class="col-lg-4 col-md-6">
+                <div class="card strategy-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="fw-semibold mb-0">${name}</h6>
+                            <small class="text-secondary">${Components.formatDate(info.importedAt)}</small>
+                        </div>
+                        <p class="text-secondary small mb-3">
+                            <span class="badge bg-primary bg-opacity-10 text-primary me-1">Python</span>
+                            Imported .py strategy
+                        </p>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-primary btn-sm" onclick="StrategyStorePage.editCode('imported', '${name}')"
+                                title="Open in code editor">
+                                <i class="bi bi-code-slash me-1"></i> Code
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="StrategyStorePage.openImportedInVisual('${name}')"
+                                title="Open in visual flow editor">
+                                <i class="bi bi-diagram-3 me-1"></i> Visual
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="StrategyStorePage.backtestImported('${name}')">
+                                <i class="bi bi-clock-history me-1"></i> Backtest
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="StrategyStorePage.deleteImported('${name}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+        });
+
+        if (cards.length === 0) {
+            return `<div class="col-12"><div class="text-center text-secondary py-4">
+                <p>No saved strategies yet. Build one in the Strategy Builder or import a .py file!</p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button class="btn btn-outline-success btn-sm" onclick="App.navigate('strategy-builder')">
+                        <i class="bi bi-diagram-3 me-1"></i> Visual Builder
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="StrategyStorePage.importPyFile()">
+                        <i class="bi bi-file-earmark-code me-1"></i> Import .py
+                    </button>
+                </div>
+            </div></div>`;
+        }
+        return cards.join('');
     },
 
     renderDetail() {
@@ -563,6 +629,297 @@ const StrategyStorePage = {
         const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         saved.splice(index, 1);
         localStorage.setItem('bc_strategies', JSON.stringify(saved));
+        this.refresh();
+        App.showToast('Strategy deleted', 'info');
+    },
+
+    /** Import a .py file from disk */
+    importPyFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.py';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const content = await file.text();
+                const name = file.name.replace(/\.py$/, '');
+
+                // Upload to Freqtrade
+                let uploaded = false;
+                if (API.connected) {
+                    try {
+                        await API.request('/strategies/upload', {
+                            method: 'POST',
+                            body: JSON.stringify({ strategy: content, name })
+                        });
+                        uploaded = true;
+                    } catch (err) {
+                        console.log('Upload failed:', err.message);
+                    }
+                }
+
+                // Save in localStorage
+                const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+                imported[name] = { content, importedAt: new Date().toISOString(), uploaded };
+                localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+
+                App.showToast(`Strategy "${name}" imported${uploaded ? ' and uploaded to Freqtrade' : ''}`, 'success');
+                this.refresh();
+            } catch (err) {
+                App.showToast(`Import failed: ${err.message}`, 'error');
+            }
+        };
+        input.click();
+    },
+
+    /** Create a new strategy from scratch in code editor */
+    newCodeStrategy() {
+        const defaultCode = `# --- Do not remove these libs ---
+from freqtrade.strategy import IStrategy
+from pandas import DataFrame
+# --------------------------------
+
+class NewStrategy(IStrategy):
+    """
+    Custom strategy
+    """
+    INTERFACE_VERSION = 3
+    timeframe = '5m'
+    stoploss = -0.10
+    minimal_roi = {"0": 0.05, "30": 0.03, "60": 0.01, "120": 0}
+    can_short = False
+
+    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Add your indicators here
+        return dataframe
+
+    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Add entry conditions
+        dataframe.loc[:, 'enter_long'] = 0
+        return dataframe
+
+    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Add exit conditions
+        dataframe.loc[:, 'exit_long'] = 0
+        return dataframe
+`;
+        this._showCodeEditor('NewStrategy', defaultCode, true);
+    },
+
+    /** Open code editor for a strategy */
+    async editCode(source, key) {
+        let code = '';
+        let name = '';
+
+        if (source === 'imported') {
+            // Imported .py strategy from localStorage
+            const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+            const info = imported[key];
+            if (info && info.content) {
+                code = info.content;
+                name = key;
+            }
+        } else if (source === 'visual') {
+            // Visual strategy - try to get its generated code or load from Freqtrade
+            const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+            const s = saved[key];
+            if (!s) return;
+            name = s.name;
+
+            // Check if we have imported code for it
+            const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+            if (imported[name] && imported[name].content) {
+                code = imported[name].content;
+            } else if (API.connected) {
+                // Try to load from Freqtrade API
+                try {
+                    const data = await API.getStrategy(name);
+                    if (data && data.code) code = data.code;
+                } catch (e) {
+                    console.log('Could not load strategy code:', e.message);
+                }
+            }
+            if (!code) {
+                code = `# Strategy "${name}" - no Python code available yet.\n# Edit this file to create the strategy code.\n`;
+            }
+        } else if (source === 'remote') {
+            name = key;
+            if (API.connected) {
+                try {
+                    const data = await API.getStrategy(name);
+                    if (data && data.code) code = data.code;
+                } catch (e) {
+                    App.showToast(`Could not load strategy: ${e.message}`, 'error');
+                    return;
+                }
+            }
+        }
+
+        if (!code) {
+            App.showToast('No code available for this strategy', 'warning');
+            return;
+        }
+        this._showCodeEditor(name, code, false);
+    },
+
+    /** Show the code editor modal */
+    _showCodeEditor(name, code, isNew) {
+        // Escape HTML entities in code for textarea
+        const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+        <div class="modal fade" tabindex="-1" id="codeEditorModal">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content bg-dark border-secondary">
+                    <div class="modal-header border-secondary">
+                        <div class="d-flex align-items-center gap-3">
+                            <h5 class="modal-title"><i class="bi bi-code-slash me-2"></i>Strategy Code Editor</h5>
+                            <input type="text" class="form-control form-control-sm" style="width:200px"
+                                id="codeEditorName" value="${name}" placeholder="Strategy name">
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-outline-success" onclick="StrategyStorePage._saveCode()">
+                                <i class="bi bi-floppy me-1"></i> Save & Upload
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="StrategyStorePage._downloadCode()">
+                                <i class="bi bi-download me-1"></i> Download
+                            </button>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                    </div>
+                    <div class="modal-body p-0">
+                        <textarea id="codeEditorTextarea" class="form-control bg-dark text-light border-0 font-monospace"
+                            style="min-height:70vh;resize:none;font-size:13px;line-height:1.5;tab-size:4"
+                            spellcheck="false">${escaped}</textarea>
+                    </div>
+                    <div class="modal-footer border-secondary py-1">
+                        <small class="text-secondary me-auto">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Save uploads the strategy to Freqtrade's user_data/strategies/ for backtesting
+                        </small>
+                        <button class="btn btn-sm btn-outline-warning" onclick="StrategyStorePage._openInVisual()">
+                            <i class="bi bi-diagram-3 me-1"></i> Open in Visual Builder
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        this._codeModal = new bootstrap.Modal(modal.querySelector('.modal'));
+        this._codeModalEl = modal;
+        this._codeModal.show();
+        modal.querySelector('.modal').addEventListener('hidden.bs.modal', () => modal.remove());
+
+        // Handle tab key in textarea
+        const textarea = document.getElementById('codeEditorTextarea');
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+            }
+        });
+    },
+
+    /** Save code from editor to Freqtrade and localStorage */
+    async _saveCode() {
+        const name = document.getElementById('codeEditorName')?.value.trim();
+        const code = document.getElementById('codeEditorTextarea')?.value;
+        if (!name || !code) {
+            App.showToast('Please enter a strategy name', 'warning');
+            return;
+        }
+
+        // Save to localStorage
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        imported[name] = { content: code, importedAt: new Date().toISOString(), uploaded: false };
+
+        // Upload to Freqtrade
+        if (API.connected) {
+            try {
+                await API.request('/strategies/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({ strategy: code, name })
+                });
+                imported[name].uploaded = true;
+                App.showToast(`Strategy "${name}" saved and uploaded to Freqtrade`, 'success');
+            } catch (err) {
+                App.showToast(`Saved locally but upload failed: ${err.message}`, 'warning');
+            }
+        } else {
+            App.showToast(`Strategy "${name}" saved locally (connect to Freqtrade to upload)`, 'info');
+        }
+
+        localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+        this.refresh();
+    },
+
+    /** Download strategy code as .py file */
+    _downloadCode() {
+        const name = document.getElementById('codeEditorName')?.value.trim() || 'strategy';
+        const code = document.getElementById('codeEditorTextarea')?.value || '';
+        const blob = new Blob([code], { type: 'text/x-python' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.py`;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
+
+    /** Open current code in visual builder */
+    _openInVisual() {
+        const code = document.getElementById('codeEditorTextarea')?.value || '';
+        const name = document.getElementById('codeEditorName')?.value.trim() || 'Strategy';
+        if (this._codeModal) this._codeModal.hide();
+        StrategyBuilderPage._parseStrategyToFlow(code, name);
+        StrategyBuilderPage.autoSave();
+        App.navigate('strategy-builder');
+        setTimeout(() => StrategyBuilderPage.renderNodes(), 200);
+    },
+
+    /** Open imported strategy in visual flow builder */
+    openImportedInVisual(name) {
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const info = imported[name];
+        if (!info || !info.content) {
+            App.showToast('No code found for this strategy', 'warning');
+            return;
+        }
+        StrategyBuilderPage._parseStrategyToFlow(info.content, name);
+        StrategyBuilderPage.autoSave();
+        App.navigate('strategy-builder');
+        setTimeout(() => StrategyBuilderPage.renderNodes(), 200);
+    },
+
+    /** Backtest an imported strategy */
+    backtestImported(name) {
+        // Navigate to backtesting with this strategy pre-selected
+        App.navigate('backtesting');
+        setTimeout(() => {
+            const select = document.getElementById('btStrategy');
+            if (select) {
+                // Look for the strategy in the dropdown
+                for (const opt of select.options) {
+                    if (opt.value === name) {
+                        select.value = name;
+                        return;
+                    }
+                }
+            }
+        }, 500);
+    },
+
+    /** Delete an imported strategy */
+    deleteImported(name) {
+        if (!confirm(`Delete imported strategy "${name}"?`)) return;
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        delete imported[name];
+        localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
         this.refresh();
         App.showToast('Strategy deleted', 'info');
     },
