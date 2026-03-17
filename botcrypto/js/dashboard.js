@@ -191,7 +191,7 @@ const DashboardPage = {
                     if (tfBtns) tfBtns.innerHTML = Components.timeframeSelector(this.currentTimeframe, 'DashboardPage.changeTimeframe');
                 }
 
-                // Build pair list from: whitelist API > config whitelist > open trades
+                // Build pair list from: whitelist API > config whitelist > open trades > available_pairs
                 let pairs = [];
                 if (whitelistData && whitelistData.whitelist && whitelistData.whitelist.length > 0) {
                     pairs = whitelistData.whitelist;
@@ -204,6 +204,19 @@ const DashboardPage = {
                     tradePairs.forEach(p => {
                         if (!pairs.includes(p)) pairs.push(p);
                     });
+                }
+
+                // Fallback: try available_pairs endpoint (works in backtesting mode)
+                if (pairs.length === 0) {
+                    try {
+                        const tf = this.currentTimeframe || '5m';
+                        const avail = await API.getAvailablePairs(tf);
+                        if (avail && avail.pairs && avail.pairs.length > 0) {
+                            pairs = avail.pairs.slice(0, 50); // Limit to 50 pairs
+                        }
+                    } catch (e) {
+                        console.log('available_pairs fallback failed:', e.message);
+                    }
                 }
 
                 if (pairs.length > 0) {
@@ -566,12 +579,15 @@ const DashboardPage = {
                 return;
             }
 
-            const [profit, trades, balance, openTrades, config, count] = await Promise.all([
+            // Always fetch config first (works in all modes)
+            const config = await API.getConfig().catch(() => null);
+
+            // Try trade endpoints - these fail in backtesting mode
+            const [profit, trades, balance, openTrades, count] = await Promise.all([
                 API.getProfit().catch(() => null),
                 API.getTrades(50).catch(() => ({ trades: [] })),
                 API.getBalance().catch(() => null),
                 API.getOpenTrades().catch(() => []),
-                API.getConfig().catch(() => null),
                 API.getTradeCount().catch(() => null),
             ]);
 
@@ -605,7 +621,8 @@ const DashboardPage = {
                         <span class="badge bg-secondary">${mode}</span>`;
                 }
             } else if (statusBadge && API.connected) {
-                statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Online';
+                // Connected but no config (backtesting mode) - still show connected
+                statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Connected';
                 statusBadge.className = 'badge badge-bc badge-completed';
             }
 
@@ -655,14 +672,20 @@ const DashboardPage = {
                 el('dashOpenTrades').textContent = count.current || 0;
             }
 
-            // Trades table - combine open and closed
+            // Trades table - combine open and closed, open trades first
             const allTrades = [];
             openTradesList.forEach(t => { t.is_open = true; allTrades.push(t); });
             if (trades && trades.trades) {
                 trades.trades.forEach(t => { if (!t.is_open) allTrades.push(t); });
             }
             const tt = el('dashTradesTable');
-            if (tt) tt.innerHTML = Components.tradesTable(allTrades.slice(0, 20));
+            if (tt) {
+                if (allTrades.length > 0) {
+                    tt.innerHTML = Components.tradesTable(allTrades.slice(0, 20));
+                } else {
+                    tt.innerHTML = Components.tradesTable([]);
+                }
+            }
 
             // Balance display
             if (balance) {
@@ -687,9 +710,16 @@ const DashboardPage = {
     },
 
     showDemoData() {
-        const demoTrades = Components.generateDemoTrades(10);
         const tt = document.getElementById('dashTradesTable');
-        if (tt) tt.innerHTML = Components.tradesTable(demoTrades);
+        if (tt) {
+            if (API.connected) {
+                // Connected but no trade data (backtesting mode)
+                tt.innerHTML = Components.tradesTable([]);
+            } else {
+                const demoTrades = Components.generateDemoTrades(10);
+                tt.innerHTML = Components.tradesTable(demoTrades);
+            }
+        }
 
         const pd = document.getElementById('dashProfitDisplay');
         if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
