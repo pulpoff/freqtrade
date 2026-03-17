@@ -1158,24 +1158,34 @@ ${entryConditions.length > 0 ?
                 const content = await file.text();
                 const name = file.name.replace(/\.py$/, '');
 
-                // Upload to Freqtrade strategies directory if connected
+                // Upload to Freqtrade user_data/strategies/ so it's available for backtesting
+                let uploaded = false;
                 if (API.connected) {
                     try {
                         await API.request('/strategies/upload', {
                             method: 'POST',
                             body: JSON.stringify({ strategy: content, name })
                         });
-                        App.showToast(`Strategy "${name}" uploaded to Freqtrade`, 'success');
+                        uploaded = true;
+                        App.showToast(`Strategy "${name}" saved to Freqtrade strategies folder`, 'success');
                     } catch (err) {
                         console.log('Upload to Freqtrade failed:', err.message);
+                        App.showToast(`Could not upload to Freqtrade: ${err.message}`, 'warning');
                     }
                 }
+
+                // Also store the raw .py content in localStorage as backup
+                const importedStrategies = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+                importedStrategies[name] = { content, importedAt: new Date().toISOString(), uploaded };
+                localStorage.setItem('bc_imported_strategies', JSON.stringify(importedStrategies));
 
                 // Parse the Python strategy into visual flow nodes
                 this._parseStrategyToFlow(content, name);
                 this.renderNodes();
                 this.autoSave();
-                App.showToast(`Strategy "${name}" imported as visual flow`, 'success');
+                if (!uploaded) {
+                    App.showToast(`Strategy "${name}" imported locally (connect to Freqtrade to use for backtesting)`, 'info');
+                }
 
             } catch (err) {
                 App.showToast(`Import failed: ${err.message}`, 'error');

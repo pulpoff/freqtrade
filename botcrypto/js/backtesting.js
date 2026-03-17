@@ -234,6 +234,32 @@ const BacktestingPage = {
             console.log('Could not load strategies:', e.message);
         }
 
+        // Add imported strategies that aren't in the API list yet
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const apiNames = this.strategies || [];
+        for (const [name, info] of Object.entries(imported)) {
+            if (!apiNames.includes(name)) {
+                // Try to upload if connected and not yet uploaded
+                if (API.connected && !info.uploaded && info.content) {
+                    try {
+                        await API.request('/strategies/upload', {
+                            method: 'POST',
+                            body: JSON.stringify({ strategy: info.content, name })
+                        });
+                        info.uploaded = true;
+                        localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));
+                        // Add to list since it's now available
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = `${name} (imported)`;
+                        select.appendChild(opt);
+                    } catch (e) {
+                        console.log(`Could not upload imported strategy ${name}:`, e.message);
+                    }
+                }
+            }
+        }
+
         // Also add strategies from visual builder
         const savedStrategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         savedStrategies.forEach(s => {
