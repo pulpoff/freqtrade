@@ -33,22 +33,37 @@ def generate_trade_signal_candles(
     preprocessed_df: dict[str, DataFrame], bt_results: BacktestContentType, date_col: str
 ) -> dict[str, DataFrame]:
     signal_candles_only = {}
-    for pair in preprocessed_df.keys():
-        signal_candles_only_df = DataFrame()
 
+    try:
+        from freqtrade.ft_cpp.report_gen import find_signal_candle_indices
+        _use_cpp = True
+    except (ImportError, Exception):
+        _use_cpp = False
+
+    for pair in preprocessed_df.keys():
         pairdf = preprocessed_df[pair]
         resdf = bt_results["results"]
         pairresults = resdf.loc[(resdf["pair"] == pair)]
 
-        if pairdf.shape[0] > 0:
-            for t, v in pairresults.iterrows():
-                allinds = pairdf.loc[(pairdf["date"] < v[date_col])]
-                signal_inds = allinds.iloc[[-1]]
-                signal_candles_only_df = concat(
-                    [signal_candles_only_df.infer_objects(), signal_inds.infer_objects()]
+        if pairdf.shape[0] > 0 and len(pairresults) > 0:
+            if _use_cpp:
+                # Use C++ binary search instead of iterrows() + concat-in-loop
+                candle_dates = pairdf["date"].astype("int64").values
+                trade_dates = pairresults[date_col].astype("int64").values
+                indices = find_signal_candle_indices(candle_dates, trade_dates)
+                valid = indices[indices >= 0]
+                signal_candles_only[pair] = pairdf.iloc[valid] if len(valid) > 0 else DataFrame()
+            else:
+                rows = []
+                for t, v in pairresults.iterrows():
+                    allinds = pairdf.loc[(pairdf["date"] < v[date_col])]
+                    if len(allinds) > 0:
+                        rows.append(allinds.iloc[-1])
+                signal_candles_only[pair] = (
+                    DataFrame(rows) if rows else DataFrame()
                 )
-
-            signal_candles_only[pair] = signal_candles_only_df
+        else:
+            signal_candles_only[pair] = DataFrame()
     return signal_candles_only
 
 
@@ -56,20 +71,39 @@ def generate_rejected_signals(
     preprocessed_df: dict[str, DataFrame], rejected_dict: dict[str, DataFrame]
 ) -> dict[str, DataFrame]:
     rejected_candles_only = {}
+
+    try:
+        from freqtrade.ft_cpp.report_gen import find_exact_candle_indices
+        _use_cpp = True
+    except (ImportError, Exception):
+        _use_cpp = False
+
     for pair, signals in rejected_dict.items():
-        rejected_signals_only_df = DataFrame()
         pairdf = preprocessed_df[pair]
 
-        for t in signals:
-            data_df_row = pairdf.loc[(pairdf["date"] == t[0])].copy()
-            data_df_row["pair"] = pair
-            data_df_row["enter_tag"] = t[1]
+        if _use_cpp and len(signals) > 0:
+            candle_dates = pairdf["date"].astype("int64").values
+            signal_dates = np.array([s[0] for s in signals], dtype="datetime64[ns]").astype("int64")
+            indices = find_exact_candle_indices(candle_dates, signal_dates)
 
-            rejected_signals_only_df = concat(
-                [rejected_signals_only_df.infer_objects(), data_df_row.infer_objects()]
-            )
+            rows = []
+            for idx_i, (sig, candle_idx) in enumerate(zip(signals, indices)):
+                if candle_idx >= 0:
+                    row = pairdf.iloc[candle_idx].copy()
+                    row["pair"] = pair
+                    row["enter_tag"] = sig[1]
+                    rows.append(row)
+            rejected_candles_only[pair] = DataFrame(rows) if rows else DataFrame()
+        else:
+            rows = []
+            for t in signals:
+                data_df_row = pairdf.loc[(pairdf["date"] == t[0])].copy()
+                data_df_row["pair"] = pair
+                data_df_row["enter_tag"] = t[1]
+                if len(data_df_row) > 0:
+                    rows.append(data_df_row)
+            rejected_candles_only[pair] = concat(rows) if rows else DataFrame()
 
-        rejected_candles_only[pair] = rejected_signals_only_df
     return rejected_candles_only
 
 

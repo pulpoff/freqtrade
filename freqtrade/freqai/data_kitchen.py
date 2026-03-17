@@ -238,9 +238,56 @@ class FreqaiDataKitchen:
         filtered_df = unfiltered_df.filter(training_feature_list, axis=1)
         filtered_df = filtered_df.replace([np.inf, -np.inf], np.nan)
 
-        drop_index = pd.isnull(filtered_df).any(axis=1)  # get the rows that have NaNs,
-        drop_index = drop_index.replace(True, 1).replace(False, 0).infer_objects(copy=False)
-        if training_filter:
+        try:
+            from freqtrade.ft_cpp.data_processing import combined_nan_mask, nan_mask
+            _use_cpp = True
+        except (ImportError, Exception):
+            _use_cpp = False
+
+        if _use_cpp and training_filter:
+            labels = unfiltered_df.filter(label_list or [], axis=1)
+            clean_mask = combined_nan_mask(
+                filtered_df.values.astype(np.float64, errors="ignore"),
+                labels.values.astype(np.float64, errors="ignore")
+            )
+            drop_index = pd.Series(~clean_mask, index=filtered_df.index).replace(
+                True, 1).replace(False, 0).infer_objects(copy=False)
+            drop_index_labels = drop_index  # combined mask covers both
+            dates = unfiltered_df["date"]
+            filtered_df = filtered_df[clean_mask]
+            labels = labels[clean_mask]
+            self.train_dates = dates[clean_mask]
+        elif _use_cpp and not training_filter:
+            # prediction mode — use C++ fillna + predict mask
+            from freqtrade.ft_cpp.data_processing import fillna_and_predict_mask
+            drop_index = pd.Series(
+                pd.isnull(filtered_df).any(axis=1), index=filtered_df.index
+            )
+            self.data["filter_drop_index_prediction"] = drop_index
+            # Fill NaN with 0 and get predict mask
+            float_cols = filtered_df.select_dtypes(include=[np.floating]).columns
+            if len(float_cols) > 0:
+                arr = filtered_df[float_cols].values
+                do_predict = fillna_and_predict_mask(arr)
+                filtered_df.loc[:, float_cols] = arr
+                self.do_predict = do_predict
+            else:
+                filtered_df.fillna(0, inplace=True)
+                self.do_predict = np.array(
+                    (~drop_index).replace(True, 1).replace(False, 0)
+                )
+            if (len(self.do_predict) - self.do_predict.sum()) > 0:
+                logger.info(
+                    "dropped %s of %s prediction data points due to NaNs.",
+                    len(self.do_predict) - self.do_predict.sum(),
+                    len(filtered_df),
+                )
+            return filtered_df, []
+        else:
+            drop_index = pd.isnull(filtered_df).any(axis=1)  # get the rows that have NaNs,
+            drop_index = drop_index.replace(True, 1).replace(False, 0).infer_objects(copy=False)
+
+        if training_filter and not _use_cpp:
             # we don't care about total row number (total no. datapoints) in training, we only care
             # about removing any row with NaNs
             # if labels has multiple columns (user wants to train multiple modelEs), we detect here
@@ -762,12 +809,25 @@ class FreqaiDataKitchen:
             informative_df = self.merge_features(informative_df, generic_df, tf, tf, suffix)
 
             indicators = [col for col in informative_df if col.startswith("%")]
-            for n in range(self.freqai_config["feature_parameters"]["include_shifted_candles"] + 1):
-                if n == 0:
-                    continue
-                df_shift = informative_df[indicators].shift(n)
-                df_shift = df_shift.add_suffix("_shift-" + str(n))
-                informative_df = pd.concat((informative_df, df_shift), axis=1)
+            max_shift = self.freqai_config["feature_parameters"]["include_shifted_candles"]
+            if max_shift > 0 and len(indicators) > 0:
+                try:
+                    from freqtrade.ft_cpp.data_processing import shift_features
+                    shifts = list(range(1, max_shift + 1))
+                    indicator_data = informative_df[indicators].values.astype(np.float64)
+                    shifted_data = shift_features(indicator_data, shifts)
+                    shifted_cols = []
+                    for s in shifts:
+                        shifted_cols.extend([f"{col}_shift-{s}" for col in indicators])
+                    shifted_df = pd.DataFrame(
+                        shifted_data, index=informative_df.index, columns=shifted_cols
+                    )
+                    informative_df = pd.concat((informative_df, shifted_df), axis=1)
+                except (ImportError, Exception):
+                    for n in range(1, max_shift + 1):
+                        df_shift = informative_df[indicators].shift(n)
+                        df_shift = df_shift.add_suffix("_shift-" + str(n))
+                        informative_df = pd.concat((informative_df, df_shift), axis=1)
 
             dataframe = self.merge_features(
                 dataframe.copy(), informative_df, self.config["timeframe"], tf, f"{pair}_{tf}"
