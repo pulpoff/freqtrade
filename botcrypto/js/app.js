@@ -33,9 +33,10 @@ const App = {
             if (e.key === 'Enter') this.connect();
         });
 
-        // Check existing connection
+        // Check existing connection - MUST await before navigating
+        // so pages see API.connected = true and load real data
         if (API.token && API.baseUrl) {
-            this.tryReconnect();
+            await this.tryReconnect();
         } else {
             this.updateConnectionStatus(false);
         }

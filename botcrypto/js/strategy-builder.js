@@ -66,19 +66,17 @@ const StrategyBuilderPage = {
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <a href="#" class="btn btn-sm btn-link text-info"><i class="bi bi-info-circle me-1"></i>Helpdesk</a>
-                    <span class="badge bg-dark border border-secondary px-3 py-2">
-                        <i class="bi bi-clock me-1"></i> Time unit
-                        <select class="form-select form-select-sm d-inline-block bg-transparent border-0 text-white" style="width:60px"
-                            onchange="StrategyBuilderPage.timeUnit = this.value">
-                            <option value="1m">1m</option>
-                            <option value="5m" selected>5m</option>
-                            <option value="15m">15m</option>
-                            <option value="30m">30m</option>
-                            <option value="1h">1h</option>
-                            <option value="4h">4h</option>
-                            <option value="1d">1d</option>
-                        </select>
-                    </span>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:100px"
+                        id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
+                        <option value="1m">1m</option>
+                        <option value="3m">3m</option>
+                        <option value="5m" selected>5m</option>
+                        <option value="15m">15m</option>
+                        <option value="30m">30m</option>
+                        <option value="1h">1h</option>
+                        <option value="4h">4h</option>
+                        <option value="1d">1d</option>
+                    </select>
                     <button class="btn btn-warning btn-sm fw-semibold" onclick="StrategyBuilderPage.importStrategy()">
                         IMPORT <i class="bi bi-download ms-1"></i>
                     </button>
@@ -985,7 +983,60 @@ ${entryConditions.length > 0 ?
     },
 
     importStrategy() {
-        App.navigate('strategy-store');
+        // Show import options: from file (.py) or from strategy store
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.py';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const content = await file.text();
+                const name = file.name.replace(/\.py$/, '');
+
+                // Upload to Freqtrade strategies directory if connected
+                if (API.connected) {
+                    try {
+                        await API.request('/strategies/upload', {
+                            method: 'POST',
+                            body: JSON.stringify({ strategy: content, name })
+                        });
+                        App.showToast(`Strategy "${name}" uploaded to Freqtrade`, 'success');
+                    } catch (err) {
+                        console.log('Upload to Freqtrade failed:', err.message);
+                        App.showToast(`Strategy saved locally (upload failed: ${err.message})`, 'warning');
+                    }
+                }
+
+                // Save strategy content locally for reference
+                const strategies = JSON.parse(localStorage.getItem('bc_imported_strategies') || '[]');
+                strategies.push({ name, content, importedAt: new Date().toISOString() });
+                localStorage.setItem('bc_imported_strategies', JSON.stringify(strategies));
+
+                App.showToast(`Strategy "${name}" imported successfully`, 'success');
+
+                // Parse basic info from the .py file
+                const tfMatch = content.match(/timeframe\s*=\s*['"](\w+)['"]/);
+                if (tfMatch) {
+                    this.timeUnit = tfMatch[1];
+                    const sel = document.getElementById('sbTimeUnit');
+                    if (sel) sel.value = tfMatch[1];
+                }
+
+                // Extract strategy class name
+                const classMatch = content.match(/class\s+(\w+)\s*\(/);
+                if (classMatch) {
+                    this.strategyName = classMatch[1];
+                    const nameInput = document.querySelector('input[onchange*="strategyName"]');
+                    if (nameInput) nameInput.value = classMatch[1];
+                }
+
+            } catch (err) {
+                App.showToast(`Import failed: ${err.message}`, 'error');
+            }
+        };
+        input.click();
     },
 
     exportStrategy() {

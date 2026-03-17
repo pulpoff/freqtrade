@@ -803,6 +803,20 @@ select option:checked {
     padding: 1.25rem;
 }
 
+/* Strategy card tag badges - ensure readable on dark theme */
+.strategy-card .badge.bg-primary.bg-opacity-10 {
+    background: rgba(13, 110, 253, 0.15) !important;
+    color: #6ea8fe !important;
+}
+.strategy-card .badge.bg-success.bg-opacity-10 {
+    background: rgba(25, 135, 84, 0.15) !important;
+    color: #75b798 !important;
+}
+.strategy-card .badge.bg-warning.bg-opacity-10 {
+    background: rgba(255, 193, 7, 0.15) !important;
+    color: #ffda6a !important;
+}
+
 /* ============================================
    BACKTEST PAGE
    ============================================ */
