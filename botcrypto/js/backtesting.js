@@ -9,6 +9,8 @@ const BacktestingPage = {
     pollTimer: null,
     currentResult: null,
     strategies: [],
+    _downloadJobId: null,
+    _autoDownloaded: false,
 
     render() {
         return `
@@ -102,7 +104,7 @@ const BacktestingPage = {
 
                         <!-- Run Button -->
                         <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-success w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage.runBacktest()">
+                            <button class="btn btn-success w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
                                 <i class="bi bi-play-fill me-1"></i> Run Backtest
                             </button>
                         </div>
@@ -387,9 +389,18 @@ const BacktestingPage = {
                     }, 500);
                 }, 200);
             } else if (status.status === 'error') {
+                const errMsg = status.status_msg || 'Unknown error';
+                // Auto-download data if backtest failed due to missing data
+                if ((errMsg.includes('No data found') || errMsg.includes('No data')) && !this._autoDownloaded) {
+                    this.isRunning = false;
+                    this._autoDownloaded = true;
+                    this.updateProgress(0, 'No data found - downloading data...');
+                    this.autoDownloadData();
+                    return;
+                }
                 this.hideProgress();
                 this.isRunning = false;
-                App.showToast(`Backtest error: ${status.status_msg || 'Unknown error'}`, 'error');
+                App.showToast(`Backtest error: ${errMsg}`, 'error');
             } else {
                 this.pollTimer = setTimeout(() => this.pollBacktest(), 2000);
             }
@@ -409,6 +420,115 @@ const BacktestingPage = {
             App.showToast('Backtest aborted', 'info');
         } catch (e) {
             App.showToast(`Abort error: ${e.message}`, 'error');
+        }
+    },
+
+    // ========== AUTO DATA DOWNLOAD ==========
+    async autoDownloadData() {
+        try {
+            // Gather params from form
+            const timeframe = document.getElementById('btTimeframe').value || '5m';
+            const startDate = document.getElementById('btStartDate').value.replace(/-/g, '');
+            const endDate = document.getElementById('btEndDate').value.replace(/-/g, '');
+            const timerange = `${startDate}-${endDate}`;
+
+            // Get pairs: selected pair or whitelist
+            let pairs = [];
+            const selectedPair = document.getElementById('btPair').value;
+            if (selectedPair) {
+                pairs = [selectedPair];
+            } else {
+                try {
+                    const whitelist = await API.getWhitelist();
+                    pairs = whitelist?.whitelist || [];
+                } catch (e) {}
+            }
+            if (pairs.length === 0) {
+                try {
+                    const config = await API.getConfig();
+                    pairs = config?.exchange?.pair_whitelist || ['BTC/USDT'];
+                } catch (e) {
+                    pairs = ['BTC/USDT'];
+                }
+            }
+
+            // Determine timeframes to download
+            const timeframes = [timeframe];
+            // Also download common informative timeframes
+            if (timeframe !== '1h' && timeframe !== '4h') {
+                timeframes.push('1h');
+            }
+
+            this.updateProgress(5, `Downloading data for ${pairs.length} pair(s)...`);
+            const detail = document.getElementById('btProgressDetail');
+            if (detail) detail.textContent = `Pairs: ${pairs.join(', ')} | Timeframes: ${timeframes.join(', ')}`;
+
+            const result = await API.downloadData({
+                pairs: pairs,
+                timeframes: timeframes,
+                timerange: timerange,
+            });
+
+            if (result && result.job_id) {
+                this._downloadJobId = result.job_id;
+                this.updateProgress(10, 'Downloading data...');
+                this.pollDownload();
+            } else {
+                this.hideProgress();
+                App.showToast('Failed to start data download', 'error');
+            }
+        } catch (e) {
+            this.hideProgress();
+            App.showToast(`Download error: ${e.message}`, 'error');
+        }
+    },
+
+    async pollDownload() {
+        try {
+            const job = await API.getBackgroundJob(this._downloadJobId);
+
+            if (job.running || job.status === 'pending') {
+                // Calculate progress from progress_tasks
+                let totalProgress = 0;
+                let totalItems = 0;
+                let completedItems = 0;
+                let currentTask = 'Downloading...';
+
+                if (job.progress_tasks) {
+                    const tasks = Object.values(job.progress_tasks);
+                    tasks.forEach(t => {
+                        totalItems += (t.total || 0);
+                        completedItems += (t.progress || 0);
+                        if (t.progress < t.total) {
+                            currentTask = t.description || 'Downloading...';
+                        }
+                    });
+                    totalProgress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+                }
+
+                const pct = 10 + totalProgress * 0.7; // 10-80% range
+                this.updateProgress(pct, currentTask);
+
+                const detail = document.getElementById('btProgressDetail');
+                if (detail && totalItems > 0) {
+                    detail.textContent = `${Math.round(completedItems)} / ${totalItems} tasks completed`;
+                }
+
+                this.pollTimer = setTimeout(() => this.pollDownload(), 1000);
+            } else if (job.status === 'success') {
+                this.updateProgress(85, 'Download complete! Starting backtest...');
+                App.showToast('Data download complete', 'success');
+                // Re-run the backtest now that data is available
+                setTimeout(() => this.runBacktest(), 500);
+            } else {
+                // Failed
+                this.hideProgress();
+                const errMsg = job.error || 'Download failed';
+                App.showToast(`Data download error: ${errMsg}`, 'error');
+            }
+        } catch (e) {
+            this.hideProgress();
+            App.showToast(`Download polling error: ${e.message}`, 'error');
         }
     },
 
