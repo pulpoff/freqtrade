@@ -388,10 +388,31 @@ const BacktestingPage = {
             if (timeframe) btConfig.timeframe = timeframe;
             if (freqaimodel) btConfig.freqaimodel = freqaimodel;
 
-            this.updateProgress(10, 'Resetting previous backtest...');
+            this.updateProgress(5, 'Resetting previous backtest...');
             await API.resetBacktest().catch(() => {});
 
-            this.updateProgress(15, 'Starting backtest...');
+            // Pre-download data for all required timeframes
+            const selectedPair = document.getElementById('btPair')?.value;
+            const dlPairs = selectedPair ? [selectedPair] : (await API.getWhitelist().catch(() => ({}))).whitelist || ['BTC/USDT'];
+            const dlTimeframes = [timeframe || '5m'];
+            for (const tf of ['1h', '4h', '1d']) {
+                if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
+            }
+            this.updateProgress(8, `Downloading data for ${dlPairs.length} pair(s)...`);
+            try {
+                const dlResult = await API.downloadData({
+                    pairs: dlPairs,
+                    timeframes: dlTimeframes,
+                    timerange: timerange,
+                });
+                if (dlResult && dlResult.job_id) {
+                    await this._waitForDownload(dlResult.job_id);
+                }
+            } catch(dlErr) {
+                console.log('Pre-download skipped:', dlErr.message);
+            }
+
+            this.updateProgress(20, 'Starting backtest...');
             await API.startBacktest(btConfig);
 
             this.pollBacktest();
@@ -434,7 +455,9 @@ const BacktestingPage = {
                 }, 200);
             } else if (status.status === 'error') {
                 const errMsg = status.status_msg || 'Unknown error';
-                if ((errMsg.includes('No data found') || errMsg.includes('No data')) && !this._autoDownloaded) {
+                const isDataError = errMsg.includes('No data found') || errMsg.includes('No data')
+                    || errMsg.includes('Length of values') || errMsg.includes('does not match length');
+                if (isDataError && !this._autoDownloaded) {
                     this.isRunning = false;
                     this._autoDownloaded = true;
                     this.updateProgress(0, 'No data found - downloading data...');
@@ -500,8 +523,9 @@ const BacktestingPage = {
             }
 
             const timeframes = [timeframe];
-            if (timeframe !== '1h' && timeframe !== '4h') {
-                timeframes.push('1h');
+            // Include common informative timeframes that strategies often need
+            for (const tf of ['1h', '4h', '1d']) {
+                if (!timeframes.includes(tf)) timeframes.push(tf);
             }
 
             this.updateProgress(5, `Downloading data for ${pairs.length} pair(s)...`);
@@ -1015,6 +1039,29 @@ const BacktestingPage = {
         if (btn) {
             btn.closest('.btn-group').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+        }
+    },
+
+    async _waitForDownload(jobId) {
+        const maxWait = 120;
+        for (let i = 0; i < maxWait; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                const jobs = await API.getBackgroundJobs();
+                const job = jobs?.find(j => j.id === jobId) || {};
+                if (job.status === 'success') {
+                    this.updateProgress(18, 'Data ready');
+                    return;
+                }
+                if (job.status === 'failed') {
+                    console.log('Download job failed:', job.error);
+                    return;
+                }
+                const pct = 8 + Math.min(10, i * 0.5);
+                const tasks = Object.values(job.progress_tasks || {});
+                const desc = tasks.length > 0 ? tasks[tasks.length - 1].description : 'Downloading...';
+                this.updateProgress(pct, `Downloading: ${desc}`);
+            } catch(e) { return; }
         }
     },
 
