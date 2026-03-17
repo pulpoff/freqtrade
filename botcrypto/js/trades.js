@@ -1,12 +1,15 @@
 /**
  * BotCrypto - Trades Page
- * Shows open and closed trades, with bot controls
+ * Shows open and closed trades, bot controls, performance data
+ * Loads real data from Freqtrade API when connected
  */
 const TradesPage = {
     activeTab: 'open',
     openTrades: [],
     closedTrades: [],
     stats: null,
+    botState: null,
+    refreshTimer: null,
 
     render() {
         return `
@@ -20,15 +23,16 @@ const TradesPage = {
                             <span class="badge badge-bc" id="botStatusBadge">
                                 <span class="status-dot disconnected me-1"></span> Not Connected
                             </span>
+                            <small class="text-secondary" id="botStrategyName"></small>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-success btn-sm" onclick="TradesPage.startBot()">
+                            <button class="btn btn-success btn-sm" id="btnStartBot" onclick="TradesPage.startBot()">
                                 <i class="bi bi-play-fill me-1"></i> Start
                             </button>
-                            <button class="btn btn-warning btn-sm" onclick="TradesPage.pauseBot()">
+                            <button class="btn btn-warning btn-sm" id="btnPauseBot" onclick="TradesPage.pauseBot()">
                                 <i class="bi bi-pause-fill me-1"></i> Pause
                             </button>
-                            <button class="btn btn-danger btn-sm" onclick="TradesPage.stopBot()">
+                            <button class="btn btn-danger btn-sm" id="btnStopBot" onclick="TradesPage.stopBot()">
                                 <i class="bi bi-stop-fill me-1"></i> Stop
                             </button>
                             <button class="btn btn-outline-secondary btn-sm" onclick="TradesPage.reloadConfig()">
@@ -97,20 +101,20 @@ const TradesPage = {
                     <ul class="nav nav-tabs card-header-tabs">
                         <li class="nav-item">
                             <a class="nav-link ${this.activeTab === 'open' ? 'active' : ''}" href="#"
-                                onclick="TradesPage.switchTab('open')">
+                                onclick="event.preventDefault(); TradesPage.switchTab('open')">
                                 <i class="bi bi-arrow-left-right me-1"></i> Open Trades
                                 <span class="badge bg-success ms-1" id="openTradeCount">0</span>
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link ${this.activeTab === 'closed' ? 'active' : ''}" href="#"
-                                onclick="TradesPage.switchTab('closed')">
+                                onclick="event.preventDefault(); TradesPage.switchTab('closed')">
                                 <i class="bi bi-check-circle me-1"></i> Trade History
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link ${this.activeTab === 'performance' ? 'active' : ''}" href="#"
-                                onclick="TradesPage.switchTab('performance')">
+                                onclick="event.preventDefault(); TradesPage.switchTab('performance')">
                                 <i class="bi bi-graph-up me-1"></i> Performance
                             </a>
                         </li>
@@ -130,7 +134,9 @@ const TradesPage = {
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label small text-secondary">Pair</label>
-                            <input type="text" class="form-control" id="forcePair" value="BTC/USDT" placeholder="BTC/USDT">
+                            <select class="form-select" id="forcePair">
+                                <option value="BTC/USDT">BTC/USDT</option>
+                            </select>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Side</label>
@@ -179,6 +185,7 @@ const TradesPage = {
                     <tr>
                         <th>#</th>
                         <th>Pair</th>
+                        <th>Side</th>
                         <th>Open Rate</th>
                         <th>Current Rate</th>
                         <th>Profit</th>
@@ -192,18 +199,24 @@ const TradesPage = {
                     <tr>
                         <td>${t.trade_id}</td>
                         <td class="fw-semibold">${t.pair}</td>
+                        <td><span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'}">${t.is_short ? 'Short' : 'Long'}</span></td>
                         <td>${Components.formatNumber(t.open_rate, 6)}</td>
                         <td>${Components.formatNumber(t.current_rate || t.open_rate, 6)}</td>
                         <td class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'} fw-semibold">
-                            ${Components.formatPercent(t.profit_ratio * 100)}
-                            <br><small>${Components.formatNumber(t.profit_abs || 0)}</small>
+                            ${Components.formatPercent((t.profit_ratio || 0) * 100)}
+                            <br><small>${(t.profit_abs || 0) >= 0 ? '+' : ''}${Components.formatNumber(t.profit_abs || 0)} ${t.stake_currency || 'USDT'}</small>
                         </td>
-                        <td>${Components.formatNumber(t.stake_amount, 4)}</td>
+                        <td>${Components.formatNumber(t.stake_amount, 4)} ${t.stake_currency || 'USDT'}</td>
                         <td class="small text-secondary">${t.open_date ? this.timeSince(t.open_date) : '-'}</td>
                         <td>
-                            <button class="btn btn-outline-danger btn-sm" onclick="TradesPage.forceExit(${t.trade_id})">
-                                <i class="bi bi-x-circle me-1"></i> Sell
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-danger" onclick="TradesPage.forceExit(${t.trade_id})" title="Force Sell">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="TradesPage.deleteTrade(${t.trade_id})" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>`).join('')}
                 </tbody>
@@ -215,18 +228,137 @@ const TradesPage = {
         if (this.closedTrades.length === 0) {
             return Components.emptyState('check-circle', 'No trade history', 'Closed trades will appear here');
         }
-        return Components.tradesTable(this.closedTrades, false);
+        return `
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Pair</th>
+                        <th>Profit</th>
+                        <th>Open Rate</th>
+                        <th>Close Rate</th>
+                        <th>Stake</th>
+                        <th>Duration</th>
+                        <th>Exit Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${this.closedTrades.map(t => `
+                    <tr>
+                        <td>${t.trade_id}</td>
+                        <td class="fw-semibold">${t.pair}</td>
+                        <td class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'} fw-semibold">
+                            ${Components.formatPercent((t.profit_ratio || 0) * 100)}
+                            <br><small>${(t.profit_abs || 0) >= 0 ? '+' : ''}${Components.formatNumber(t.profit_abs || 0)}</small>
+                        </td>
+                        <td>${Components.formatNumber(t.open_rate, 6)}</td>
+                        <td>${Components.formatNumber(t.close_rate, 6)}</td>
+                        <td>${Components.formatNumber(t.stake_amount, 4)}</td>
+                        <td class="small text-secondary">${Components.formatDuration(t.trade_duration || t.close_profit_abs)}</td>
+                        <td><span class="badge bg-secondary">${t.exit_reason || t.sell_reason || '-'}</span></td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
     },
 
     renderPerformance() {
         return `
-        <div class="row g-3" id="performanceContent">
-            ${Components.emptyState('graph-up', 'Loading performance...', 'Connect to see performance data')}
+        <div id="performanceContent">
+            ${Components.loading('Loading performance data...')}
         </div>`;
     },
 
+    async loadPerformanceData() {
+        const container = document.getElementById('performanceContent');
+        if (!container) return;
+
+        try {
+            if (!API.connected) {
+                container.innerHTML = Components.emptyState('graph-up', 'Not connected', 'Connect to Freqtrade to see performance data');
+                return;
+            }
+
+            const [perf, daily] = await Promise.all([
+                API.getPerformance().catch(() => []),
+                API.getDaily(30).catch(() => null),
+            ]);
+
+            let html = '<div class="row g-3">';
+
+            // Per-pair performance table
+            html += '<div class="col-lg-6">';
+            html += '<h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart me-2"></i>Pair Performance</h6>';
+            if (Array.isArray(perf) && perf.length > 0) {
+                html += `<div class="table-responsive"><table class="table table-hover mb-0">
+                    <thead><tr><th>Pair</th><th>Profit</th><th>Trades</th></tr></thead><tbody>`;
+                perf.forEach(p => {
+                    const profitClass = (p.profit || 0) >= 0 ? 'text-profit' : 'text-loss';
+                    html += `<tr>
+                        <td class="fw-semibold">${p.pair}</td>
+                        <td class="${profitClass}">${Components.formatNumber(p.profit, 2)}%</td>
+                        <td>${p.count || 0}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<div class="text-secondary small">No performance data yet</div>';
+            }
+            html += '</div>';
+
+            // Daily profit table
+            html += '<div class="col-lg-6">';
+            html += '<h6 class="fw-semibold mb-3"><i class="bi bi-calendar me-2"></i>Daily Profit (Last 30d)</h6>';
+            if (daily && daily.data && daily.data.length > 0) {
+                html += `<div class="table-responsive" style="max-height:400px;overflow:auto"><table class="table table-hover mb-0">
+                    <thead><tr><th>Date</th><th>Profit</th><th>Trades</th></tr></thead><tbody>`;
+                daily.data.forEach(d => {
+                    const profitClass = (d.abs_profit || 0) >= 0 ? 'text-profit' : 'text-loss';
+                    const sign = (d.abs_profit || 0) >= 0 ? '+' : '';
+                    html += `<tr>
+                        <td class="small">${d.date}</td>
+                        <td class="${profitClass}">${sign}${Components.formatNumber(d.abs_profit, 4)} ${daily.stake_currency || 'USDT'}</td>
+                        <td>${d.trade_count || 0}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<div class="text-secondary small">No daily data yet</div>';
+            }
+            html += '</div>';
+
+            html += '</div>';
+            container.innerHTML = html;
+
+        } catch (e) {
+            container.innerHTML = Components.emptyState('graph-up', 'Error loading performance', e.message);
+        }
+    },
+
     async init() {
+        await this.loadPairList();
         await this.loadData();
+        // Auto-refresh every 15 seconds
+        this.refreshTimer = setInterval(() => this.loadData(), 15000);
+    },
+
+    async loadPairList() {
+        const select = document.getElementById('forcePair');
+        if (!select) return;
+
+        try {
+            if (API.connected) {
+                const whitelist = await API.getWhitelist();
+                if (whitelist && whitelist.whitelist && whitelist.whitelist.length > 0) {
+                    select.innerHTML = whitelist.whitelist.map(p =>
+                        `<option value="${p}">${p}</option>`
+                    ).join('');
+                }
+            }
+        } catch (e) {
+            console.log('Could not load pair list:', e.message);
+        }
     },
 
     async loadData() {
@@ -236,43 +368,48 @@ const TradesPage = {
                 return;
             }
 
-            const [openTrades, trades, profit, balance, stats] = await Promise.all([
+            const [openTrades, trades, profit, balance, stats, config] = await Promise.all([
                 API.getOpenTrades().catch(() => []),
                 API.getTrades(100).catch(() => ({ trades: [] })),
                 API.getProfit().catch(() => null),
                 API.getBalance().catch(() => null),
                 API.getStats().catch(() => null),
+                API.getConfig().catch(() => null),
             ]);
 
             this.openTrades = Array.isArray(openTrades) ? openTrades : [];
             this.closedTrades = trades.trades ? trades.trades.filter(t => !t.is_open) : [];
             this.stats = stats;
 
-            // Update summary
-            document.getElementById('tsOpenCount').textContent = this.openTrades.length;
-            document.getElementById('tsClosedCount').textContent = this.closedTrades.length;
-            document.getElementById('openTradeCount').textContent = this.openTrades.length;
+            // Update summary stats
+            const el = (id) => document.getElementById(id);
+            if (el('tsOpenCount')) el('tsOpenCount').textContent = this.openTrades.length;
+            if (el('tsClosedCount')) el('tsClosedCount').textContent = this.closedTrades.length;
+            if (el('openTradeCount')) el('openTradeCount').textContent = this.openTrades.length;
 
             if (profit) {
-                document.getElementById('tsTotalProfit').textContent = Components.formatNumber(profit.profit_closed_coin || 0);
-                const total = (profit.winning_trades || 0) + (profit.losing_trades || 0);
-                document.getElementById('tsWinRate').textContent = total > 0
-                    ? Components.formatPercent((profit.winning_trades / total) * 100) : '0%';
+                const totalTrades = (profit.winning_trades || 0) + (profit.losing_trades || 0);
+                if (el('tsTotalProfit')) {
+                    const profitVal = profit.profit_closed_coin || 0;
+                    el('tsTotalProfit').textContent = `${profitVal >= 0 ? '+' : ''}${Components.formatNumber(profitVal)}`;
+                    el('tsTotalProfit').className = `stat-value ${profitVal >= 0 ? 'text-profit' : 'text-loss'}`;
+                }
+                if (el('tsWinRate') && totalTrades > 0) {
+                    el('tsWinRate').textContent = Components.formatPercent((profit.winning_trades / totalTrades) * 100);
+                }
+                if (el('tsAvgDuration') && profit.avg_duration) {
+                    el('tsAvgDuration').textContent = profit.avg_duration;
+                }
             }
 
             if (balance) {
-                document.getElementById('tsBalance').textContent = Components.formatNumber(balance.total || 0, 2);
+                if (el('tsBalance')) el('tsBalance').textContent = Components.formatNumber(balance.total || 0, 2);
             }
 
-            if (stats && stats.durations) {
-                const avg = stats.durations.wins || stats.durations.draws || '?';
-                document.getElementById('tsAvgDuration').textContent = typeof avg === 'number' ? `${avg}min` : avg;
+            // Update bot status
+            if (config) {
+                this.updateBotStatus(config);
             }
-
-            // Update status badge
-            const badge = document.getElementById('botStatusBadge');
-            badge.innerHTML = '<span class="status-dot connected me-1"></span> Connected';
-            badge.classList.add('badge-completed');
 
             this.updateTabContent();
         } catch (e) {
@@ -281,16 +418,39 @@ const TradesPage = {
         }
     },
 
+    updateBotStatus(config) {
+        const badge = document.getElementById('botStatusBadge');
+        const stratName = document.getElementById('botStrategyName');
+        if (!badge) return;
+
+        const state = config.state || 'unknown';
+        const strategy = config.strategy || '';
+
+        if (stratName) stratName.textContent = strategy ? `Strategy: ${strategy}` : '';
+
+        if (state === 'running') {
+            badge.innerHTML = '<span class="status-dot connected me-1"></span> Running';
+            badge.className = 'badge badge-bc badge-completed';
+        } else if (state === 'stopped') {
+            badge.innerHTML = '<span class="status-dot disconnected me-1"></span> Stopped';
+            badge.className = 'badge badge-bc badge-failed';
+        } else {
+            badge.innerHTML = '<span class="status-dot me-1" style="background:#f0ad4e"></span> ' + state;
+            badge.className = 'badge badge-bc';
+        }
+    },
+
     showDemoData() {
         this.closedTrades = Components.generateDemoTrades(20);
         this.openTrades = [];
-        document.getElementById('tsClosedCount').textContent = this.closedTrades.length;
+        const el = (id) => document.getElementById(id);
+        if (el('tsClosedCount')) el('tsClosedCount').textContent = this.closedTrades.length;
 
         const totalProfit = this.closedTrades.reduce((s, t) => s + (t.profit_abs || 0), 0);
         const winCount = this.closedTrades.filter(t => t.profit_abs > 0).length;
-        document.getElementById('tsTotalProfit').textContent = Components.formatNumber(totalProfit);
-        document.getElementById('tsWinRate').textContent = Components.formatPercent(winCount / this.closedTrades.length * 100);
-        document.getElementById('tsBalance').textContent = '1,000.00';
+        if (el('tsTotalProfit')) el('tsTotalProfit').textContent = Components.formatNumber(totalProfit);
+        if (el('tsWinRate')) el('tsWinRate').textContent = Components.formatPercent(winCount / this.closedTrades.length * 100);
+        if (el('tsBalance')) el('tsBalance').textContent = '1,000.00';
 
         this.updateTabContent();
     },
@@ -303,11 +463,21 @@ const TradesPage = {
         });
         event.target.closest('.nav-link').classList.add('active');
         this.updateTabContent();
+
+        // Load performance data when switching to performance tab
+        if (tab === 'performance') {
+            this.loadPerformanceData();
+        }
     },
 
     updateTabContent() {
         const content = document.getElementById('tradesContent');
         if (content) content.innerHTML = this.renderTabContent();
+
+        // Load performance if that tab is active
+        if (this.activeTab === 'performance') {
+            this.loadPerformanceData();
+        }
     },
 
     // Bot controls
@@ -316,6 +486,7 @@ const TradesPage = {
             if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
             await API.startBot();
             App.showToast('Bot started', 'success');
+            setTimeout(() => this.loadData(), 1000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
 
@@ -324,6 +495,7 @@ const TradesPage = {
             if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
             await API.stopBot();
             App.showToast('Bot stopped', 'info');
+            setTimeout(() => this.loadData(), 1000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
 
@@ -331,7 +503,8 @@ const TradesPage = {
         try {
             if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
             await API.pauseBot();
-            App.showToast('Bot paused', 'info');
+            App.showToast('Bot paused (no new entries)', 'info');
+            setTimeout(() => this.loadData(), 1000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
 
@@ -340,6 +513,7 @@ const TradesPage = {
             if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
             await API.reloadConfig();
             App.showToast('Config reloaded', 'success');
+            setTimeout(() => this.loadData(), 1000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
 
@@ -350,12 +524,15 @@ const TradesPage = {
         const price = parseFloat(document.getElementById('forcePrice').value) || undefined;
 
         if (!pair) { App.showToast('Enter a pair', 'warning'); return; }
+        if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
 
         try {
-            if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
-            await API.forceEntry(pair, side, { stakeamount: stake, price: price > 0 ? price : undefined });
+            await API.forceEntry(pair, side, {
+                stakeamount: stake,
+                price: price > 0 ? price : undefined
+            });
             App.showToast(`Force entry: ${pair} ${side}`, 'success');
-            setTimeout(() => this.loadData(), 1000);
+            setTimeout(() => this.loadData(), 2000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
 
@@ -364,6 +541,15 @@ const TradesPage = {
         try {
             await API.forceExit(tradeId);
             App.showToast(`Force exit: trade #${tradeId}`, 'success');
+            setTimeout(() => this.loadData(), 2000);
+        } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
+    },
+
+    async deleteTrade(tradeId) {
+        if (!confirm(`Delete trade #${tradeId}? This cannot be undone.`)) return;
+        try {
+            await API.deleteTrade(tradeId);
+            App.showToast(`Trade #${tradeId} deleted`, 'info');
             setTimeout(() => this.loadData(), 1000);
         } catch (e) { App.showToast(`Error: ${e.message}`, 'error'); }
     },
@@ -378,5 +564,7 @@ const TradesPage = {
         return `${mins}m`;
     },
 
-    destroy() {}
+    destroy() {
+        if (this.refreshTimer) { clearInterval(this.refreshTimer); this.refreshTimer = null; }
+    }
 };

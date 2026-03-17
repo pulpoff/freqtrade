@@ -17,6 +17,10 @@ const Components = {
 
     /** Create profit display like botcrypto */
     profitDisplay(unrealized, realized, winRate, avgProfit, currency = 'USDT') {
+        const realizedClass = realized >= 0 ? 'text-profit' : 'text-loss';
+        const realizedSign = realized >= 0 ? '+' : '';
+        const avgClass = avgProfit >= 0 ? 'text-profit' : 'text-loss';
+        const avgSign = avgProfit >= 0 ? '+' : '';
         return `
         <div class="row g-3 py-3">
             <div class="col-6">
@@ -25,47 +29,56 @@ const Components = {
                 <div class="stat-sublabel">Open orders pending profits</div>
             </div>
             <div class="col-6">
-                <div class="stat-value text-profit">+${this.formatNumber(realized)} <small class="fs-6 text-secondary">${currency}</small></div>
+                <div class="stat-value ${realizedClass}">${realizedSign}${this.formatNumber(realized)} <small class="fs-6 text-secondary">${currency}</small></div>
                 <div class="stat-label">Realized profits</div>
                 <div class="stat-sublabel">Closed orders profits</div>
             </div>
             <div class="col-6">
-                <div class="stat-value text-profit">${this.formatNumber(winRate)} %</div>
+                <div class="stat-value ${winRate >= 50 ? 'text-profit' : 'text-loss'}">${this.formatNumber(winRate)} %</div>
                 <div class="stat-label">Win rate</div>
                 <div class="stat-sublabel">Closed trades winning ratio</div>
             </div>
             <div class="col-6">
-                <div class="stat-value text-profit">+${this.formatNumber(avgProfit)} <small class="fs-6 text-secondary">${currency}</small></div>
+                <div class="stat-value ${avgClass}">${avgSign}${this.formatNumber(avgProfit)} <small class="fs-6 text-secondary">${currency}</small></div>
                 <div class="stat-label">Average profit</div>
                 <div class="stat-sublabel">Average profit per trade</div>
             </div>
         </div>`;
     },
 
-    /** Trade table row like botcrypto */
+    /** Trade table row */
     tradeRow(trade) {
         const gain = trade.profit_abs || 0;
         const gainClass = gain >= 0 ? 'text-profit' : 'text-loss';
-        const gainIcon = gain >= 0 ? 'bi-triangle-fill' : 'bi-triangle-fill rotate-180';
+        const gainIcon = gain >= 0 ? 'bi-triangle-fill' : 'bi-triangle-fill';
+        const pair = trade.pair || '';
+        const baseCurrency = trade.base_currency || pair.split('/')[0] || '';
+        const quoteCurrency = trade.quote_currency || trade.stake_currency || pair.split('/')[1] || 'USDT';
+
+        // Determine action labels
+        const isOpen = trade.is_open;
+        const exitReason = trade.exit_reason || trade.sell_reason || '';
+
         return `
         <tr>
             <td>
                 <span class="${gainClass}">
                     <i class="bi ${gainIcon} me-1" style="font-size:8px;${gain < 0 ? 'transform:rotate(180deg);display:inline-block' : ''}"></i>
-                    ${gain >= 0 ? '+' : ''}${this.formatNumber(gain)} <small class="text-secondary">${trade.quote_currency || 'USDT'}</small>
+                    ${gain >= 0 ? '+' : ''}${this.formatNumber(gain)} <small class="text-secondary">${quoteCurrency}</small>
                 </span>
             </td>
+            <td class="fw-semibold small">${pair}</td>
             <td>
                 <div class="action-sell">SELL</div>
                 <div class="action-buy">BUY</div>
             </td>
-            <td>${trade.exit_reason ? 'Market' : trade.order_type || 'Market'}</td>
+            <td>${exitReason || trade.order_type || 'Market'}</td>
             <td>
-                <div>${this.formatNumber(trade.close_rate || trade.open_rate, 4)} <small class="text-secondary">${trade.quote_currency || 'USDT'}</small></div>
-                <div>${this.formatNumber(trade.open_rate, 4)} <small class="text-secondary">${trade.quote_currency || 'USDT'}</small></div>
+                <div>${this.formatNumber(trade.close_rate || trade.current_rate || trade.open_rate, 6)} <small class="text-secondary">${quoteCurrency}</small></div>
+                <div>${this.formatNumber(trade.open_rate, 6)} <small class="text-secondary">${quoteCurrency}</small></div>
             </td>
-            <td>${this.formatNumber(trade.amount, 1)} <small class="text-secondary">${trade.base_currency || ''}</small></td>
-            <td><span class="badge badge-bc badge-completed">Close</span></td>
+            <td>${this.formatNumber(trade.amount, 2)} <small class="text-secondary">${baseCurrency}</small></td>
+            <td><span class="badge badge-bc ${isOpen ? 'badge-running' : 'badge-completed'}">${isOpen ? 'Open' : 'Close'}</span></td>
             <td class="text-secondary small">${this.formatDate(trade.close_date || trade.open_date)}</td>
         </tr>`;
     },
@@ -76,7 +89,7 @@ const Components = {
         return `
         ${showTabs ? `
         <div class="d-flex gap-3 mb-3">
-            <button class="btn btn-sm btn-outline-light active" onclick="this.classList.add('active')">
+            <button class="btn btn-sm btn-outline-light active">
                 <i class="bi bi-arrow-left-right me-1"></i> Trades <span class="badge bg-success">${tradeCount}</span>
             </button>
         </div>` : ''}
@@ -85,8 +98,9 @@ const Components = {
                 <thead>
                     <tr>
                         <th>Gain <i class="bi bi-chevron-expand"></i></th>
+                        <th>Pair</th>
                         <th>Action <i class="bi bi-chevron-expand"></i></th>
-                        <th>Order Type</th>
+                        <th>Exit Reason</th>
                         <th>Price</th>
                         <th>Volume</th>
                         <th>Status</th>
@@ -95,21 +109,18 @@ const Components = {
                 </thead>
                 <tbody>
                     ${trades.map(t => this.tradeRow(t)).join('')}
-                    ${trades.length === 0 ? '<tr><td colspan="7" class="text-center text-secondary py-4">No trades yet</td></tr>' : ''}
+                    ${trades.length === 0 ? '<tr><td colspan="8" class="text-center text-secondary py-4">No trades yet</td></tr>' : ''}
                 </tbody>
             </table>
         </div>`;
     },
 
-    /** Chart header bar like botcrypto backtest */
+    /** Chart header bar */
     chartHeader(title, strategyName, dateRange, status = 'COMPLETED') {
         const statusClass = status === 'COMPLETED' ? 'badge-completed' :
                            status === 'RUNNING' ? 'badge-running' : 'badge-failed';
         return `
         <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
-            <button class="btn btn-link text-secondary p-0" onclick="history.back()">
-                <i class="bi bi-chevron-left fs-5"></i>
-            </button>
             <h5 class="mb-0 fw-semibold">
                 <i class="bi bi-gear-wide-connected me-1"></i> ${title}
             </h5>
@@ -120,11 +131,6 @@ const Components = {
                 <i class="bi bi-check-circle me-1"></i> ${status}
             </span>
             <span class="text-secondary small">${dateRange}</span>
-            <div class="ms-auto">
-                <button class="btn btn-bc-delete btn-sm">
-                    <i class="bi bi-trash me-1"></i> DELETE
-                </button>
-            </div>
         </div>`;
     },
 
@@ -140,7 +146,7 @@ const Components = {
         </div>`;
     },
 
-    /** Chart toolbar like botcrypto */
+    /** Chart toolbar */
     chartToolbar(pair = 'XRPUSDT', timeframe = '30m') {
         return `
         <div class="d-flex align-items-center justify-content-between border-bottom border-secondary pb-2 mb-2">
@@ -192,8 +198,11 @@ const Components = {
 
     // ========== UTILITIES ==========
     formatNumber(n, decimals = 4) {
-        if (n === null || n === undefined) return '0';
-        return Number(n).toFixed(decimals);
+        if (n === null || n === undefined || isNaN(n)) return '0';
+        return Number(n).toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
     },
 
     formatPercent(n) {
@@ -204,10 +213,23 @@ const Components = {
     formatDate(dateStr) {
         if (!dateStr) return '-';
         const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
         return d.toLocaleDateString('en-GB', {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
+    },
+
+    formatDuration(durationStr) {
+        if (!durationStr) return '-';
+        // Handle "HH:MM:SS" or "X days, HH:MM:SS" format
+        if (typeof durationStr === 'string') return durationStr;
+        if (typeof durationStr === 'number') {
+            const h = Math.floor(durationStr / 3600);
+            const m = Math.floor((durationStr % 3600) / 60);
+            return h > 0 ? `${h}h ${m}m` : `${m}m`;
+        }
+        return String(durationStr);
     },
 
     formatCurrency(amount, currency = 'USDT') {
@@ -247,13 +269,13 @@ const Components = {
         let price = startPrice;
         const now = Math.floor(Date.now() / 1000);
         for (let i = count; i >= 0; i--) {
-            const time = now - i * 1800; // 30min candles
+            const time = now - i * 1800;
             const open = price;
             const change = (Math.random() - 0.48) * price * 0.02;
             const close = price + change;
             const high = Math.max(open, close) + Math.random() * price * 0.01;
             const low = Math.min(open, close) - Math.random() * price * 0.01;
-            data.push({ time, open, high, low, close });
+            data.push({ time, open, high, low, close, volume: Math.random() * 2000000 });
             price = close;
         }
         return data;
@@ -286,6 +308,7 @@ const Components = {
                 pair: pair,
                 base_currency: pair.split('/')[0],
                 quote_currency: pair.split('/')[1],
+                stake_currency: 'USDT',
                 open_rate: buyPrice,
                 close_rate: sellPrice,
                 amount: amount,
