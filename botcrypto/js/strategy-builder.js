@@ -116,10 +116,38 @@ const StrategyBuilderPage = {
                     <button class="btn btn-sm btn-outline-secondary ms-1" onclick="StrategyBuilderPage.zoomReset()" title="Reset view"><i class="bi bi-fullscreen"></i></button>
                 </div>
 
+                <!-- Indicator Picker Popup (hidden by default) -->
+                <div class="indicator-picker-popup" id="indicatorPickerPopup">
+                    <div class="indicator-picker-header">
+                        <span class="fw-semibold">Choose an Indicator</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.closeIndicatorPicker()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <input type="text" class="indicator-picker-search" id="indicatorSearch"
+                        placeholder="Search indicators..." oninput="StrategyBuilderPage.filterIndicators(this.value)">
+                    <div class="indicator-picker-list" id="indicatorPickerList">
+                        ${this.indicatorTypes.map(t => `
+                            <div class="indicator-picker-item" draggable="true"
+                                 ondragstart="StrategyBuilderPage.onIndicatorDragStart(event, '${t}')"
+                                 onclick="StrategyBuilderPage.addIndicatorNode('${t}')">
+                                <i class="bi bi-graph-up text-info me-2"></i>
+                                <span>${t}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
                 <!-- Bottom Toolbar - Single row block palette matching botcrypto.io -->
                 <div class="builder-bottom-toolbar">
                     <div class="toolbar-blocks-row">
-                        ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicators', 'tb-indicator')}
+                        <div class="toolbar-block" onclick="StrategyBuilderPage.toggleIndicatorPicker(event)">
+                            <div class="tb-icon tb-indicator position-relative">
+                                <i class="bi bi-graph-up"></i>
+                                <i class="bi bi-chevron-up indicator-arrow-up"></i>
+                            </div>
+                            <span class="tb-name">Indicators</span>
+                        </div>
                         ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
                         ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
                         ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing stop', 'tb-trailing')}
@@ -144,6 +172,82 @@ const StrategyBuilderPage = {
         document.querySelectorAll('.builder-tab-pane').forEach(p => p.classList.remove('active'));
         const pane = document.getElementById('sbTab-' + tabId);
         if (pane) pane.classList.add('active');
+    },
+
+    // ========== INDICATOR PICKER ==========
+    toggleIndicatorPicker(event) {
+        event.stopPropagation();
+        const popup = document.getElementById('indicatorPickerPopup');
+        if (!popup) return;
+        popup.classList.toggle('open');
+        if (popup.classList.contains('open')) {
+            const search = document.getElementById('indicatorSearch');
+            if (search) { search.value = ''; search.focus(); }
+            this.filterIndicators('');
+            // Close on outside click
+            setTimeout(() => {
+                this._indicatorPickerCloseHandler = (e) => {
+                    if (!popup.contains(e.target) && !e.target.closest('.toolbar-block')) {
+                        this.closeIndicatorPicker();
+                    }
+                };
+                document.addEventListener('click', this._indicatorPickerCloseHandler);
+            }, 10);
+        } else {
+            this._removeIndicatorPickerHandler();
+        }
+    },
+
+    closeIndicatorPicker() {
+        const popup = document.getElementById('indicatorPickerPopup');
+        if (popup) popup.classList.remove('open');
+        this._removeIndicatorPickerHandler();
+    },
+
+    _removeIndicatorPickerHandler() {
+        if (this._indicatorPickerCloseHandler) {
+            document.removeEventListener('click', this._indicatorPickerCloseHandler);
+            this._indicatorPickerCloseHandler = null;
+        }
+    },
+
+    filterIndicators(query) {
+        const list = document.getElementById('indicatorPickerList');
+        if (!list) return;
+        const items = list.querySelectorAll('.indicator-picker-item');
+        const q = query.toLowerCase();
+        items.forEach(item => {
+            const name = item.textContent.toLowerCase();
+            item.style.display = name.includes(q) ? '' : 'none';
+        });
+    },
+
+    addIndicatorNode(type) {
+        this.closeIndicatorPicker();
+        const canvas = document.getElementById('builderCanvas');
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (rect.width / 2 - this._panX) / this._zoom - 40 + Math.random() * 100;
+        const y = (rect.height / 2 - this._panY) / this._zoom - 40 + Math.random() * 100;
+
+        const bt = this.blockTypes.indicator;
+        const node = {
+            id: this.nextId++,
+            type: 'indicator',
+            x: Math.max(0, x),
+            y: Math.max(0, y),
+            params: { ...bt.params, type }
+        };
+        this.nodes.push(node);
+        this.renderNodes();
+        this.autoSave();
+        App.showToast(`Added ${type} indicator`, 'success');
+    },
+
+    onIndicatorDragStart(event, indicatorType) {
+        event.dataTransfer.setData('blockType', 'indicator');
+        event.dataTransfer.setData('indicatorType', indicatorType);
+        this.closeIndicatorPicker();
     },
 
     _toolbarBlock(type, icon, name, tbClass) {
@@ -380,6 +484,24 @@ const StrategyBuilderPage = {
         const rect = canvas.getBoundingClientRect();
         const x = (event.clientX - rect.left - this._panX) / this._zoom - 40;
         const y = (event.clientY - rect.top - this._panY) / this._zoom - 40;
+
+        // If dragging a specific indicator type from the picker
+        const indicatorType = event.dataTransfer.getData('indicatorType');
+        if (type === 'indicator' && indicatorType) {
+            const bt = this.blockTypes.indicator;
+            const node = {
+                id: this.nextId++,
+                type: 'indicator',
+                x: Math.max(0, x),
+                y: Math.max(0, y),
+                params: { ...bt.params, type: indicatorType }
+            };
+            this.nodes.push(node);
+            this.renderNodes();
+            this.autoSave();
+            App.showToast(`Added ${indicatorType} indicator`, 'success');
+            return;
+        }
 
         this.addNodeAt(type, x, y);
     },
