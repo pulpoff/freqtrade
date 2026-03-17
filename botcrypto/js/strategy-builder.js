@@ -72,14 +72,14 @@ const StrategyBuilderPage = {
                         onchange="StrategyBuilderPage.strategyName = this.value">
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.saveStrategy()" title="Save">
-                        <i class="bi bi-save"></i>
+                    <button class="btn btn-sm btn-outline-warning fw-semibold" onclick="StrategyBuilderPage.saveStrategy()" title="Save Strategy">
+                        <i class="bi bi-save me-1"></i> SAVE
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.loadStrategy()" title="Load">
-                        <i class="bi bi-folder-open"></i>
+                    <button class="btn btn-sm btn-outline-light fw-semibold" onclick="StrategyBuilderPage.loadStrategy()" title="Load Strategy">
+                        <i class="bi bi-folder-symlink me-1"></i> LOAD
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
-                        <i class="bi bi-code-slash"></i>
+                    <button class="btn btn-sm btn-outline-success fw-semibold" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
+                        <i class="bi bi-code-slash me-1"></i> CODE
                     </button>
                     <select class="form-select form-select-sm border-secondary" style="width:80px;background:var(--bc-card);color:var(--bc-text)"
                         id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
