@@ -851,6 +851,99 @@ const DashboardPage = {
         { id: 'copp',      name: 'Coppock Curve',        type: 'copp',  color: '#dfe6e9', overlay: false, category: 'Trend' },
     ],
 
+    // Background tint colors for each indicator type (subtle, translucent)
+    _indicatorTypeBg: {
+        // Moving Averages - green shades
+        'ema':  'rgba(45, 212, 168, 0.08)',
+        'sma':  'rgba(45, 212, 168, 0.06)',
+        'wma':  'rgba(45, 212, 168, 0.07)',
+        'dema': 'rgba(45, 212, 168, 0.09)',
+        'tema': 'rgba(45, 212, 168, 0.10)',
+        'kama': 'rgba(45, 212, 168, 0.07)',
+        'hma':  'rgba(45, 212, 168, 0.08)',
+        'vwma': 'rgba(45, 212, 168, 0.06)',
+        // RSI / Momentum - yellow/amber shades
+        'rsi':      'rgba(241, 196, 15, 0.08)',
+        'stochrsi': 'rgba(241, 196, 15, 0.06)',
+        'stoch':    'rgba(241, 196, 15, 0.07)',
+        'cci':      'rgba(241, 196, 15, 0.09)',
+        'willr':    'rgba(241, 196, 15, 0.07)',
+        'mom':      'rgba(241, 196, 15, 0.08)',
+        'roc':      'rgba(241, 196, 15, 0.06)',
+        'cmo':      'rgba(241, 196, 15, 0.07)',
+        'fisher':   'rgba(241, 196, 15, 0.08)',
+        // MACD family - blue shades
+        'macd': 'rgba(74, 144, 217, 0.08)',
+        'ppo':  'rgba(74, 144, 217, 0.07)',
+        'tsi':  'rgba(74, 144, 217, 0.06)',
+        'uo':   'rgba(74, 144, 217, 0.07)',
+        'awesome': 'rgba(74, 144, 217, 0.08)',
+        // Bollinger / Volatility - purple shades
+        'bb':       'rgba(155, 89, 182, 0.08)',
+        'bbwidth':  'rgba(155, 89, 182, 0.06)',
+        'bbpct':    'rgba(155, 89, 182, 0.07)',
+        'kc':       'rgba(155, 89, 182, 0.07)',
+        'kc_width': 'rgba(155, 89, 182, 0.06)',
+        'dc':       'rgba(155, 89, 182, 0.08)',
+        'envelope': 'rgba(155, 89, 182, 0.07)',
+        'stddev':   'rgba(155, 89, 182, 0.06)',
+        'chop':     'rgba(155, 89, 182, 0.07)',
+        'atr':      'rgba(155, 89, 182, 0.08)',
+        'natr':     'rgba(155, 89, 182, 0.07)',
+        // Overlays - teal/cyan shades
+        'psar':       'rgba(0, 206, 201, 0.08)',
+        'ichimoku':   'rgba(0, 206, 201, 0.07)',
+        'supertrend': 'rgba(0, 206, 201, 0.08)',
+        'pivots':     'rgba(0, 206, 201, 0.06)',
+        'vwap':       'rgba(0, 206, 201, 0.07)',
+        // Volume - orange shades
+        'obv':   'rgba(245, 166, 35, 0.08)',
+        'adosc': 'rgba(245, 166, 35, 0.07)',
+        'cmf':   'rgba(245, 166, 35, 0.06)',
+        'mfi':   'rgba(245, 166, 35, 0.08)',
+        'eom':   'rgba(245, 166, 35, 0.07)',
+        'vpt':   'rgba(245, 166, 35, 0.06)',
+        'fi':    'rgba(245, 166, 35, 0.07)',
+        'nvi':   'rgba(245, 166, 35, 0.08)',
+        // Trend - red/coral shades
+        'adx':      'rgba(231, 76, 94, 0.08)',
+        'di':       'rgba(231, 76, 94, 0.07)',
+        'aroon':    'rgba(231, 76, 94, 0.06)',
+        'aroonosc': 'rgba(231, 76, 94, 0.07)',
+        'vortex':   'rgba(231, 76, 94, 0.08)',
+        'dpo':      'rgba(231, 76, 94, 0.06)',
+        'trix':     'rgba(231, 76, 94, 0.07)',
+        'mass':     'rgba(231, 76, 94, 0.08)',
+        'copp':     'rgba(231, 76, 94, 0.06)',
+    },
+
+    // Per-indicator-type icons
+    _indicatorTypeIcons: {
+        'ema': 'bi-graph-up', 'sma': 'bi-graph-up', 'wma': 'bi-graph-up', 'dema': 'bi-graph-up',
+        'tema': 'bi-graph-up', 'kama': 'bi-graph-up', 'hma': 'bi-graph-up', 'vwma': 'bi-graph-up',
+        'bb': 'bi-distribute-vertical', 'kc': 'bi-distribute-vertical', 'dc': 'bi-distribute-vertical',
+        'envelope': 'bi-arrows-expand', 'ichimoku': 'bi-clouds', 'psar': 'bi-three-dots',
+        'supertrend': 'bi-arrow-up-right-circle', 'pivot': 'bi-crosshair',
+        'rsi': 'bi-speedometer2', 'stochrsi': 'bi-speedometer', 'stoch': 'bi-speedometer',
+        'cci': 'bi-arrow-left-right', 'mfi': 'bi-droplet-half', 'willr': 'bi-percent',
+        'roc': 'bi-arrow-return-right', 'momentum': 'bi-lightning-charge',
+        'macd': 'bi-bar-chart-line', 'trix': 'bi-graph-down', 'awesome': 'bi-bar-chart-steps',
+        'atr': 'bi-arrows-expand-vertical', 'bbw': 'bi-arrows-expand', 'natr': 'bi-arrows-expand-vertical',
+        'obv': 'bi-bar-chart-fill', 'vpt': 'bi-bar-chart-fill', 'cmf': 'bi-water',
+        'adl': 'bi-bar-chart', 'efi': 'bi-lightning',
+        'adx': 'bi-compass', 'aroon': 'bi-sunrise', 'ppo': 'bi-percent', 'dmi': 'bi-signpost-split',
+    },
+
+    // Category header badge colors
+    _categoryColors: {
+        'Moving Averages': { bg: 'rgba(45, 212, 168, 0.12)', color: '#2dd4a8', icon: 'bi-graph-up' },
+        'Overlays':        { bg: 'rgba(0, 206, 201, 0.12)',   color: '#00cec9', icon: 'bi-layers' },
+        'Momentum':        { bg: 'rgba(241, 196, 15, 0.12)',  color: '#f1c40f', icon: 'bi-speedometer2' },
+        'Volatility':      { bg: 'rgba(155, 89, 182, 0.12)',  color: '#9b59b6', icon: 'bi-bar-chart-steps' },
+        'Volume':          { bg: 'rgba(245, 166, 35, 0.12)',  color: '#f5a623', icon: 'bi-bar-chart-fill' },
+        'Trend':           { bg: 'rgba(231, 76, 94, 0.12)',   color: '#e74c5e', icon: 'bi-arrow-up-right' },
+    },
+
     showIndicatorsModal() {
         let existing = document.getElementById('indicatorsModal');
         if (existing) existing.remove();
@@ -885,17 +978,27 @@ const DashboardPage = {
                             const items = categories[cat] || [];
                             if (items.length === 0) return '';
                             const isOverlay = items[0].overlay;
+                            const catColor = this._categoryColors[cat] || { bg: 'transparent', color: '#8a8fa8', icon: 'bi-circle' };
                             return `
                             <div class="ind-category" data-category="${cat}">
-                                <h6 class="text-secondary small fw-semibold mt-2 mb-2 text-uppercase">${cat}${!isOverlay ? ' <small class="fw-normal">(separate pane)</small>' : ''}</h6>
-                                ${items.map(d => `
-                                <div class="ind-row form-check form-switch d-flex align-items-center justify-content-between py-1 border-bottom border-secondary" data-name="${d.name.toLowerCase()}" data-id="${d.id}">
+                                <div class="d-flex align-items-center gap-2 mt-3 mb-2 px-2 py-1 rounded" style="background:${catColor.bg}">
+                                    <i class="bi ${catColor.icon}" style="color:${catColor.color};font-size:13px"></i>
+                                    <h6 class="small fw-semibold mb-0 text-uppercase" style="color:${catColor.color}">${cat}</h6>
+                                    ${!isOverlay ? '<small class="fw-normal text-secondary">(separate pane)</small>' : ''}
+                                    <span class="badge ms-auto" style="background:${catColor.bg};color:${catColor.color};font-size:10px">${items.length}</span>
+                                </div>
+                                ${items.map(d => {
+                                    const typeBg = this._indicatorTypeBg[d.type] || 'transparent';
+                                    return `
+                                <div class="ind-row form-check form-switch d-flex align-items-center justify-content-between py-1 px-2 rounded-1 mb-1" data-name="${d.name.toLowerCase()}" data-id="${d.id}"
+                                    style="background:${typeBg};border-left:3px solid ${d.color}20;transition:background 0.15s">
                                     <div>
-                                        <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>${d.name}</span>
+                                        <span class="fw-semibold" style="color:${d.color}"><i class="bi ${this._indicatorTypeIcons[d.type] || 'bi-circle-fill'} me-1" style="font-size:${this._indicatorTypeIcons[d.type] ? '12px' : '7px'};opacity:0.8"></i>${d.name}</span>
                                     </div>
                                     <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
                                         onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
-                                </div>`).join('')}
+                                </div>`;
+                                }).join('')}
                             </div>`;
                         }).join('')}
                     </div>

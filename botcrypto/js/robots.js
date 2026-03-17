@@ -91,11 +91,29 @@ const RobotsPage = {
         </div>`;
     },
 
+    // Deterministic icon for a strategy name
+    _strategyIcons: [
+        'bi-lightning-charge', 'bi-rocket-takeoff', 'bi-bullseye', 'bi-tsunami',
+        'bi-shield-check', 'bi-fire', 'bi-gem', 'bi-cpu', 'bi-graph-up-arrow',
+        'bi-crosshair', 'bi-trophy', 'bi-bar-chart-line', 'bi-stars', 'bi-signpost',
+        'bi-radar', 'bi-flower1', 'bi-moon-stars', 'bi-compass', 'bi-virus',
+        'bi-hurricane', 'bi-eye', 'bi-lightning', 'bi-globe2', 'bi-broadcast',
+        'bi-peace', 'bi-activity', 'bi-box-seam', 'bi-diamond', 'bi-infinity',
+        'bi-motherboard', 'bi-layers', 'bi-snow3', 'bi-heart-pulse',
+    ],
+
+    _getStrategyIcon(name) {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+        return this._strategyIcons[Math.abs(hash) % this._strategyIcons.length];
+    },
+
     _renderStrategyCard(s, index) {
         const isImported = this.activeTab === 'imported';
         let timeUnit = s.timeUnit || s.timeframe || '';
         const nodesCount = s.nodes ? s.nodes.length : 0;
         let paramsHtml = '';
+        const icon = this._getStrategyIcon(s.name);
 
         // Extract params from .py content for imported strategies
         if (isImported && s.content) {
@@ -104,10 +122,12 @@ const RobotsPage = {
             const sl = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
             const ts = code.match(/trailing_stop\s*=\s*(True|False)/);
             const roi = code.match(/minimal_roi\s*=\s*\{[^}]*"0"\s*:\s*([\d.]+)/);
+            const leverageM = code.match(/leverage\s*.*?return\s+(\d+)/s) || code.match(/leverage\s*=\s*(\d+)/);
             if (tf) timeUnit = tf[1];
             const badges = [];
             if (sl) badges.push(`<span class="badge bg-danger bg-opacity-25 text-danger">SL ${(parseFloat(sl[1]) * 100).toFixed(1)}%</span>`);
             if (roi) badges.push(`<span class="badge bg-success bg-opacity-25 text-success">ROI ${(parseFloat(roi[1]) * 100).toFixed(1)}%</span>`);
+            if (leverageM) badges.push(`<span class="badge bg-info bg-opacity-25 text-info">${leverageM[1]}x</span>`);
             if (ts && ts[1] === 'True') badges.push(`<span class="badge bg-warning bg-opacity-25 text-warning">Trailing</span>`);
             if (badges.length) paramsHtml = `<div class="d-flex gap-1 mt-2 flex-wrap">${badges.join('')}</div>`;
         }
@@ -116,7 +136,7 @@ const RobotsPage = {
         <div class="strategy-card" onclick="RobotsPage.openStrategy('${s.name.replace(/'/g, "\\'")}', ${isImported})">
             <div class="d-flex align-items-start justify-content-between">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi ${isImported ? 'bi-file-earmark-code text-success' : 'bi-diagram-3 text-warning'}"></i>
+                    <i class="bi ${icon}" style="color:var(--bc-accent);opacity:0.8;font-size:1.1rem"></i>
                     <span class="fw-semibold strategy-card-name">${s.name}</span>
                 </div>
                 <div class="dropdown" onclick="event.stopPropagation()">
