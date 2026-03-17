@@ -16,7 +16,7 @@ const BacktestingPage = {
             <!-- Config Section -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="fw-semibold mb-3"><i class="bi bi-flask me-2 text-success"></i>Run Backtest</h5>
+                    <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h5>
 
                     <div class="row g-3">
                         <!-- Strategy Selection -->
@@ -35,16 +35,19 @@ const BacktestingPage = {
                             <small class="text-secondary mt-1 d-block" id="btStrategyInfo"></small>
                         </div>
 
-                        <!-- Trading Pair -->
+                        <!-- Pair Filter -->
                         <div class="col-md-2">
-                            <label class="form-label small text-secondary">Pair</label>
+                            <label class="form-label small text-secondary">Pair Filter</label>
                             <select class="form-select" id="btPair">
+                                <option value="" selected>All (from config)</option>
                                 <option value="BTC/USDT">BTC/USDT</option>
                                 <option value="ETH/USDT">ETH/USDT</option>
-                                <option value="XRP/USDT" selected>XRP/USDT</option>
+                                <option value="XRP/USDT">XRP/USDT</option>
                                 <option value="SOL/USDT">SOL/USDT</option>
                                 <option value="ADA/USDT">ADA/USDT</option>
                                 <option value="DOGE/USDT">DOGE/USDT</option>
+                                <option value="OP/USDT">OP/USDT</option>
+                                <option value="GRT/USDT">GRT/USDT</option>
                             </select>
                         </div>
 
@@ -52,10 +55,11 @@ const BacktestingPage = {
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Timeframe</label>
                             <select class="form-select" id="btTimeframe">
+                                <option value="" selected>Strategy default</option>
                                 <option value="1m">1m</option>
                                 <option value="5m">5m</option>
                                 <option value="15m">15m</option>
-                                <option value="30m" selected>30m</option>
+                                <option value="30m">30m</option>
                                 <option value="1h">1h</option>
                                 <option value="4h">4h</option>
                                 <option value="1d">1d</option>
@@ -65,11 +69,11 @@ const BacktestingPage = {
                         <!-- Date Range -->
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Start Date</label>
-                            <input type="date" class="form-control" id="btStartDate" value="2024-01-01">
+                            <input type="date" class="form-control" id="btStartDate">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">End Date</label>
-                            <input type="date" class="form-control" id="btEndDate" value="2024-03-01">
+                            <input type="date" class="form-control" id="btEndDate">
                         </div>
                     </div>
 
@@ -191,6 +195,15 @@ const BacktestingPage = {
     },
 
     async init() {
+        // Set default dates: last 7 days
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        const btStart = document.getElementById('btStartDate');
+        const btEnd = document.getElementById('btEndDate');
+        if (btStart) btStart.value = startDate.toISOString().split('T')[0];
+        if (btEnd) btEnd.value = endDate.toISOString().split('T')[0];
+
         await this.loadStrategies();
         this.loadHistory();
     },
@@ -309,13 +322,14 @@ const BacktestingPage = {
 
             const btConfig = {
                 strategy: strategyName,
-                timeframe: timeframe,
                 timerange: timerange,
                 max_open_trades: maxTrades,
                 stake_amount: stakeAmount === 'unlimited' ? 'unlimited' : parseFloat(stakeAmount),
                 enable_protections: protections,
                 dry_run_wallet: wallet,
             };
+            // Only set timeframe if explicitly selected (otherwise use strategy default)
+            if (timeframe) btConfig.timeframe = timeframe;
 
             await API.resetBacktest().catch(() => {});
             await API.startBacktest(btConfig);

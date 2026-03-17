@@ -42,7 +42,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-page="backtesting" onclick="App.navigate('backtesting')">
-                        <i class="bi bi-flask me-2"></i><span>Backtesting</span>
+                        <i class="bi bi-clock-history me-2"></i><span>Backtesting</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -95,10 +95,10 @@
                             <i class="bi bi-person-circle fs-4"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" onclick="App.showConnectModal()"><i class="bi bi-plug me-2"></i>Connection</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="App.navigate('config')"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); App.showConnectModal()"><i class="bi bi-plug me-2"></i>Connection</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); App.navigate('config')"><i class="bi bi-gear me-2"></i>Settings</a></li>
                             <li><hr class="dropdown-menu-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="API.disconnect()"><i class="bi bi-box-arrow-right me-2"></i>Disconnect</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); API.disconnect()"><i class="bi bi-box-arrow-right me-2"></i>Disconnect</a></li>
                         </ul>
                     </div>
                 </div>

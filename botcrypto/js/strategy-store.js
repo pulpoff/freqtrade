@@ -282,7 +282,7 @@ const StrategyStorePage = {
                             <i class="bi bi-pencil me-1"></i> Edit
                         </button>
                         <button class="btn btn-outline-secondary btn-sm" onclick="StrategyStorePage.backtestUserStrategy(${i})">
-                            <i class="bi bi-flask me-1"></i> Backtest
+                            <i class="bi bi-clock-history me-1"></i> Backtest
                         </button>
                         <button class="btn btn-outline-danger btn-sm" onclick="StrategyStorePage.deleteUserStrategy(${i})">
                             <i class="bi bi-trash"></i>
@@ -344,7 +344,7 @@ const StrategyStorePage = {
                                 <i class="bi bi-download me-1"></i> Import to Builder
                             </button>
                             <button class="btn btn-outline-success w-100" onclick="StrategyStorePage.backtestTemplate(${s.id})">
-                                <i class="bi bi-flask me-1"></i> Run Backtest
+                                <i class="bi bi-clock-history me-1"></i> Run Backtest
                             </button>
                         </div>
                     </div>
@@ -502,17 +502,31 @@ const StrategyStorePage = {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
 
-        // Load into strategy builder
+        // Load into strategy builder state
         StrategyBuilderPage.nodes = JSON.parse(JSON.stringify(s.nodes));
         StrategyBuilderPage.connections = JSON.parse(JSON.stringify(s.connections));
         StrategyBuilderPage.strategyName = s.name;
         StrategyBuilderPage.strategyDesc = s.desc;
         StrategyBuilderPage.timeUnit = s.timeframe;
-        StrategyBuilderPage.nextId = Math.max(...s.nodes.map(n => n.id)) + 1;
+        StrategyBuilderPage.nextId = s.nodes.length > 0 ? Math.max(...s.nodes.map(n => n.id)) + 1 : 1;
+
+        // Save to localStorage so init() picks it up
         StrategyBuilderPage.autoSave();
 
-        App.showToast(`Imported: ${s.name}`, 'success');
+        App.showToast(`Strategy "${s.name}" imported as visual flow`, 'success');
+
+        // Force full page re-render by navigating
         App.navigate('strategy-builder');
+
+        // Ensure nodes render after DOM is ready (in case init timing is off)
+        setTimeout(() => {
+            StrategyBuilderPage.renderNodes();
+            // Update strategy name input if it didn't pick up the new value
+            const nameInput = document.querySelector('#dashboardPage input, .builder-layout input[type="text"]');
+            if (nameInput && nameInput.value !== s.name) {
+                nameInput.value = s.name;
+            }
+        }, 200);
     },
 
     backtestTemplate(id) {
@@ -527,15 +541,16 @@ const StrategyStorePage = {
         const s = saved[index];
         if (!s) return;
 
-        StrategyBuilderPage.nodes = s.nodes;
-        StrategyBuilderPage.connections = s.connections;
+        StrategyBuilderPage.nodes = JSON.parse(JSON.stringify(s.nodes));
+        StrategyBuilderPage.connections = JSON.parse(JSON.stringify(s.connections));
         StrategyBuilderPage.strategyName = s.name;
-        StrategyBuilderPage.strategyDesc = s.desc;
-        StrategyBuilderPage.nextId = s.nextId;
+        StrategyBuilderPage.strategyDesc = s.desc || '';
+        StrategyBuilderPage.nextId = s.nextId || 1;
         StrategyBuilderPage.timeUnit = s.timeUnit || '5m';
         StrategyBuilderPage.autoSave();
 
         App.navigate('strategy-builder');
+        setTimeout(() => StrategyBuilderPage.renderNodes(), 200);
     },
 
     backtestUserStrategy(index) {
