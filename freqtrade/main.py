@@ -52,15 +52,14 @@ def main(sysargv: list[str] | None = None) -> None:
             set_mp_start_method()
             return_code = args["func"](args)
         else:
-            # No subcommand was issued.
-            raise OperationalException(
-                "Usage of Freqtrade requires a subcommand to be specified.\n"
-                "To have the bot executing trades in live/dry-run modes, "
-                "depending on the value of the `dry_run` setting in the config, run Freqtrade "
-                "as `freqtrade trade [options...]`.\n"
-                "To see the full list of options available, please use "
-                "`freqtrade --help` or `freqtrade <command> --help`."
-            )
+            # No subcommand was issued — default to engine mode
+            logger.info(f"freqtrade {__version__}")
+            logger.info("No subcommand specified, starting in engine mode...")
+            gc_set_threshold()
+            set_mp_start_method()
+            from freqtrade.commands import start_engine
+
+            return_code = start_engine(args)
 
     except SystemExit as e:  # pragma: no cover
         return_code = e
