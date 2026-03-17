@@ -63,8 +63,8 @@ const StrategyBuilderPage = {
             <!-- Top Bar -->
             <div class="d-flex align-items-center justify-content-between border-bottom border-secondary px-2 px-md-3 py-2" style="background:var(--bc-bg-dark)">
                 <div class="d-flex align-items-center gap-2 gap-md-3">
-                    <button class="btn btn-link text-secondary p-0" onclick="App.navigate('dashboard')">
-                        <i class="bi bi-chevron-left fs-5"></i>
+                    <button class="btn btn-sm btn-outline-success" onclick="StrategyBuilderPage.newStrategy()" title="New Strategy">
+                        <i class="bi bi-plus-lg"></i>
                     </button>
                     <i class="bi bi-diagram-3 text-warning"></i>
                     <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold"
@@ -523,6 +523,27 @@ const StrategyBuilderPage = {
         ];
         this.connections = [];
         this.nextId = 2;
+    },
+
+    /** Create a fresh new strategy with empty canvas and START node */
+    newStrategy() {
+        this.strategyName = 'New Strategy';
+        this.strategyDesc = '';
+        this._importedStrategyCode = null;
+        this._importedStrategyName = null;
+        this._zoom = 1;
+        this._panX = 0;
+        this._panY = 0;
+        this.selectedNode = null;
+        this.connectingFrom = null;
+        this.createDefaultNodes();
+        this.autoSave();
+        this.renderNodes();
+        this._applyTransform();
+        // Update the name input field
+        const nameInput = document.querySelector('.builder-layout input[type="text"]');
+        if (nameInput) nameInput.value = this.strategyName;
+        App.showToast('New strategy created', 'success');
     },
 
     renderNodes() {
@@ -1590,10 +1611,16 @@ ${entryConditions.length > 0 ?
                 importedStrategies[name] = { content, importedAt: new Date().toISOString(), uploaded };
                 localStorage.setItem('bc_imported_strategies', JSON.stringify(importedStrategies));
 
+                // Store imported code for analysis and backtesting
+                this._importedStrategyCode = content;
+                this._importedStrategyName = name;
+
                 // Parse the Python strategy into visual flow nodes
                 this._parseStrategyToFlow(content, name);
                 this.renderNodes();
                 this.autoSave();
+                // Fit view to show all nodes
+                setTimeout(() => this.zoomFit(), 100);
                 if (!uploaded) {
                     App.showToast(`Strategy "${name}" imported locally (connect to Freqtrade to use for backtesting)`, 'info');
                 }

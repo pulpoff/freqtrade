@@ -153,7 +153,11 @@ class Backtesting:
                     "to have identical feature_engineering_* functions."
                 )
             for strat in list(self.config["strategy_list"]):
-                stratconf = deepcopy(self.config)
+                try:
+                    stratconf = deepcopy(self.config)
+                except TypeError:
+                    import json
+                    stratconf = json.loads(json.dumps(self.config, default=str))
                 stratconf["strategy"] = strat
                 self.strategylist.append(StrategyResolver.load_strategy(stratconf))
                 validate_config_consistency(stratconf)
