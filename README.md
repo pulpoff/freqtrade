@@ -22,6 +22,16 @@ This fork adds three major improvements on top of the upstream Freqtrade project
 
 A complete web interface for automated crypto trading that works with Freqtrade's REST API, inspired by [botcrypto.io](https://botcrypto.io)'s design. Built with Bootstrap 5.3 dark theme.
 
+<p align="center">
+  <img src="scr1a.png" alt="Visual Strategy Builder" width="100%">
+  <br><em>Visual Strategy Builder — drag-and-drop nodes for indicators, actions, and risk management</em>
+</p>
+
+<p align="center">
+  <img src="scr2a.png" alt="Backtesting UI" width="100%">
+  <br><em>Backtesting — run strategies, view equity curve, performance stats, and trade history</em>
+</p>
+
 - **Dashboard** — Live trading chart (TradingView), equity curve, portfolio stats, trade history
 - **Visual Strategy Builder** — Node-based drag-and-drop canvas with indicator blocks, buy/sell actions, gain conditions, stop-loss, trailing stop, and webhooks — generates Freqtrade Python strategy code automatically
 - **Backtesting UI** — Run and visualize backtests directly from the browser with date selection, auto data download, and progress tracking
