@@ -94,7 +94,7 @@ const RobotsPage = {
             const totalBalance = balance?.total || 0;
 
             el.innerHTML = `
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <div class="text-secondary small mb-1">Status</div>
                     <span class="badge ${state === 'running' ? 'bg-success' : state === 'stopped' ? 'bg-danger' : 'bg-warning'} fs-6">
                         <i class="bi bi-${state === 'running' ? 'play-circle' : 'stop-circle'} me-1"></i>
@@ -102,27 +102,27 @@ const RobotsPage = {
                     </span>
                     ${dryRun !== undefined ? `<br><span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'} mt-1">${dryRun ? 'Dry Run' : 'LIVE'}</span>` : ''}
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <div class="text-secondary small mb-1">Strategy</div>
                     <div class="fw-semibold">${strategy}</div>
                     <small class="text-secondary">${exchange} · ${pair}</small>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="text-secondary small mb-1">Open / Closed</div>
                     <div class="fw-semibold">${openCount} <span class="text-secondary">/</span> ${closedCount}</div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="text-secondary small mb-1">Total Profit</div>
                     <div class="fw-semibold ${totalProfit >= 0 ? 'text-profit' : 'text-loss'}">
                         ${totalProfit >= 0 ? '+' : ''}${Components.formatNumber(totalProfit, 2)} ${stakeCurrency}
                     </div>
                     <small class="${profitPct >= 0 ? 'text-profit' : 'text-loss'}">${profitPct >= 0 ? '+' : ''}${Components.formatNumber(profitPct, 2)}%</small>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="text-secondary small mb-1">Balance</div>
                     <div class="fw-semibold">${Components.formatNumber(totalBalance, 2)} ${stakeCurrency}</div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-12 col-md-2">
                     <div class="text-secondary small mb-1">Open Trades</div>
                     ${Array.isArray(openTrades) && openTrades.length > 0 ?
                         openTrades.slice(0, 3).map(t => `<div class="small"><span class="fw-semibold">${Components.cleanPairName ? Components.cleanPairName(t.pair) : t.pair}</span> <span class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'}">${Components.formatNumber((t.profit_ratio || 0) * 100, 2)}%</span></div>`).join('') +

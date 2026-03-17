@@ -19,17 +19,17 @@ const PortfolioPage = {
             <!-- Total Balance Card -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-4">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
                             <div class="text-secondary small mb-1">Total Portfolio Value</div>
                             <div class="fs-2 fw-bold" id="portfolioTotal">-</div>
                             <div id="portfolioChange" class="small"></div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-6 col-md-4">
                             <div class="text-secondary small mb-1">Available Balance</div>
                             <div class="fs-4 fw-semibold" id="portfolioFree">-</div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-6 col-md-4">
                             <div class="text-secondary small mb-1">In Trades</div>
                             <div class="fs-4 fw-semibold" id="portfolioUsed">-</div>
                         </div>

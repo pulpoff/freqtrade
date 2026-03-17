@@ -20,9 +20,9 @@ const BacktestingPage = {
                 <div class="card-body">
                     <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h5>
 
-                    <div class="row g-3">
+                    <div class="row g-2 g-md-3">
                         <!-- Strategy Selection -->
-                        <div class="col-md-4">
+                        <div class="col-12 col-md-4">
                             <label class="form-label small text-secondary">Strategy</label>
                             <div class="input-group">
                                 <select class="form-select" id="btStrategy">
@@ -38,7 +38,7 @@ const BacktestingPage = {
                         </div>
 
                         <!-- Pair Filter -->
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Pair Filter</label>
                             <select class="form-select" id="btPair">
                                 <option value="">All (from config)</option>
@@ -46,7 +46,7 @@ const BacktestingPage = {
                         </div>
 
                         <!-- Timeframe -->
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Timeframe</label>
                             <select class="form-select" id="btTimeframe">
                                 <option value="" selected>Strategy default</option>
@@ -61,19 +61,19 @@ const BacktestingPage = {
                         </div>
 
                         <!-- Date Range -->
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Start Date</label>
                             <input type="date" class="form-control" id="btStartDate" value="${this._defaultStartDate()}">
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">End Date</label>
                             <input type="date" class="form-control" id="btEndDate" value="${this._defaultEndDate()}">
                         </div>
                     </div>
 
-                    <div class="row g-3 mt-1">
+                    <div class="row g-2 g-md-3 mt-1">
                         <!-- Stake Amount -->
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small text-secondary">Initial Wallet (Dry Run)</label>
                             <div class="input-group">
                                 <input type="number" class="form-control" id="btWallet" value="1000">
@@ -82,19 +82,19 @@ const BacktestingPage = {
                         </div>
 
                         <!-- Stake per trade -->
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small text-secondary">Stake Amount</label>
                             <input type="text" class="form-control" id="btStakeAmount" value="unlimited">
                         </div>
 
                         <!-- Max Open Trades -->
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Max Open Trades</label>
                             <input type="number" class="form-control" id="btMaxTrades" value="3">
                         </div>
 
                         <!-- Enable Protections -->
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Protections</label>
                             <div class="form-check form-switch mt-2">
                                 <input type="checkbox" class="form-check-input" id="btProtections">
@@ -103,7 +103,7 @@ const BacktestingPage = {
                         </div>
 
                         <!-- Run Button -->
-                        <div class="col-md-2 d-flex align-items-end">
+                        <div class="col-12 col-md-2 d-flex align-items-end">
                             <button class="btn btn-success w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
                                 <i class="bi bi-play-fill me-1"></i> Run Backtest
                             </button>

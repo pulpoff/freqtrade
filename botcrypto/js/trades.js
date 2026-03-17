@@ -22,15 +22,15 @@ const TradesPage = {
             <!-- Bot Controls -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap">
                             <h5 class="fw-semibold mb-0"><i class="bi bi-robot me-2"></i>Bot Status</h5>
                             <span class="badge badge-bc" id="botStatusBadge">
                                 <span class="status-dot disconnected me-1"></span> Not Connected
                             </span>
                             <small class="text-secondary" id="botStrategyName"></small>
                         </div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
                             <button class="btn btn-success btn-sm" id="btnStartBot" onclick="TradesPage.startBot()">
                                 <i class="bi bi-play-fill me-1"></i> Start
                             </button>
@@ -49,50 +49,50 @@ const TradesPage = {
             </div>
 
             <!-- Summary Stats -->
-            <div class="row g-3 mb-3" id="tradesSummary">
-                <div class="col-md-2">
+            <div class="row g-2 g-md-3 mb-3" id="tradesSummary">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value" id="tsOpenCount">0</div>
                             <div class="stat-label">Open Trades</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value" id="tsClosedCount">0</div>
                             <div class="stat-label">Closed Trades</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value text-profit" id="tsTotalProfit">0</div>
                             <div class="stat-label">Total Profit</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value text-profit" id="tsWinRate">0%</div>
                             <div class="stat-label">Win Rate</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value" id="tsAvgDuration">-</div>
                             <div class="stat-label">Avg Duration</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2">
+                <div class="col-4 col-md-2">
                     <div class="card">
-                        <div class="card-body py-3 text-center">
+                        <div class="card-body py-2 py-md-3 text-center">
                             <div class="stat-value" id="tsBalance">0</div>
                             <div class="stat-label">Balance</div>
                         </div>
@@ -103,9 +103,9 @@ const TradesPage = {
             <!-- Tabs -->
             <div class="card">
                 <div class="card-header">
-                    <ul class="nav nav-tabs card-header-tabs">
+                    <ul class="nav nav-tabs card-header-tabs flex-nowrap overflow-auto">
                         <li class="nav-item">
-                            <a class="nav-link ${this.activeTab === 'open' ? 'active' : ''}" href="#"
+                            <a class="nav-link text-nowrap ${this.activeTab === 'open' ? 'active' : ''}" href="#"
                                 onclick="event.preventDefault(); TradesPage.switchTab('open')">
                                 <i class="bi bi-arrow-left-right me-1"></i> Open Trades
                                 <span class="badge bg-success ms-1" id="openTradeCount">0</span>
@@ -136,29 +136,29 @@ const TradesPage = {
                     <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Force Trade</h6>
                 </div>
                 <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-3">
+                    <div class="row g-2 g-md-3">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small text-secondary">Pair</label>
                             <select class="form-select" id="forcePair">
                                 <option value="BTC/USDT">BTC/USDT</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Side</label>
                             <select class="form-select" id="forceSide">
                                 <option value="long">Long</option>
                                 <option value="short">Short</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Stake Amount</label>
                             <input type="number" class="form-control" id="forceStake" placeholder="0">
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Price (0=market)</label>
                             <input type="number" class="form-control" id="forcePrice" value="0" step="0.01">
                         </div>
-                        <div class="col-md-3 d-flex align-items-end gap-2">
+                        <div class="col-12 col-md-3 d-flex align-items-end gap-2">
                             <button class="btn btn-success flex-grow-1" onclick="TradesPage.forceEntry()">
                                 <i class="bi bi-plus-circle me-1"></i> Force Buy
                             </button>

@@ -114,11 +114,28 @@ const App = {
         }
     },
 
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        sidebar.classList.toggle('show');
+        backdrop.classList.toggle('show');
+    },
+
+    closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        sidebar.classList.remove('show');
+        backdrop.classList.remove('show');
+    },
+
     navigate(page, updateHash = true) {
         if (!this.isAuthenticated) {
             this.showLoginGate();
             return;
         }
+
+        // Close mobile sidebar on navigation
+        this.closeSidebar();
 
         const pageConfig = this.pages[page];
         if (!pageConfig) {
