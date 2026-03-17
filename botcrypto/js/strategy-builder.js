@@ -164,6 +164,27 @@ const StrategyBuilderPage = {
                             </select>
                         </div>
                     </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-secondary mb-1">FreqAI Model</label>
+                        <select class="form-select form-select-sm" id="sbBtFreqaiModel"
+                            style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                            <option value="">None (no FreqAI)</option>
+                            <option value="LightGBMRegressor">LightGBMRegressor</option>
+                            <option value="LightGBMClassifier">LightGBMClassifier</option>
+                            <option value="LightGBMRegressorMultiTarget">LightGBMRegressorMultiTarget</option>
+                            <option value="LightGBMClassifierMultiTarget">LightGBMClassifierMultiTarget</option>
+                            <option value="XGBoostRegressor">XGBoostRegressor</option>
+                            <option value="XGBoostClassifier">XGBoostClassifier</option>
+                            <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
+                            <option value="XGBoostRFClassifier">XGBoostRFClassifier</option>
+                            <option value="XGBoostRegressorMultiTarget">XGBoostRegressorMultiTarget</option>
+                            <option value="SKLearnRandomForestClassifier">SKLearnRandomForestClassifier</option>
+                            <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
+                            <option value="PyTorchMLPClassifier">PyTorchMLPClassifier</option>
+                            <option value="PyTorchTransformerRegressor">PyTorchTransformerRegressor</option>
+                            <option value="ReinforcementLearner">ReinforcementLearner</option>
+                        </select>
+                    </div>
                     <button class="btn btn-success w-100 fw-semibold mt-2" id="sbBtRunBtn" onclick="StrategyBuilderPage.runBacktestInPanel()">
                         <i class="bi bi-play-fill me-1"></i> LAUNCH THE BACKTEST
                     </button>
@@ -2012,6 +2033,7 @@ ${entryConditions.length > 0 ?
         const maxTrades = parseInt(document.getElementById('sbBtMaxTrades')?.value) || 3;
         const stakeAmount = document.getElementById('sbBtStake')?.value || 'unlimited';
         const timeframe = document.getElementById('sbBtTimeframe')?.value || '';
+        const freqaimodel = document.getElementById('sbBtFreqaiModel')?.value || '';
 
         const config = document.getElementById('sbBtConfig');
         const progress = document.getElementById('sbBtProgress');
@@ -2033,6 +2055,7 @@ ${entryConditions.length > 0 ?
                 pair_whitelist: [selectedPair],
             };
             if (timeframe) btConfig.timeframe = timeframe;
+            if (freqaimodel) btConfig.freqaimodel = freqaimodel;
 
             this._updatePanelProgress(10, 'Resetting...', 'Clearing previous backtest');
             await API.resetBacktest().catch(() => {});
