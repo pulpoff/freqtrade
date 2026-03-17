@@ -125,6 +125,9 @@ def __run_backtest_bg(btconfig: Config):
         logger.exception(f"Backtesting caused an unexpected error: {e}")
         ApiBG.bt["bt_error"] = str(e)
     finally:
+        from freqtrade.persistence.usedb_context import enable_database_use
+
+        enable_database_use()
         ApiBG.bgtask_running = False
 
 
