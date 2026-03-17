@@ -1202,6 +1202,86 @@ select option:checked {
 }
 .sidebar-backdrop.show { display: block; }
 
+/* ---- My Strategies Page ---- */
+.strategy-tab {
+    padding: 10px 24px;
+    border-radius: 24px;
+    border: 1px solid var(--bc-border);
+    background: transparent;
+    color: var(--bc-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.strategy-tab:hover {
+    border-color: var(--bc-primary);
+    color: var(--bc-text);
+}
+
+.strategy-tab.active {
+    background: var(--bc-primary);
+    border-color: var(--bc-primary);
+    color: white;
+}
+
+.strategy-search-bar {
+    position: relative;
+    max-width: 400px;
+}
+
+.strategy-search-bar input {
+    background: var(--bc-card);
+    border: 1px solid var(--bc-border);
+    border-radius: 8px;
+    padding: 8px 36px 8px 12px;
+    color: var(--bc-text);
+    font-size: 13px;
+}
+
+.strategy-search-bar input::placeholder { color: var(--bc-text-secondary); }
+
+.strategy-search-bar i {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--bc-text-secondary);
+    font-size: 14px;
+}
+
+.strategy-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.strategy-card {
+    background: var(--bc-card);
+    border: 1px solid var(--bc-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.strategy-card:hover {
+    border-color: var(--bc-primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+}
+
+.strategy-card-name {
+    font-size: 13px;
+    color: var(--bc-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 180px;
+}
+
 /* Tablet breakpoint */
 @media (max-width: 991px) {
     #pageContainer {
