@@ -37,6 +37,22 @@ const BacktestingPage = {
                             <small class="text-secondary mt-1 d-block" id="btStrategyInfo"></small>
                         </div>
 
+                        <!-- FreqAI Model -->
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small text-secondary">FreqAI Model</label>
+                            <select class="form-select" id="btFreqaiModel">
+                                <option value="">None</option>
+                                <option value="LightGBMRegressor">LightGBMRegressor</option>
+                                <option value="LightGBMClassifier">LightGBMClassifier</option>
+                                <option value="XGBoostRegressor">XGBoostRegressor</option>
+                                <option value="XGBoostClassifier">XGBoostClassifier</option>
+                                <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
+                                <option value="SKLearnRandomForestClassifier">SKLearnRandomForest</option>
+                                <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
+                                <option value="ReinforcementLearner">ReinforcementLearner</option>
+                            </select>
+                        </div>
+
                         <!-- Pair Filter -->
                         <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Pair Filter</label>
@@ -353,6 +369,7 @@ const BacktestingPage = {
         const stakeAmount = document.getElementById('btStakeAmount').value;
         const maxTrades = parseInt(document.getElementById('btMaxTrades').value) || 3;
         const protections = document.getElementById('btProtections').checked;
+        const freqaimodel = document.getElementById('btFreqaiModel')?.value || '';
 
         this.showProgress('Preparing backtest...');
         this.isRunning = true;
@@ -369,6 +386,7 @@ const BacktestingPage = {
                 dry_run_wallet: wallet,
             };
             if (timeframe) btConfig.timeframe = timeframe;
+            if (freqaimodel) btConfig.freqaimodel = freqaimodel;
 
             this.updateProgress(10, 'Resetting previous backtest...');
             await API.resetBacktest().catch(() => {});

@@ -72,14 +72,14 @@ const StrategyBuilderPage = {
                         onchange="StrategyBuilderPage.strategyName = this.value">
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.saveStrategy()" title="Save">
-                        <i class="bi bi-save"></i>
+                    <button class="btn btn-sm btn-outline-warning fw-semibold" onclick="StrategyBuilderPage.saveStrategy()" title="Save Strategy">
+                        <i class="bi bi-save me-1"></i> SAVE
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="StrategyBuilderPage.loadStrategy()" title="Load">
-                        <i class="bi bi-folder-open"></i>
+                    <button class="btn btn-sm btn-outline-light fw-semibold" onclick="StrategyBuilderPage.loadStrategy()" title="Load Strategy">
+                        <i class="bi bi-folder-symlink me-1"></i> LOAD
                     </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
-                        <i class="bi bi-code-slash"></i>
+                    <button class="btn btn-sm btn-outline-success fw-semibold" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
+                        <i class="bi bi-code-slash me-1"></i> CODE
                     </button>
                     <select class="form-select form-select-sm border-secondary" style="width:80px;background:var(--bc-card);color:var(--bc-text)"
                         id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
@@ -163,6 +163,27 @@ const StrategyBuilderPage = {
                                 <option value="4h">4h</option><option value="1d">1d</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-secondary mb-1">FreqAI Model</label>
+                        <select class="form-select form-select-sm" id="sbBtFreqaiModel"
+                            style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                            <option value="">None (no FreqAI)</option>
+                            <option value="LightGBMRegressor">LightGBMRegressor</option>
+                            <option value="LightGBMClassifier">LightGBMClassifier</option>
+                            <option value="LightGBMRegressorMultiTarget">LightGBMRegressorMultiTarget</option>
+                            <option value="LightGBMClassifierMultiTarget">LightGBMClassifierMultiTarget</option>
+                            <option value="XGBoostRegressor">XGBoostRegressor</option>
+                            <option value="XGBoostClassifier">XGBoostClassifier</option>
+                            <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
+                            <option value="XGBoostRFClassifier">XGBoostRFClassifier</option>
+                            <option value="XGBoostRegressorMultiTarget">XGBoostRegressorMultiTarget</option>
+                            <option value="SKLearnRandomForestClassifier">SKLearnRandomForestClassifier</option>
+                            <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
+                            <option value="PyTorchMLPClassifier">PyTorchMLPClassifier</option>
+                            <option value="PyTorchTransformerRegressor">PyTorchTransformerRegressor</option>
+                            <option value="ReinforcementLearner">ReinforcementLearner</option>
+                        </select>
                     </div>
                     <button class="btn btn-success w-100 fw-semibold mt-2" id="sbBtRunBtn" onclick="StrategyBuilderPage.runBacktestInPanel()">
                         <i class="bi bi-play-fill me-1"></i> LAUNCH THE BACKTEST
@@ -2012,6 +2033,7 @@ ${entryConditions.length > 0 ?
         const maxTrades = parseInt(document.getElementById('sbBtMaxTrades')?.value) || 3;
         const stakeAmount = document.getElementById('sbBtStake')?.value || 'unlimited';
         const timeframe = document.getElementById('sbBtTimeframe')?.value || '';
+        const freqaimodel = document.getElementById('sbBtFreqaiModel')?.value || '';
 
         const config = document.getElementById('sbBtConfig');
         const progress = document.getElementById('sbBtProgress');
@@ -2033,6 +2055,7 @@ ${entryConditions.length > 0 ?
                 pair_whitelist: [selectedPair],
             };
             if (timeframe) btConfig.timeframe = timeframe;
+            if (freqaimodel) btConfig.freqaimodel = freqaimodel;
 
             this._updatePanelProgress(10, 'Resetting...', 'Clearing previous backtest');
             await API.resetBacktest().catch(() => {});
