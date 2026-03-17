@@ -164,19 +164,50 @@ const StrategyBuilderPage = {
                         <div id="nodesContainer" class="builder-canvas"></div>
                     </div>
 
-                    <!-- Bottom Toolbar - Block palette strip (like botcrypto) -->
-                    <div class="builder-toolbar d-flex align-items-center justify-content-center gap-3 py-3 px-4 flex-wrap">
-                        ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicators', 'tb-indicator')}
-                        ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
-                        ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
-                        ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing stop', 'tb-trailing')}
-                        ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Wait', 'tb-wait')}
-                        ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
-                        ${this._toolbarBlock('buy', 'bi-cart-plus', 'Buy', 'tb-buy')}
-                        ${this._toolbarBlock('sell', 'bi-cart-dash', 'Sell', 'tb-sell')}
-                        ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
-                        ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Terminate', 'tb-terminate')}
-                        ${this._toolbarBlock('reset', 'bi-arrow-counterclockwise', 'Reset', 'tb-reset')}
+                    <!-- Bottom Toolbar - Block palette organized by category (like botcrypto) -->
+                    <div class="builder-toolbar d-flex align-items-center justify-content-center gap-2 py-2 px-4">
+                        <div class="toolbar-group">
+                            <span class="toolbar-group-label">Indicateurs</span>
+                            <div class="d-flex gap-1">
+                                ${this._toolbarBlock('indicator', 'bi-graph-up', 'Indicator', 'tb-indicator')}
+                                ${this._toolbarBlock('gain', 'bi-graph-up-arrow', 'Gain', 'tb-gain')}
+                            </div>
+                        </div>
+                        <div class="toolbar-divider"></div>
+                        <div class="toolbar-group">
+                            <span class="toolbar-group-label">Actions</span>
+                            <div class="d-flex gap-1">
+                                ${this._toolbarBlock('buy', 'bi-cart-plus', 'Achat', 'tb-buy')}
+                                ${this._toolbarBlock('sell', 'bi-cart-dash', 'Vente', 'tb-sell')}
+                                ${this._toolbarBlock('wait', 'bi-hourglass-split', 'Attendre', 'tb-wait')}
+                                ${this._toolbarBlock('takeprofit', 'bi-trophy', 'Take Profit', 'tb-takeprofit')}
+                            </div>
+                        </div>
+                        <div class="toolbar-divider"></div>
+                        <div class="toolbar-group">
+                            <span class="toolbar-group-label">Logique</span>
+                            <div class="d-flex gap-1">
+                                ${this._toolbarBlock('group', 'bi-diagram-2', 'Group', 'tb-group')}
+                                ${this._toolbarBlock('start', 'bi-play-circle', 'Début', 'tb-terminate')}
+                                ${this._toolbarBlock('terminate', 'bi-stop-circle', 'Fin', 'tb-terminate')}
+                                ${this._toolbarBlock('reset', 'bi-arrow-counterclockwise', 'Reset', 'tb-reset')}
+                            </div>
+                        </div>
+                        <div class="toolbar-divider"></div>
+                        <div class="toolbar-group">
+                            <span class="toolbar-group-label">Risk</span>
+                            <div class="d-flex gap-1">
+                                ${this._toolbarBlock('stoploss', 'bi-shield-x', 'Stop Loss', 'tb-trailing')}
+                                ${this._toolbarBlock('trailing', 'bi-graph-down-arrow', 'Trailing', 'tb-trailing')}
+                            </div>
+                        </div>
+                        <div class="toolbar-divider"></div>
+                        <div class="toolbar-group">
+                            <span class="toolbar-group-label">External</span>
+                            <div class="d-flex gap-1">
+                                ${this._toolbarBlock('webhook', 'bi-link-45deg', 'Webhook', 'tb-webhook')}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
