@@ -313,22 +313,22 @@ body {
     color: var(--bc-text);
 }
 
+/* Force dark color scheme on selects so native dropdowns render dark */
+select, .form-select {
+    color-scheme: dark;
+}
+
 /* Native select dropdown option styling */
-.form-select option {
-    background: var(--bc-card);
-    color: var(--bc-text);
-    padding: 6px 10px;
-}
-
-.form-select option:checked,
-.form-select option:hover {
-    background: var(--bc-primary);
-    color: #111;
-}
-
+.form-select option,
 select option {
     background: #222639;
     color: #e8eaf0;
+}
+
+.form-select option:checked,
+select option:checked {
+    background: #2dd4a8;
+    color: #111;
 }
 
 .form-control::placeholder {
