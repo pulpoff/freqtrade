@@ -1,14 +1,12 @@
 import logging
 import time
-from copy import deepcopy
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from freqtrade.configuration import validate_config_consistency
 from freqtrade.enums import CandleType
 from freqtrade.rpc.api_server.api_pairlists import handleExchangePayload
-from freqtrade.rpc.api_server.api_schemas import PairHistory, PairHistoryRequest
-from freqtrade.rpc.api_server.deps import get_config, get_exchange, verify_strategy
+from freqtrade.rpc.api_server.api_schemas import PairHistory, PairHistoryRequest, PairOHLCV
+from freqtrade.rpc.api_server.deps import get_config, get_exchange, safe_deepcopy, verify_strategy
 from freqtrade.rpc.rpc import RPC
 
 
@@ -30,15 +28,7 @@ def pair_history(
     verify_strategy(strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
-    try:
-        config_loc = deepcopy(config)
-    except TypeError:
-        import json
-        try:
-            config_loc = json.loads(json.dumps(config, default=str))
-        except (TypeError, ValueError):
-            config_loc = {k: v for k, v in config.items()
-                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+    config_loc = safe_deepcopy(config)
     config_loc.update(
         {
             "timeframe": timeframe,
@@ -59,15 +49,7 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
     verify_strategy(payload.strategy)
     # The initial call to this endpoint can be slow, as it may need to initialize
     # the exchange class.
-    try:
-        config_loc = deepcopy(config)
-    except TypeError:
-        import json
-        try:
-            config_loc = json.loads(json.dumps(config, default=str))
-        except (TypeError, ValueError):
-            config_loc = {k: v for k, v in config.items()
-                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
+    config_loc = safe_deepcopy(config)
     config_loc.update(
         {
             "timeframe": payload.timeframe,
@@ -97,7 +79,7 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@router.get("/pair_ohlcv", response_model=PairHistory, tags=["Candle data"])
+@router.get("/pair_ohlcv", response_model=PairOHLCV, tags=["Candle data"])
 def pair_ohlcv(
     pair: str,
     timeframe: str,

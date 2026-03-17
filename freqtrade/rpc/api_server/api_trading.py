@@ -66,22 +66,30 @@ def count(rpc: RPC | None = Depends(get_rpc_optional)):
 
 
 @router.get("/entries", response_model=list[Entry], tags=["Trading-info"])
-def entries(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+def entries(pair: str | None = None, rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return []
     return rpc._rpc_enter_tag_performance(pair)
 
 
 @router.get("/exits", response_model=list[Exit], tags=["Trading-info"])
-def exits(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+def exits(pair: str | None = None, rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return []
     return rpc._rpc_exit_reason_performance(pair)
 
 
 @router.get("/mix_tags", response_model=list[MixTag], tags=["Trading-info"])
-def mix_tags(pair: str | None = None, rpc: RPC = Depends(get_rpc)):
+def mix_tags(pair: str | None = None, rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return []
     return rpc._rpc_mix_tag_performance(pair)
 
 
 @router.get("/performance", response_model=list[PerformanceEntry], tags=["Trading-info"])
-def performance(rpc: RPC = Depends(get_rpc)):
+def performance(rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return []
     return rpc._rpc_performance()
 
 
@@ -119,7 +127,9 @@ def profit(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_confi
 
 
 @router.get("/profit_all", response_model=ProfitAll, tags=["Trading-info"])
-def profit_all(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
+def profit_all(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
+    if not rpc:
+        return {"all": {}}
     response = {
         "all": rpc._rpc_trade_statistics(
             config["stake_currency"], config.get("fiat_display_currency")
@@ -137,16 +147,21 @@ def profit_all(rpc: RPC = Depends(get_rpc), config=Depends(get_config)):
 
 
 @router.get("/stats", response_model=Stats, tags=["Trading-info"])
-def stats(rpc: RPC = Depends(get_rpc)):
+def stats(rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        return {"exit_reasons": {}, "durations": {}}
     return rpc._rpc_stats()
 
 
 @router.get("/daily", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
 def daily(
     timescale: int = Query(7, ge=1, description="Number of days to fetch data for"),
-    rpc: RPC = Depends(get_rpc),
+    rpc: RPC | None = Depends(get_rpc_optional),
     config=Depends(get_config),
 ):
+    if not rpc:
+        return {"data": [], "fiat_display_currency": config.get("fiat_display_currency", ""),
+                "stake_currency": config.get("stake_currency", "USDT")}
     return rpc._rpc_timeunit_profit(
         timescale, config["stake_currency"], config.get("fiat_display_currency", "")
     )
@@ -155,9 +170,12 @@ def daily(
 @router.get("/weekly", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
 def weekly(
     timescale: int = Query(4, ge=1, description="Number of weeks to fetch data for"),
-    rpc: RPC = Depends(get_rpc),
+    rpc: RPC | None = Depends(get_rpc_optional),
     config=Depends(get_config),
 ):
+    if not rpc:
+        return {"data": [], "fiat_display_currency": config.get("fiat_display_currency", ""),
+                "stake_currency": config.get("stake_currency", "USDT")}
     return rpc._rpc_timeunit_profit(
         timescale, config["stake_currency"], config.get("fiat_display_currency", ""), "weeks"
     )
@@ -166,9 +184,12 @@ def weekly(
 @router.get("/monthly", response_model=DailyWeeklyMonthly, tags=["Trading-info"])
 def monthly(
     timescale: int = Query(3, ge=1, description="Number of months to fetch data for"),
-    rpc: RPC = Depends(get_rpc),
+    rpc: RPC | None = Depends(get_rpc_optional),
     config=Depends(get_config),
 ):
+    if not rpc:
+        return {"data": [], "fiat_display_currency": config.get("fiat_display_currency", ""),
+                "stake_currency": config.get("stake_currency", "USDT")}
     return rpc._rpc_timeunit_profit(
         timescale, config["stake_currency"], config.get("fiat_display_currency", ""), "months"
     )
@@ -193,8 +214,10 @@ def trades(
     order_by_id: bool = Query(
         True, description="Sort trades by id (default: True). If False, sorts by latest timestamp"
     ),
-    rpc: RPC = Depends(get_rpc),
+    rpc: RPC | None = Depends(get_rpc_optional),
 ):
+    if not rpc:
+        return {"trades": [], "trades_count": 0, "offset": offset, "total_trades": 0}
     return rpc._rpc_trade_history(limit, offset=offset, order_by_id=order_by_id)
 
 
@@ -298,7 +321,11 @@ def forceexit(payload: ForceExitPayload, rpc: RPC = Depends(get_rpc)):
 
 
 @router.get("/blacklist", response_model=BlacklistResponse, tags=["Trading-info", "Pairlist"])
-def blacklist(rpc: RPC = Depends(get_rpc)):
+def blacklist(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
+    if not rpc:
+        return {"method": [], "length": 0,
+                "blacklist": config.get("exchange", {}).get("pair_blacklist", []),
+                "blacklist_stake": config.get("exchange", {}).get("pair_blacklist", [])}
     return rpc._rpc_blacklist()
 
 
@@ -372,12 +399,18 @@ def reload_config(rpc: RPC = Depends(get_rpc)):
 
 
 @router.get("/pair_candles", response_model=PairHistory, tags=["Candle data"])
-def pair_candles(pair: str, timeframe: str, limit: int | None = None, rpc: RPC = Depends(get_rpc)):
+def pair_candles(pair: str, timeframe: str, limit: int | None = None,
+                 rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        raise HTTPException(status_code=502, detail="Bot is not running, use /pair_ohlcv instead.")
     return rpc._rpc_analysed_dataframe(pair, timeframe, limit, None)
 
 
 @router.post("/pair_candles", response_model=PairHistory, tags=["Candle data"])
-def pair_candles_filtered(payload: PairCandlesRequest, rpc: RPC = Depends(get_rpc)):
+def pair_candles_filtered(payload: PairCandlesRequest,
+                          rpc: RPC | None = Depends(get_rpc_optional)):
+    if not rpc:
+        raise HTTPException(status_code=502, detail="Bot is not running, use /pair_ohlcv instead.")
     # Advanced pair_candles endpoint with column filtering
     return rpc._rpc_analysed_dataframe(
         payload.pair, payload.timeframe, payload.limit, payload.columns
