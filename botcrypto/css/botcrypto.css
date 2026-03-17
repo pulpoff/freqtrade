@@ -113,6 +113,8 @@ body {
     background: rgba(45, 212, 168, 0.1) !important;
     color: var(--bc-primary) !important;
     font-weight: 600;
+    border-left: 3px solid var(--bc-primary);
+    padding-left: 11px;
 }
 
 .sidebar .nav-link.active i {
@@ -911,17 +913,20 @@ code {
 /* ============================================
    SUMMARY STATS ROW - compact stat cards
    ============================================ */
+#dashSummaryStats .card,
 #tradesSummary .card,
 #btSummaryStats .card {
     border: 1px solid var(--bc-border);
     background: var(--bc-card);
 }
 
+#dashSummaryStats .stat-value,
 #tradesSummary .stat-value,
 #btSummaryStats .stat-value {
     font-size: 20px;
 }
 
+#dashSummaryStats .stat-label,
 #tradesSummary .stat-label,
 #btSummaryStats .stat-label {
     font-size: 10px;
@@ -977,4 +982,43 @@ h4.fw-semibold, h5.fw-semibold {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+}
+
+/* ============================================
+   BACKTESTING MODE BANNER
+   ============================================ */
+.alert.alert-info .bi-flask {
+    font-size: 1.1rem;
+}
+
+/* ============================================
+   IMPROVED CARD TRANSITIONS
+   ============================================ */
+.strategy-card,
+.card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* ============================================
+   EQUITY CHART AREA
+   ============================================ */
+#equityChart {
+    border-radius: var(--bc-radius-sm);
+    overflow: hidden;
+}
+
+/* ============================================
+   PAIR SELECT STYLING
+   ============================================ */
+#dashPairSelect {
+    background: rgba(255,255,255,0.06);
+    border-color: var(--bc-border);
+    font-weight: 600;
+}
+
+/* ============================================
+   CLEAN STAT DISPLAY
+   ============================================ */
+.stat-value small {
+    font-weight: 400;
 }
