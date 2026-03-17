@@ -557,12 +557,47 @@ const BacktestingPage = {
     displayResults(result) {
         if (!result) return;
 
+        console.log('Backtest result keys:', Object.keys(result));
+
         let stratResult;
-        if (result.strategy) {
-            const strategies = Object.values(result.strategy);
-            stratResult = strategies[0];
-        } else {
-            stratResult = result;
+        if (result.strategy && typeof result.strategy === 'object') {
+            // Standard backtest result format: { strategy: { StrategyName: { ... } } }
+            const stratValues = Object.values(result.strategy);
+            if (stratValues.length > 0 && typeof stratValues[0] === 'object') {
+                stratResult = stratValues[0];
+            }
+        }
+
+        // If strategy wrapper didn't work, check if result itself has the data
+        if (!stratResult || (!stratResult.trades && stratResult.profit_total === undefined)) {
+            if (result.strategy_name || result.trades || result.profit_total !== undefined) {
+                stratResult = result;
+            } else if (result.backtest_result) {
+                // Nested backtest_result (from /backtest polling)
+                return this.displayResults(result.backtest_result);
+            } else {
+                // Try to find strategy data in any nested key
+                for (const key of Object.keys(result)) {
+                    const val = result[key];
+                    if (val && typeof val === 'object' && !Array.isArray(val) &&
+                        (val.trades || val.profit_total !== undefined || val.strategy_name)) {
+                        stratResult = val;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Use strategy_comparison for summary data if available and stratResult is sparse
+        if (result.strategy_comparison && Array.isArray(result.strategy_comparison) && result.strategy_comparison.length > 0) {
+            const comp = result.strategy_comparison[0];
+            if (stratResult && !stratResult.profit_total && comp.profit_total !== undefined) {
+                stratResult.profit_total = comp.profit_total;
+                stratResult.profit_total_abs = comp.profit_total_abs || comp.profit_total_abs;
+                stratResult.trades = stratResult.trades || [];
+                if (!stratResult.wins && comp.wins !== undefined) stratResult.wins = comp.wins;
+                if (!stratResult.losses && comp.losses !== undefined) stratResult.losses = comp.losses;
+            }
         }
 
         if (!stratResult) {
@@ -572,7 +607,7 @@ const BacktestingPage = {
 
         const trades = stratResult.trades || [];
         const stratName = stratResult.strategy_name || Object.keys(result.strategy || {})[0] || 'Strategy';
-        const dateRange = `${stratResult.backtest_start || ''} - ${stratResult.backtest_end || ''}`;
+        const dateRange = `${stratResult.backtest_start || stratResult.backtest_start_ts || ''} - ${stratResult.backtest_end || stratResult.backtest_end_ts || ''}`;
         const stakeCurrency = stratResult.stake_currency || 'USDT';
 
         // Results header
@@ -929,6 +964,7 @@ const BacktestingPage = {
         if (!filename) return;
         try {
             const result = await API.getBacktestResult(filename, strategy);
+            console.log('History result raw:', result);
             this.displayResults(result);
         } catch (e) {
             App.showToast(`Error loading result: ${e.message}`, 'error');

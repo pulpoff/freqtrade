@@ -632,13 +632,13 @@ select option:checked {
 }
 
 .node-body {
-    background: white;
+    background: var(--bc-card);
     border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     min-width: 80px;
     text-align: center;
     position: relative;
-    border: 2px solid transparent;
+    border: 2px solid var(--bc-border);
     transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
@@ -649,7 +649,7 @@ select option:checked {
 
 .node-body.selected {
     border-color: var(--bc-primary);
-    box-shadow: 0 0 0 3px rgba(45,212,168,0.2), 0 4px 16px rgba(0,0,0,0.25);
+    box-shadow: 0 0 0 3px rgba(45,212,168,0.2), 0 4px 16px rgba(0,0,0,0.4);
 }
 
 .node-icon {
@@ -663,17 +663,17 @@ select option:checked {
     border-radius: 10px;
 }
 
-.node-icon.n-start { background: #e8e8e8; color: #666; }
-.node-icon.n-terminate { background: #e8e8e8; color: #666; }
+.node-icon.n-start { background: rgba(255,255,255,0.08); color: var(--bc-text-secondary); }
+.node-icon.n-terminate { background: rgba(255,255,255,0.08); color: var(--bc-text-secondary); }
 .node-icon.n-buy { background: var(--bc-green); color: white; }
 .node-icon.n-sell { background: var(--bc-red); color: white; }
-.node-icon.n-indicator { background: #f0f4ff; color: var(--bc-blue); border: 2px solid #ddd; }
-.node-icon.n-gain { background: #f0f0f0; color: var(--bc-blue); }
+.node-icon.n-indicator { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 2px solid rgba(74,144,217,0.3); }
+.node-icon.n-gain { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
 .node-icon.n-group { background: var(--bc-blue); color: white; }
 .node-icon.n-stoploss { background: var(--bc-orange); color: white; }
 .node-icon.n-takeprofit { background: var(--bc-primary); color: white; }
 .node-icon.n-trailing { background: var(--bc-orange); color: white; }
-.node-icon.n-wait { background: var(--bc-yellow); color: #333; }
+.node-icon.n-wait { background: rgba(241,196,15,0.15); color: var(--bc-yellow); }
 .node-icon.n-webhook { background: var(--bc-blue); color: white; }
 .node-icon.n-reset { background: var(--bc-blue); color: white; }
 
@@ -681,7 +681,7 @@ select option:checked {
     padding: 4px 10px 8px;
     font-size: 12px;
     font-weight: 600;
-    color: #333;
+    color: var(--bc-text);
 }
 
 .node-params {
@@ -709,8 +709,8 @@ select option:checked {
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: white;
-    border: 2px solid #aaa;
+    background: var(--bc-card);
+    border: 2px solid var(--bc-text-secondary);
     cursor: crosshair;
     z-index: 15;
     transition: border-color 0.15s, background 0.15s;
@@ -744,8 +744,8 @@ select option:checked {
 
 /* Bottom Toolbar */
 .builder-toolbar {
-    background: white;
-    border-top: 1px solid #ddd;
+    background: var(--bc-sidebar);
+    border-top: 1px solid var(--bc-border);
 }
 
 .toolbar-block {
@@ -760,7 +760,7 @@ select option:checked {
     user-select: none;
 }
 
-.toolbar-block:hover { background: #f5f5f5; }
+.toolbar-block:hover { background: var(--bc-card-hover); }
 .toolbar-block:active { cursor: grabbing; }
 
 .tb-icon {
@@ -783,10 +783,10 @@ select option:checked {
 .tb-icon.tb-buy { background: rgba(45,212,168,0.12); color: var(--bc-green); }
 .tb-icon.tb-sell { background: rgba(231,76,94,0.12); color: var(--bc-red); }
 .tb-icon.tb-takeprofit { background: rgba(45,212,168,0.12); color: var(--bc-primary); }
-.tb-icon.tb-terminate { background: #f0f0f0; color: #666; }
+.tb-icon.tb-terminate { background: rgba(255,255,255,0.08); color: var(--bc-text-secondary); }
 .tb-icon.tb-reset { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
 
-.tb-name { font-size: 11px; font-weight: 500; color: #666; }
+.tb-name { font-size: 11px; font-weight: 500; color: var(--bc-text-secondary); }
 
 /* Toolbar groups (like botcrypto category sections) */
 .toolbar-group {
@@ -799,13 +799,13 @@ select option:checked {
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #999;
+    color: var(--bc-text-secondary);
     letter-spacing: 0.5px;
 }
 .toolbar-divider {
     width: 1px;
     height: 60px;
-    background: #ddd;
+    background: var(--bc-border);
     margin: 0 4px;
 }
 
