@@ -6,6 +6,7 @@ const StrategyBuilderPage = {
     nodes: [],
     connections: [],
     selectedNode: null,
+    _selectedConnection: null,
     draggingNode: null,
     connectingFrom: null,
     canvasOffset: { x: 0, y: 0 },
@@ -587,11 +588,19 @@ const StrategyBuilderPage = {
         let paramsText = '';
         if (node.type === 'indicator') {
             const p = node.params;
-            if (p.type === 'Price') {
+            if (p._label) {
+                paramsText = p._label;
+            } else if (p.compareType === 'Composite' || p.compareType === 'Exit Signal' || p.compareType === 'Custom' || p.compareType === 'Filter' || p.compareType === 'AI') {
+                paramsText = `${p.condition}`;
+            } else if (p.type === 'Price') {
                 paramsText = `${p.timeframe} | ${p.line || 'Close'} ${p.value || 0} ${p.condition} ${p.compareType || ''}`;
+            } else if (p.period > 0) {
+                paramsText = `${p.timeframe} | ${p.type} ${p.period} ${p.condition}`;
             } else {
-                paramsText = `${p.timeframe} | ${p.type}+ ${p.period} ${p.value} ${p.condition} ${p.compareType || ''}...`;
+                paramsText = `${p.timeframe} | ${p.condition}`;
             }
+        } else if (node.type === 'group' && node.params._label) {
+            paramsText = node.params._label;
         } else if (node.type === 'gain') {
             const p = node.params;
             paramsText = `${p.condition} ${p.value} ${p.trade}`;
@@ -692,7 +701,20 @@ const StrategyBuilderPage = {
             const dashArray = conn.type === 'false' ? ' stroke-dasharray="6,3"' : '';
             const markerRef = conn.type === 'false' ? 'arrowFalse' : conn.type === 'true' ? 'arrowTrue' : 'arrowNormal';
 
-            return `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="2.5"${dashArray} marker-end="url(#${markerRef})"/>`;
+            const connIdx = this.connections.indexOf(conn);
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const isSelected = this._selectedConnection === connIdx;
+            const selStroke = isSelected ? ' stroke-opacity="1" stroke-width="4"' : '';
+            // Invisible wider hit-area path for easier clicking
+            const hitArea = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer" onclick="StrategyBuilderPage.selectConnection(${connIdx})"/>`;
+            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+            // Delete button shown when selected
+            const delBtn = isSelected ? `<g onclick="StrategyBuilderPage.deleteConnection(${connIdx})" style="cursor:pointer">
+                <circle cx="${midX}" cy="${midY}" r="12" fill="#e74c5e" stroke="#fff" stroke-width="1.5"/>
+                <text x="${midX}" y="${midY + 4}" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">×</text>
+            </g>` : '';
+            return hitArea + visPath + delBtn;
         }).join('');
 
         svg.innerHTML = defs + paths;
@@ -837,6 +859,7 @@ const StrategyBuilderPage = {
             event.target.tagName === 'svg' ||
             (event.target.closest('.builder-canvas-wrapper') && !event.target.closest('.canvas-node'))) {
             this.selectedNode = null;
+            this._selectedConnection = null;
             this.connectingFrom = null;
             this._removeTempLine();
             // Start panning
@@ -1321,6 +1344,21 @@ const StrategyBuilderPage = {
         App.showToast('Block deleted', 'info');
     },
 
+    selectConnection(index) {
+        this._selectedConnection = (this._selectedConnection === index) ? null : index;
+        this.renderConnections();
+    },
+
+    deleteConnection(index) {
+        if (index >= 0 && index < this.connections.length) {
+            this.connections.splice(index, 1);
+            this._selectedConnection = null;
+            this.renderConnections();
+            this.autoSave();
+            App.showToast('Connection removed', 'info');
+        }
+    },
+
     // ========== STRATEGY CODE GENERATION ==========
     generateCode() {
         // Show original .py code for imported strategies
@@ -1660,15 +1698,11 @@ ${entryConditions.length > 0 ?
         this.connections = [];
         this.nextId = 1;
 
-        // Extract class name
+        // === EXTRACT STRATEGY METADATA ===
         const classMatch = code.match(/class\s+(\w+)\s*\(/);
         this.strategyName = classMatch ? classMatch[1] : fileName;
-
-        // Extract docstring as description
         const docMatch = code.match(/class\s+\w+[^:]*:\s*\n\s*"""([\s\S]*?)"""/);
         this.strategyDesc = docMatch ? docMatch[1].trim().split('\n')[0] : '';
-
-        // Extract timeframe
         const tfMatch = code.match(/timeframe\s*=\s*['"](\w+)['"]/);
         if (tfMatch) {
             this.timeUnit = tfMatch[1];
@@ -1676,57 +1710,86 @@ ${entryConditions.length > 0 ?
             if (sel) sel.value = tfMatch[1];
         }
 
-        // Extract stoploss
+        // Direction
+        const canShort = /can_short\s*=\s*True/.test(code);
+        const canLong = !/can_long\s*=\s*False/.test(code); // default True
+
+        // Stoploss & trailing
         const slMatch = code.match(/stoploss\s*=\s*(-?[\d.]+)/);
         const stoplossVal = slMatch ? parseFloat(slMatch[1]) * 100 : -5;
-
-        // Extract trailing stop
         const trailMatch = code.match(/trailing_stop\s*=\s*True/);
         const trailPosMatch = code.match(/trailing_stop_positive\s*=\s*([\d.]+)/);
         const trailOffMatch = code.match(/trailing_stop_positive_offset\s*=\s*([\d.]+)/);
 
-        // Extract minimal_roi
+        // ROI
         const roiMatch = code.match(/minimal_roi\s*=\s*\{([^}]+)\}/);
-        let roiVal = 4;
+        let roiVal = 4, roiEntries = [];
         if (roiMatch) {
-            const roiEntries = roiMatch[1].match(/:\s*([\d.]+)/g);
-            if (roiEntries && roiEntries.length > 0) {
-                roiVal = parseFloat(roiEntries[0].replace(':', '').trim()) * 100;
-            }
+            const entries = [...roiMatch[1].matchAll(/"(\d+)"\s*:\s*([\d.]+)/g)];
+            roiEntries = entries.map(m => ({ mins: parseInt(m[1]), pct: parseFloat(m[2]) * 100 }));
+            if (roiEntries.length > 0) roiVal = roiEntries[0].pct;
         }
 
-        // Extract indicators from populate_indicators
+        // FreqAI
+        const hasFreqAI = /freqai_conf\s*=|freqai|FreqAI/i.test(code);
+        const freqaiIdMatch = code.match(/["']identifier["']\s*:\s*["']([^"']+)["']/);
+
+        // Leverage
+        const leverageMatch = code.match(/leverage.*?return\s+(\d+)/s) || code.match(/default_leverage.*?default\s*=\s*(\d+)/);
+
+        // Max open trades
+        const maxTradesMatch = code.match(/max_open_trades\s*=\s*(\d+)/);
+
+        // === EXTRACT ALL FUNCTIONS ===
         const indSection = this._extractFunction(code, 'populate_indicators');
-        const indicators = this._parseIndicators(indSection);
-
-        // Extract entry conditions from populate_entry_trend
         const entrySection = this._extractFunction(code, 'populate_entry_trend');
-        const entryConditions = this._parseConditions(entrySection, 'entry');
-
-        // Extract exit conditions from populate_exit_trend
         const exitSection = this._extractFunction(code, 'populate_exit_trend');
-        const exitConditions = this._parseConditions(exitSection, 'exit');
+        const customExitSection = this._extractFunction(code, 'custom_exit');
+        const confirmEntrySection = this._extractFunction(code, 'confirm_trade_entry');
 
-        // Build visual flow
+        // === PARSE INDICATORS ===
+        const indicators = this._parseIndicators(indSection || code);
+
+        // === PARSE COMPOSITE SIGNALS from populate_indicators ===
+        const compositeSignals = this._parseCompositeSignals(indSection || code);
+
+        // === PARSE ENTRY CONDITIONS ===
+        const entryLongConds = this._parseEntryConditions(entrySection, 'long');
+        const entryShortConds = this._parseEntryConditions(entrySection, 'short');
+
+        // === PARSE EXIT CONDITIONS ===
+        const exitLongConds = this._parseEntryConditions(exitSection, 'exit_long');
+        const exitShortConds = this._parseEntryConditions(exitSection, 'exit_short');
+
+        // === PARSE CUSTOM EXIT LOGIC ===
+        const customExits = this._parseCustomExit(customExitSection);
+
+        // === PARSE CONFIRM ENTRY ===
+        const confirmChecks = this._parseConfirmEntry(confirmEntrySection);
+
+        // === BUILD VISUAL FLOW ===
         const xStep = 200;
-        const yCenter = 250;
+        const yBase = 300;
         let x = 50;
 
         // 1. START node
-        const startNode = { id: this.nextId++, type: 'start', x, y: yCenter, params: {} };
+        const startNode = { id: this.nextId++, type: 'start', x, y: yBase, params: {} };
         this.nodes.push(startNode);
         x += xStep;
 
-        // 2. Indicator nodes
+        // 2. Indicator nodes (one per detected indicator)
+        const ySpacing = 120;
+        const allIndicators = indicators;
         const indicatorNodes = [];
-        indicators.forEach((ind, i) => {
+        allIndicators.forEach((ind, i) => {
+            const yOff = (i - (allIndicators.length - 1) / 2) * ySpacing;
             const node = {
                 id: this.nextId++, type: 'indicator',
-                x, y: yCenter - 80 + i * 160,
+                x, y: yBase + yOff,
                 params: {
-                    type: ind.type, timeframe: this.timeUnit || '5m',
+                    type: ind.type, timeframe: ind.timeframe || this.timeUnit || '5m',
                     period: ind.period, value: ind.value || 0,
-                    condition: ind.condition || 'Crosses Over',
+                    condition: ind.condition || 'Above',
                     compareType: ind.compareType || 'Value',
                     comparePeriod: ind.comparePeriod || 0,
                     compareValue: ind.compareValue || 0
@@ -1734,64 +1797,196 @@ ${entryConditions.length > 0 ?
             };
             this.nodes.push(node);
             indicatorNodes.push(node);
-            // Connect start → indicator
             this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
         });
         if (indicatorNodes.length > 0) x += xStep;
 
-        // 3. Group node if multiple indicators
-        let preEntryNode = startNode;
-        if (indicatorNodes.length > 1) {
-            const groupNode = { id: this.nextId++, type: 'group', x, y: yCenter, params: { logic: 'AND' } };
-            this.nodes.push(groupNode);
-            indicatorNodes.forEach(ind => {
-                this.connections.push({ from: ind.id, to: groupNode.id, type: 'normal' });
+        // 3. Composite signal nodes (e.g. price_peak, price_reversal, macd_reversal)
+        const signalNodes = [];
+        if (compositeSignals.length > 0) {
+            compositeSignals.forEach((sig, i) => {
+                const yOff = (i - (compositeSignals.length - 1) / 2) * ySpacing;
+                const node = {
+                    id: this.nextId++, type: 'indicator',
+                    x, y: yBase + yOff,
+                    params: {
+                        type: sig.name, timeframe: this.timeUnit || '5m',
+                        period: 0, value: 0,
+                        condition: sig.conditionSummary || 'Signal',
+                        compareType: 'Composite',
+                        comparePeriod: 0, compareValue: 0,
+                        _label: sig.label
+                    }
+                };
+                this.nodes.push(node);
+                signalNodes.push(node);
+                // Connect indicators to composite signals
+                indicatorNodes.forEach(iNode => {
+                    const indType = (iNode.params.type || '').toLowerCase();
+                    const sigDeps = sig.deps.map(d => d.toLowerCase());
+                    if (sigDeps.some(d => indType.includes(d) || d.includes(indType))) {
+                        this.connections.push({ from: iNode.id, to: node.id, type: 'normal' });
+                    }
+                });
+                // If no indicator connections, connect from start
+                if (!this.connections.some(c => c.to === node.id)) {
+                    this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
+                }
             });
-            preEntryNode = groupNode;
             x += xStep;
-        } else if (indicatorNodes.length === 1) {
-            preEntryNode = indicatorNodes[0];
         }
 
-        // 4. BUY node
+        // 4. Entry condition group nodes
+        const allEntrySourceNodes = signalNodes.length > 0 ? signalNodes : indicatorNodes;
+        let longGroupNode = null, shortGroupNode = null;
+
+        if (canLong && entryLongConds.length > 0) {
+            longGroupNode = {
+                id: this.nextId++, type: 'group', x, y: yBase - 80,
+                params: { logic: 'AND', _label: `LONG Entry\n${entryLongConds.map(c => c.label).join(' & ')}` }
+            };
+            this.nodes.push(longGroupNode);
+            allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: longGroupNode.id, type: 'normal' }));
+        }
+
+        if (canShort && entryShortConds.length > 0) {
+            shortGroupNode = {
+                id: this.nextId++, type: 'group', x, y: yBase + 80,
+                params: { logic: 'AND', _label: `SHORT Entry\n${entryShortConds.map(c => c.label).join(' & ')}` }
+            };
+            this.nodes.push(shortGroupNode);
+            allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: shortGroupNode.id, type: 'normal' }));
+        }
+
+        // If no specific entry conditions parsed, use a single group
+        if (!longGroupNode && !shortGroupNode) {
+            const fallbackGroup = {
+                id: this.nextId++, type: 'group', x, y: yBase,
+                params: { logic: 'AND' }
+            };
+            this.nodes.push(fallbackGroup);
+            (allEntrySourceNodes.length > 0 ? allEntrySourceNodes : [startNode])
+                .forEach(n => this.connections.push({ from: n.id, to: fallbackGroup.id, type: 'normal' }));
+            longGroupNode = fallbackGroup;
+        }
+        x += xStep;
+
+        // 5. Confirm trade entry node (if has checks)
+        let preTradeNode = longGroupNode || shortGroupNode;
+        if (confirmChecks.length > 0) {
+            const confirmNode = {
+                id: this.nextId++, type: 'indicator', x, y: yBase,
+                params: {
+                    type: 'Confirm', timeframe: this.timeUnit || '5m',
+                    period: 0, value: 0,
+                    condition: confirmChecks.map(c => c.label).join(', '),
+                    compareType: 'Filter',
+                    comparePeriod: 0, compareValue: 0,
+                    _label: 'Entry Confirm'
+                }
+            };
+            this.nodes.push(confirmNode);
+            if (longGroupNode) this.connections.push({ from: longGroupNode.id, to: confirmNode.id, type: 'normal' });
+            if (shortGroupNode) this.connections.push({ from: shortGroupNode.id, to: confirmNode.id, type: 'normal' });
+            preTradeNode = confirmNode;
+            x += xStep;
+        }
+
+        // 6. BUY node
+        const buyLabel = canShort && !canLong ? 'SHORT' : canLong && !canShort ? 'LONG' : 'TRADE';
         const buyNode = {
-            id: this.nextId++, type: 'buy', x, y: yCenter,
+            id: this.nextId++, type: 'buy', x, y: yBase,
             params: { orderType: 'Market', trade: 'First', volume: 100, volumePercent: true, price: 0, assetQuote: true }
         };
         this.nodes.push(buyNode);
-        this.connections.push({ from: preEntryNode.id, to: buyNode.id, type: 'normal' });
+        this.connections.push({ from: preTradeNode.id, to: buyNode.id, type: 'normal' });
+        if (shortGroupNode && preTradeNode !== shortGroupNode && confirmChecks.length === 0) {
+            this.connections.push({ from: shortGroupNode.id, to: buyNode.id, type: 'normal' });
+        }
         x += xStep;
 
-        // 5. Take profit (gain) node
+        // 7. FreqAI node (if present)
+        if (hasFreqAI) {
+            const freqaiNode = {
+                id: this.nextId++, type: 'indicator', x: x - xStep, y: yBase - 200,
+                params: {
+                    type: 'FreqAI', timeframe: this.timeUnit || '5m',
+                    period: 0, value: 0,
+                    condition: freqaiIdMatch ? freqaiIdMatch[1] : 'ML Model',
+                    compareType: 'AI',
+                    comparePeriod: 0, compareValue: 0,
+                    _label: 'FreqAI'
+                }
+            };
+            this.nodes.push(freqaiNode);
+            this.connections.push({ from: freqaiNode.id, to: buyNode.id, type: 'normal' });
+        }
+
+        // 8. ROI / take profit node
         const gainNode = {
-            id: this.nextId++, type: 'gain', x, y: yCenter - 100,
+            id: this.nextId++, type: 'gain', x, y: yBase - 140,
             params: { condition: 'Above', value: roiVal, trade: 'Last' }
         };
         this.nodes.push(gainNode);
         this.connections.push({ from: buyNode.id, to: gainNode.id, type: 'normal' });
 
-        // 6. Stoploss node
+        // 9. Stoploss node
         const slNode = {
-            id: this.nextId++, type: 'stoploss', x, y: yCenter + 100,
+            id: this.nextId++, type: 'stoploss', x, y: yBase + 140,
             params: { value: stoplossVal, trade: 'All' }
         };
         this.nodes.push(slNode);
         this.connections.push({ from: buyNode.id, to: slNode.id, type: 'normal' });
+
+        // 10. Exit condition nodes (between trade and sell)
+        let exitNodes = [];
+        const allExitConds = [...exitLongConds, ...exitShortConds];
+        if (allExitConds.length > 0) {
+            allExitConds.forEach((ec, i) => {
+                const yOff = (i - (allExitConds.length - 1) / 2) * 100;
+                const exitNode = {
+                    id: this.nextId++, type: 'indicator', x, y: yBase + yOff,
+                    params: {
+                        type: ec.signal || 'Exit', timeframe: this.timeUnit || '5m',
+                        period: 0, value: 0,
+                        condition: ec.label,
+                        compareType: 'Exit Signal',
+                        comparePeriod: 0, compareValue: 0,
+                        _label: ec.label
+                    }
+                };
+                this.nodes.push(exitNode);
+                exitNodes.push(exitNode);
+                this.connections.push({ from: buyNode.id, to: exitNode.id, type: 'normal' });
+            });
+        }
+
+        // 11. Custom exit nodes
+        if (customExits.length > 0) {
+            customExits.forEach((ce, i) => {
+                const yOff = 200 + i * 100;
+                const ceNode = {
+                    id: this.nextId++, type: 'indicator', x, y: yBase + yOff,
+                    params: {
+                        type: 'Custom Exit', timeframe: this.timeUnit || '5m',
+                        period: 0, value: 0,
+                        condition: ce.label,
+                        compareType: 'Custom',
+                        comparePeriod: 0, compareValue: 0,
+                        _label: ce.label
+                    }
+                };
+                this.nodes.push(ceNode);
+                exitNodes.push(ceNode);
+                this.connections.push({ from: buyNode.id, to: ceNode.id, type: 'normal' });
+            });
+        }
         x += xStep;
 
-        // 7. SELL node (from gain)
-        const sellNode = {
-            id: this.nextId++, type: 'sell', x, y: yCenter,
-            params: { orderType: 'Market', trade: 'All', volume: 100, volumePercent: true, price: 0, assetQuote: false }
-        };
-        this.nodes.push(sellNode);
-        this.connections.push({ from: gainNode.id, to: sellNode.id, type: 'true' });
-        this.connections.push({ from: slNode.id, to: sellNode.id, type: 'normal' });
-
-        // 8. Trailing stop if enabled
+        // 12. Trailing stop node
         if (trailMatch) {
             const trailNode = {
-                id: this.nextId++, type: 'trailing', x: x - xStep, y: yCenter + 200,
+                id: this.nextId++, type: 'trailing', x: x - xStep, y: yBase + 300,
                 params: {
                     activation: trailPosMatch ? parseFloat(trailPosMatch[1]) * 100 : 1,
                     callback: trailOffMatch ? (parseFloat(trailOffMatch[1]) - (trailPosMatch ? parseFloat(trailPosMatch[1]) : 0)) * 100 : 0.5
@@ -1800,10 +1995,20 @@ ${entryConditions.length > 0 ?
             this.nodes.push(trailNode);
             this.connections.push({ from: buyNode.id, to: trailNode.id, type: 'normal' });
         }
+
+        // 13. SELL node
+        const sellNode = {
+            id: this.nextId++, type: 'sell', x, y: yBase,
+            params: { orderType: 'Market', trade: 'All', volume: 100, volumePercent: true, price: 0, assetQuote: false }
+        };
+        this.nodes.push(sellNode);
+        this.connections.push({ from: gainNode.id, to: sellNode.id, type: 'true' });
+        this.connections.push({ from: slNode.id, to: sellNode.id, type: 'normal' });
+        exitNodes.forEach(en => this.connections.push({ from: en.id, to: sellNode.id, type: 'normal' }));
         x += xStep;
 
-        // 9. TERMINATE node
-        const endNode = { id: this.nextId++, type: 'terminate', x, y: yCenter, params: {} };
+        // 14. TERMINATE node
+        const endNode = { id: this.nextId++, type: 'terminate', x, y: yBase, params: {} };
         this.nodes.push(endNode);
         this.connections.push({ from: sellNode.id, to: endNode.id, type: 'normal' });
 
@@ -1821,79 +2026,300 @@ ${entryConditions.length > 0 ?
         return match ? match[0] : '';
     },
 
-    /** Parse indicator definitions from populate_indicators code */
+    /** Parse indicator definitions from code - detects all common TA-Lib + qtpylib indicators */
     _parseIndicators(code) {
         const indicators = [];
-        // EMA
-        const emaMatches = code.matchAll(/ta\.EMA\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/g);
-        const emaPeriods = new Set();
-        for (const m of emaMatches) {
-            const period = parseInt(m[1]);
-            if (!emaPeriods.has(period)) {
-                emaPeriods.add(period);
-            }
+        const seen = new Set();
+
+        // Helper: extract period from timeperiod=X or self.param.value patterns
+        const extractPeriod = (match, defaultVal) => {
+            if (!match) return defaultVal;
+            const numMatch = match.match(/(\d+)/);
+            return numMatch ? parseInt(numMatch[1]) : defaultVal;
+        };
+
+        // EMA (all periods)
+        for (const m of code.matchAll(/ta\.EMA\s*\([^)]*?(?:timeperiod\s*=\s*(?:self\.\w+\.value|(\d+)))/g)) {
+            const period = m[1] ? parseInt(m[1]) : 0;
+            const key = `EMA_${period}`;
+            if (!seen.has(key) && period > 0) { seen.add(key); indicators.push({ type: 'EMA', period, condition: 'Trend', compareType: 'Value', value: 0 }); }
         }
-        // Check for crossover in entry to pair EMAs
-        const emaPeriodArr = [...emaPeriods];
-        if (emaPeriodArr.length >= 2) {
-            indicators.push({
-                type: 'EMA', period: emaPeriodArr[0],
-                condition: 'Crosses Over', compareType: 'EMA',
-                comparePeriod: emaPeriodArr[1], value: 0, compareValue: 0
-            });
-        } else if (emaPeriodArr.length === 1) {
-            indicators.push({ type: 'EMA', period: emaPeriodArr[0], condition: 'Above', compareType: 'Value', value: 0 });
+        // Also detect EMA from column assignments like dataframe['ema'] = ta.EMA(...
+        for (const m of code.matchAll(/\['(\w*ema\w*)'\]\s*=\s*ta\.EMA/gi)) {
+            const name = m[1];
+            if (!seen.has(`EMA_named_${name}`)) { seen.add(`EMA_named_${name}`); if (indicators.filter(i => i.type === 'EMA').length === 0) indicators.push({ type: 'EMA', period: 0, condition: name, compareType: 'Value', value: 0 }); }
         }
 
         // SMA
-        const smaMatches = code.matchAll(/ta\.SMA\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/g);
-        const smaPeriods = new Set();
-        for (const m of smaMatches) { smaPeriods.add(parseInt(m[1])); }
-        const smaPeriodArr = [...smaPeriods];
-        if (smaPeriodArr.length >= 2) {
-            indicators.push({ type: 'SMA', period: smaPeriodArr[0], condition: 'Crosses Over', compareType: 'SMA', comparePeriod: smaPeriodArr[1], value: 0, compareValue: 0 });
-        } else if (smaPeriodArr.length === 1) {
-            indicators.push({ type: 'SMA', period: smaPeriodArr[0], condition: 'Above', compareType: 'Value', value: 0 });
+        for (const m of code.matchAll(/ta\.SMA\s*\([^)]*?timeperiod\s*=\s*(\d+)/g)) {
+            const period = parseInt(m[1]); const key = `SMA_${period}`;
+            if (!seen.has(key)) { seen.add(key); indicators.push({ type: 'SMA', period, condition: 'Trend', compareType: 'Value', value: 0 }); }
         }
 
-        // RSI
-        const rsiMatch = code.match(/ta\.RSI\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/);
-        if (rsiMatch) {
-            indicators.push({ type: 'RSI', period: parseInt(rsiMatch[1]), condition: 'Below', compareType: 'Value', value: 30, compareValue: 30 });
+        // RSI (all periods)
+        for (const m of code.matchAll(/ta\.RSI\s*\([^)]*?(?:timeperiod\s*=\s*(?:self\.\w+\.value|(\d+)))/g)) {
+            const period = m[1] ? parseInt(m[1]) : 14;
+            const key = `RSI_${period}`;
+            if (!seen.has(key)) { seen.add(key); indicators.push({ type: 'RSI', period, condition: 'Momentum', compareType: 'Value', value: 0, compareValue: 0 }); }
+        }
+        // RSI without named param
+        if (!seen.has('RSI_any') && /ta\.RSI\s*\(/.test(code) && indicators.filter(i => i.type === 'RSI').length === 0) {
+            seen.add('RSI_any'); indicators.push({ type: 'RSI', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
         }
 
         // MACD
-        if (code.includes('ta.MACD')) {
-            indicators.push({ type: 'MACD', period: 12, condition: 'Crosses Over', compareType: 'Value', value: 0, compareValue: 0 });
+        if (/ta\.MACD\s*\(/.test(code)) {
+            const fastM = code.match(/MACD\s*\([^)]*?fastperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
+            const slowM = code.match(/MACD\s*\([^)]*?slowperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
+            const sigM = code.match(/MACD\s*\([^)]*?signalperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
+            const fast = fastM && fastM[1] ? parseInt(fastM[1]) : 12;
+            const slow = slowM && slowM[1] ? parseInt(slowM[1]) : 26;
+            const sig = sigM && sigM[1] ? parseInt(sigM[1]) : 9;
+            indicators.push({ type: 'MACD', period: fast, condition: `${fast}/${slow}/${sig}`, compareType: 'Signal Line', comparePeriod: slow, compareValue: sig, value: 0 });
         }
 
         // Bollinger Bands
-        const bbMatch = code.match(/ta\.BBANDS\s*\([^,]*,\s*timeperiod\s*=\s*(\d+)/);
+        const bbMatch = code.match(/ta\.BBANDS\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
         if (bbMatch) {
-            indicators.push({ type: 'Bollinger Bands', period: parseInt(bbMatch[1]), condition: 'Below', compareType: 'Value', value: 0, compareValue: 0 });
+            indicators.push({ type: 'Bollinger', period: parseInt(bbMatch[1]), condition: 'Band', compareType: 'Value', value: 0 });
+        }
+
+        // ADX
+        if (/ta\.ADX\s*\(/.test(code)) {
+            const adxM = code.match(/ta\.ADX\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
+            indicators.push({ type: 'ADX', period: adxM ? parseInt(adxM[1]) : 14, condition: 'Trend Strength', compareType: 'Value', value: 25 });
+        }
+
+        // ATR
+        if (/ta\.ATR\s*\(/.test(code)) {
+            const atrM = code.match(/ta\.ATR\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
+            indicators.push({ type: 'ATR', period: atrM ? parseInt(atrM[1]) : 14, condition: 'Volatility', compareType: 'Value', value: 0 });
+        }
+
+        // Stochastic
+        if (/ta\.STOCH\s*\(/.test(code)) {
+            indicators.push({ type: 'Stochastic', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
+        }
+
+        // Williams %R
+        if (/ta\.WILLR\s*\(/.test(code)) {
+            indicators.push({ type: 'Williams %R', period: 14, condition: 'Overbought/Oversold', compareType: 'Value', value: 0 });
+        }
+
+        // CCI
+        if (/ta\.CCI\s*\(/.test(code)) {
+            indicators.push({ type: 'CCI', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
+        }
+
+        // Volume indicators
+        if (/ta\.OBV\s*\(/.test(code)) indicators.push({ type: 'OBV', period: 0, condition: 'Volume', compareType: 'Value', value: 0 });
+        if (/ta\.MFI\s*\(/.test(code)) indicators.push({ type: 'MFI', period: 14, condition: 'Money Flow', compareType: 'Value', value: 0 });
+
+        // Volatility calculation
+        if (/['"]volatility['"]/.test(code) && /\.std\(\)|\.rolling/.test(code)) {
+            indicators.push({ type: 'Volatility', period: 0, condition: 'Std Dev', compareType: 'Value', value: 0 });
+        }
+
+        // Swing points / trend structure
+        if (/swing_high|swing_low|detect_swing/.test(code)) {
+            indicators.push({ type: 'Swing Points', period: 0, condition: 'Structure', compareType: 'Value', value: 0 });
+        }
+
+        // Market trend filter
+        if (/market_trend|market_ema/.test(code)) {
+            indicators.push({ type: 'Market Filter', period: 0, condition: 'Trend Direction', compareType: 'Value', value: 0 });
         }
 
         return indicators;
     },
 
-    /** Parse entry/exit conditions */
-    _parseConditions(code, type) {
+    /** Parse composite signal definitions: dataframe['signal'] = (cond1) & (cond2) | (cond3) */
+    _parseCompositeSignals(code) {
+        const signals = [];
+        const seen = new Set();
+
+        // Match: dataframe['signal_name'] = (\n  (condition1) &\n  (condition2)\n)
+        const assignRegex = /dataframe\['(\w+)'\]\s*=\s*\(\s*\n([\s\S]*?)\n\s*\)/g;
+        for (const m of code.matchAll(assignRegex)) {
+            const name = m[1];
+            const body = m[2];
+            // Skip simple column copies and non-signal assignments
+            if (/^dataframe\[/.test(body.trim()) && !body.includes('&') && !body.includes('|')) continue;
+            if (name.match(/^(rsi|ema|macd|close|open|high|low|volume|date)\w*$/i)) continue;
+
+            // Extract sub-conditions
+            const subConds = [];
+            const deps = new Set();
+            // Match dataframe['col'] comparisons
+            for (const sc of body.matchAll(/dataframe\['(\w+)'\]/g)) {
+                deps.add(sc[1]);
+            }
+            // Extract readable condition fragments
+            for (const sc of body.matchAll(/\(([^()]+)\)/g)) {
+                const frag = sc[1].trim()
+                    .replace(/dataframe\['/g, '').replace(/'\]/g, '')
+                    .replace(/\s+/g, ' ').substring(0, 50);
+                if (frag.length > 3) subConds.push(frag);
+            }
+
+            const label = subConds.length > 0
+                ? subConds.slice(0, 3).join(' & ') + (subConds.length > 3 ? ` +${subConds.length - 3}` : '')
+                : name;
+
+            if (!seen.has(name)) {
+                seen.add(name);
+                signals.push({
+                    name,
+                    label: `${name}: ${label}`.substring(0, 80),
+                    conditionSummary: `${subConds.length} conditions`,
+                    deps: [...deps],
+                    subCondCount: subConds.length
+                });
+            }
+        }
+
+        // Also detect list-based conditions: conditions = [dataframe['x'], dataframe['y']]
+        const listRegex = /(\w+_conditions)\s*=\s*\[([\s\S]*?)\]/g;
+        for (const m of code.matchAll(listRegex)) {
+            const name = m[1];
+            const items = m[2];
+            const deps = new Set();
+            const subConds = [];
+            for (const sc of items.matchAll(/dataframe\['(\w+)'\]/g)) {
+                deps.add(sc[1]);
+                subConds.push(sc[1]);
+            }
+            if (subConds.length > 0 && !seen.has(name)) {
+                seen.add(name);
+                signals.push({
+                    name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 80),
+                    conditionSummary: `${subConds.length} conditions`,
+                    deps: [...deps], subCondCount: subConds.length
+                });
+            }
+        }
+
+        return signals;
+    },
+
+    /** Parse entry conditions from populate_entry_trend */
+    _parseEntryConditions(code, direction) {
         const conditions = [];
-        // Look for crossed_above / crossed_below
-        const crossAbove = code.matchAll(/crossed_above\s*\(\s*dataframe\['([^']+)'\]\s*,\s*dataframe\['([^']+)'\]/g);
-        for (const m of crossAbove) conditions.push({ col1: m[1], col2: m[2], op: 'Crosses Over' });
+        if (!code) return conditions;
 
-        const crossBelow = code.matchAll(/crossed_below\s*\(\s*dataframe\['([^']+)'\]\s*,\s*dataframe\['([^']+)'\]/g);
-        for (const m of crossBelow) conditions.push({ col1: m[1], col2: m[2], op: 'Crosses Under' });
+        // Pattern 1: dataframe.loc[(cond1) & (cond2), 'enter_short'] = 1
+        const dirKey = direction === 'long' ? 'enter_long' : direction === 'short' ? 'enter_short'
+            : direction === 'exit_long' ? 'exit_long' : 'exit_short';
+        const locRegex = new RegExp(`dataframe\\.loc\\[\\s*([\\s\\S]*?),\\s*'${dirKey}'\\s*\\]\\s*=\\s*1`, 'g');
+        for (const m of code.matchAll(locRegex)) {
+            const condBlock = m[1];
+            const frags = [];
+            // Extract individual conditions
+            for (const frag of condBlock.matchAll(/\(([^()]*?)\)/g)) {
+                const c = frag[1].trim()
+                    .replace(/dataframe\['/g, '').replace(/'\]/g, '')
+                    .replace(/self\.\w+\.value/g, 'param')
+                    .replace(/\s+/g, ' ').substring(0, 50);
+                if (c.length > 2) frags.push(c);
+            }
+            // Also match bare dataframe['signal'] references
+            for (const frag of condBlock.matchAll(/(?<!\()dataframe\['(\w+)'\](?!\s*[<>=!&|])/g)) {
+                frags.push(frag[1]);
+            }
+            frags.forEach(f => conditions.push({ label: f, signal: dirKey }));
+        }
 
-        // Simple comparisons
-        const gtMatch = code.matchAll(/dataframe\['([^']+)'\]\s*>\s*(\d+[\d.]*)/g);
-        for (const m of gtMatch) conditions.push({ col1: m[1], value: parseFloat(m[2]), op: 'Above' });
+        // Pattern 2: reduce(lambda x, y: x & y, long_conditions)
+        if (code.includes('reduce(') && code.includes(`${direction}_conditions`)) {
+            const listMatch = code.match(new RegExp(`${direction}_conditions\\s*=\\s*\\[([\\s\\S]*?)\\]`));
+            if (listMatch) {
+                for (const item of listMatch[1].matchAll(/dataframe\['(\w+)'\]/g)) {
+                    conditions.push({ label: item[1], signal: dirKey });
+                }
+                // Also match appended conditions
+                for (const ap of code.matchAll(new RegExp(`${direction}_conditions\\.append\\(([^)]+)\\)`, 'g'))) {
+                    const inner = ap[1].replace(/dataframe\['/g, '').replace(/'\]/g, '').replace(/dataframe\.get\('/g, '').replace(/',\s*\d+\)/g, '').trim();
+                    if (inner.length > 1) conditions.push({ label: inner.substring(0, 40), signal: dirKey });
+                }
+            }
+        }
 
-        const ltMatch = code.matchAll(/dataframe\['([^']+)'\]\s*<\s*(\d+[\d.]*)/g);
-        for (const m of ltMatch) conditions.push({ col1: m[1], value: parseFloat(m[2]), op: 'Below' });
+        // Pattern 3: dataframe.loc[dataframe['signal'], 'exit_short'] = 1
+        const simpleLocRegex = new RegExp(`dataframe\\.loc\\[\\s*dataframe\\['(\\w+)'\\]\\s*,\\s*'${dirKey}'\\s*\\]\\s*=\\s*1`, 'g');
+        for (const m of code.matchAll(simpleLocRegex)) {
+            if (!conditions.some(c => c.label === m[1])) {
+                conditions.push({ label: m[1], signal: dirKey });
+            }
+        }
 
         return conditions;
+    },
+
+    /** Parse custom_exit function for exit conditions */
+    _parseCustomExit(code) {
+        const exits = [];
+        if (!code) return exits;
+
+        // Detect profit-based exits
+        if (/current_profit\s*[><=]/.test(code)) {
+            const profitMatches = [...code.matchAll(/current_profit\s*([><=!]+)\s*(-?[\d.]+)/g)];
+            profitMatches.forEach(m => {
+                const pct = (parseFloat(m[2]) * 100).toFixed(1);
+                const op = m[1].includes('>') ? '>' : '<';
+                exits.push({ label: `Profit ${op} ${pct}%` });
+            });
+        }
+
+        // Detect time-based exits
+        if (/timedelta|minutes|hours/.test(code)) {
+            const timeMatch = code.match(/timedelta\s*\(\s*minutes\s*=\s*(\d+)/);
+            if (timeMatch) exits.push({ label: `Hold > ${timeMatch[1]}m` });
+            const hourMatch = code.match(/timedelta\s*\(\s*hours\s*=\s*(\d+)/);
+            if (hourMatch) exits.push({ label: `Hold > ${hourMatch[1]}h` });
+        }
+
+        // Detect trend-based exits
+        if (/market_trend|trend.*>|trend.*</.test(code)) {
+            exits.push({ label: 'Trend reversal' });
+        }
+
+        // Detect RSI-based custom exits
+        if (/rsi.*[<>]|['"]rsi['"]/.test(code) && /current_profit/.test(code)) {
+            exits.push({ label: 'RSI exit' });
+        }
+
+        // Detect named return strings (custom exit reasons)
+        for (const m of code.matchAll(/return\s+['"]([^'"]+)['"]/g)) {
+            if (m[1].length > 2 && m[1].length < 40 && !exits.some(e => e.label === m[1])) {
+                exits.push({ label: m[1] });
+            }
+        }
+
+        // Deduplicate
+        return exits.filter((e, i, arr) => arr.findIndex(x => x.label === e.label) === i).slice(0, 6);
+    },
+
+    /** Parse confirm_trade_entry for additional entry checks */
+    _parseConfirmEntry(code) {
+        const checks = [];
+        if (!code) return checks;
+
+        // Cooldown detection
+        if (/cooldown|timedelta|_last_candle/.test(code)) {
+            const cdMatch = code.match(/timedelta\s*\(\s*minutes\s*=\s*(\d+)/);
+            checks.push({ label: `Cooldown ${cdMatch ? cdMatch[1] + 'm' : ''}` });
+        }
+
+        // Market trend check
+        if (/market_trend/.test(code)) checks.push({ label: 'Market trend check' });
+
+        // RSI check
+        if (/rsi.*[<>]/.test(code) && !/rsi_period/.test(code)) checks.push({ label: 'RSI filter' });
+
+        // Price vs EMA check
+        if (/close.*ema|ema.*close/.test(code)) checks.push({ label: 'Price vs EMA' });
+
+        return checks;
     },
 
     exportStrategy() {

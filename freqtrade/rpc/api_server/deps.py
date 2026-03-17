@@ -31,9 +31,15 @@ def safe_deepcopy(config: dict[str, Any]) -> dict[str, Any]:
         for key in ("datadir", "user_data_dir"):
             if key in config_loc and isinstance(config_loc[key], str):
                 config_loc[key] = Path(config_loc[key])
-        # Ensure essential config keys have defaults if missing
-        config_loc.setdefault("dataformat_ohlcv", config.get("dataformat_ohlcv", "feather"))
-        config_loc.setdefault("dataformat_trades", config.get("dataformat_trades", "feather"))
+        # Ensure essential config keys have defaults if missing after JSON serialization
+        _defaults = {
+            "dataformat_ohlcv": "feather",
+            "dataformat_trades": "feather",
+            "new_pairs_days": 30,
+            "trading_mode": "spot",
+        }
+        for key, default in _defaults.items():
+            config_loc.setdefault(key, config.get(key, default))
         return config_loc
 
 
