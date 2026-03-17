@@ -57,7 +57,21 @@ def main(sysargv: list[str] | None = None) -> None:
             logger.info("No subcommand specified, starting in engine mode...")
             gc_set_threshold()
             set_mp_start_method()
+
+            # Populate args as if "engine" subcommand was used
+            # (top-level parser lacks config/user_data_dir from _common_parser)
+            from pathlib import Path
+
             from freqtrade.commands import start_engine
+            from freqtrade.constants import DEFAULT_CONFIG
+
+            if "config" not in args or args.get("config") is None:
+                user_dir = args.get("user_data_dir", "user_data")
+                cfgfile = Path(user_dir) / DEFAULT_CONFIG
+                if cfgfile.is_file():
+                    args["config"] = [str(cfgfile)]
+                elif (Path.cwd() / DEFAULT_CONFIG).is_file():
+                    args["config"] = [DEFAULT_CONFIG]
 
             return_code = start_engine(args)
 
