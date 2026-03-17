@@ -69,8 +69,8 @@ const App = {
     showLoginGate() {
         const container = document.getElementById('pageContainer');
         container.innerHTML = `
-        <div class="d-flex justify-content-center align-items-center" style="min-height:60vh">
-            <div class="card" style="width:400px">
+        <div class="d-flex justify-content-center align-items-center px-3" style="min-height:60vh">
+            <div class="card w-100" style="max-width:400px">
                 <div class="card-body p-4">
                     <div class="text-center mb-4">
                         <div class="logo-icon mx-auto mb-3" style="width:56px;height:56px;font-size:28px">
@@ -129,13 +129,13 @@ const App = {
     },
 
     navigate(page, updateHash = true) {
+        // Always close mobile sidebar on navigation
+        this.closeSidebar();
+
         if (!this.isAuthenticated) {
             this.showLoginGate();
             return;
         }
-
-        // Close mobile sidebar on navigation
-        this.closeSidebar();
 
         const pageConfig = this.pages[page];
         if (!pageConfig) {
