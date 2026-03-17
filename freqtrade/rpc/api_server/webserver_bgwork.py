@@ -32,7 +32,7 @@ class ApiBG:
         "bt_error": None,
     }
     bgtask_running: bool = False
-    # Exchange - only available in webserver mode.
+    # Exchange - available in webserver and trade modes (BotCrypto unified mode).
     exchanges: dict[str, Exchange] = {}
 
     # Generic background jobs
