@@ -100,6 +100,12 @@ def session(df, start="17:00", end="16:00"):
 
 
 def heikinashi(bars):
+    try:
+        from freqtrade.ft_cpp.indicators import heikinashi_df
+        return heikinashi_df(bars)
+    except (ImportError, Exception):
+        pass
+
     bars = bars.copy()
     bars["ha_close"] = (bars["open"] + bars["high"] + bars["low"] + bars["close"]) / 4
 
