@@ -10,10 +10,13 @@ const App = {
 
     pages: {
         'dashboard': { title: 'Dashboard', module: () => DashboardPage },
+        'robots': { title: 'My Robots', module: () => RobotsPage },
         'strategy-builder': { title: 'Strategy Builder', module: () => StrategyBuilderPage },
         'backtesting': { title: 'Backtesting', module: () => BacktestingPage },
         'strategy-store': { title: 'Strategy Store', module: () => StrategyStorePage },
+        'portfolio': { title: 'Portfolio', module: () => PortfolioPage },
         'trades': { title: 'Trades', module: () => TradesPage },
+        'webhooks': { title: 'Webhooks', module: () => WebhooksPage },
         'config': { title: 'Configuration', module: () => ConfigWizardPage },
     },
 
