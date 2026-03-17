@@ -1576,7 +1576,7 @@ h4.fw-semibold, h5.fw-semibold {
     z-index: 1060;
     overflow-y: auto;
     overflow-x: hidden;
-    transform: translateX(-100%);
+    transform: translateX(calc(-100% - var(--sidebar-collapsed-width)));
     transition: transform 0.3s ease;
     box-shadow: 4px 0 24px rgba(0,0,0,0.4);
 }

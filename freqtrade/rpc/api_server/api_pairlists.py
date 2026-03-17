@@ -77,7 +77,15 @@ def pairlists_evaluate(
     if ApiBG.pairlist_running:
         raise HTTPException(status_code=400, detail="Pairlist evaluation is already running.")
 
-    config_loc = deepcopy(config)
+    try:
+        config_loc = deepcopy(config)
+    except TypeError:
+        import json
+        try:
+            config_loc = json.loads(json.dumps(config, default=str))
+        except (TypeError, ValueError):
+            config_loc = {k: v for k, v in config.items()
+                          if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
     config_loc["stake_currency"] = payload.stake_currency
     config_loc["pairlists"] = payload.pairlists
     handleExchangePayload(payload, config_loc)

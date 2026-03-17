@@ -1974,18 +1974,37 @@ ${entryConditions.length > 0 ?
         this._loadPanelPairs();
     },
 
+    // Top 20 most traded futures pairs on Bybit
+    _defaultPairs: [
+        'BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT', 'XRP/USDT:USDT',
+        'DOGE/USDT:USDT', 'ADA/USDT:USDT', 'AVAX/USDT:USDT', 'LINK/USDT:USDT',
+        'DOT/USDT:USDT', 'MATIC/USDT:USDT', 'SUI/USDT:USDT', 'ARB/USDT:USDT',
+        'OP/USDT:USDT', 'NEAR/USDT:USDT', 'APT/USDT:USDT', 'FIL/USDT:USDT',
+        'ATOM/USDT:USDT', 'LTC/USDT:USDT', 'UNI/USDT:USDT', 'PEPE/USDT:USDT',
+    ],
+
     async _loadPanelPairs() {
         const sel = document.getElementById('sbBtPair');
         if (!sel || sel.options.length > 1) return;
+
+        const addedPairs = new Set();
+        const addPair = (p) => {
+            if (addedPairs.has(p)) return;
+            addedPairs.add(p);
+            const opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            sel.appendChild(opt);
+        };
+
+        // Add default popular pairs first
+        this._defaultPairs.forEach(addPair);
+
+        // Then append any extra pairs from config whitelist
         try {
-            if (!API.connected) return;
-            const wl = await API.getWhitelist();
-            const pairs = wl?.whitelist || [];
-            pairs.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p; opt.textContent = p;
-                sel.appendChild(opt);
-            });
+            if (API.connected) {
+                const wl = await API.getWhitelist();
+                (wl?.whitelist || []).forEach(addPair);
+            }
         } catch(e) {}
     },
 
