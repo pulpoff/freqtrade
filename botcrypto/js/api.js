@@ -331,14 +331,28 @@ const API = {
         const closeIdx = cols.indexOf('close');
         const volIdx = cols.indexOf('volume');
 
-        return data.data.map(row => ({
-            time: Math.floor(row[dateIdx] / 1000),
-            open: row[openIdx],
-            high: row[highIdx],
-            low: row[lowIdx],
-            close: row[closeIdx],
-            volume: volIdx >= 0 ? row[volIdx] : 0,
-        }));
+        return data.data.map(row => {
+            let time;
+            const dateVal = row[dateIdx];
+            if (typeof dateVal === 'number') {
+                // Epoch milliseconds → seconds
+                time = Math.floor(dateVal / 1000);
+            } else if (typeof dateVal === 'string') {
+                // ISO date string like "2026-03-17T02:27:00+00:00"
+                time = Math.floor(new Date(dateVal).getTime() / 1000);
+            } else {
+                time = 0;
+            }
+
+            return {
+                time,
+                open: row[openIdx],
+                high: row[highIdx],
+                low: row[lowIdx],
+                close: row[closeIdx],
+                volume: volIdx >= 0 ? row[volIdx] : 0,
+            };
+        }).filter(d => d.time > 0);
     },
 
     /** Extract signal columns from candle data */
@@ -353,7 +367,15 @@ const API = {
 
         const signals = [];
         data.data.forEach(row => {
-            const time = Math.floor(row[dateIdx] / 1000);
+            const dateVal = row[dateIdx];
+            let time;
+            if (typeof dateVal === 'number') {
+                time = Math.floor(dateVal / 1000);
+            } else if (typeof dateVal === 'string') {
+                time = Math.floor(new Date(dateVal).getTime() / 1000);
+            } else {
+                return;
+            }
             if (enterLongIdx >= 0 && row[enterLongIdx] === 1) {
                 signals.push({ time, type: 'enter_long' });
             }
