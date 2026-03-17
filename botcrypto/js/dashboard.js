@@ -118,7 +118,7 @@ const DashboardPage = {
                                 <option value="">Loading...</option>
                             </select>
                             <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
-                            <button class="btn btn-sm btn-link text-secondary d-none d-md-inline-block"><i class="bi bi-activity me-1"></i> Indicators</button>
+                            <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.showIndicatorsModal()"><i class="bi bi-activity me-1"></i> Indicators</button>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.refreshChart()"><i class="bi bi-arrow-clockwise"></i></button>
@@ -245,6 +245,8 @@ const DashboardPage = {
 
     changePair(pair) {
         this.currentPair = pair;
+        // Clear chart immediately so old data doesn't linger
+        this._applyChartData([], [], []);
         this.refreshChart();
     },
 
@@ -255,6 +257,8 @@ const DashboardPage = {
         // Clear cache for this pair+tf to force fresh fetch
         const key = this._cacheKey(this.currentPair, tf);
         delete this._cache[key];
+        // Clear chart immediately so old data doesn't linger
+        this._applyChartData([], [], []);
         this.refreshChart();
     },
 
@@ -321,7 +325,13 @@ const DashboardPage = {
 
     /** Apply candle + volume + marker data to chart */
     _applyChartData(candles, volumes, signals) {
-        if (!this.candleSeries || !candles || candles.length === 0) return;
+        if (!this.candleSeries) return;
+        if (!candles || candles.length === 0) {
+            this.candleSeries.setData([]);
+            if (this.volumeSeries) this.volumeSeries.setData([]);
+            this.candleSeries.setMarkers([]);
+            return;
+        }
         this.candleSeries.setData(candles);
         if (this.volumeSeries && volumes) this.volumeSeries.setData(volumes);
         if (signals && signals.length > 0) {
@@ -355,7 +365,7 @@ const DashboardPage = {
         if (cached) {
             this._applyChartData(cached.candles, cached.volumes, cached.signals);
             if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${cached.candles.length} candles, cached)`;
-            this.chart.timeScale().fitContent();
+            this.chart.timeScale().scrollToRealTime();
             loaded = true;
 
             // Add open trade markers on top of cached data
@@ -431,7 +441,7 @@ const DashboardPage = {
                     // Add open trade markers
                     this._addTradeMarkers(pair);
 
-                    this.chart.timeScale().fitContent();
+                    this.chart.timeScale().scrollToRealTime();
                     if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${candles.length} candles)`;
                     return;
                 }
@@ -742,7 +752,263 @@ const DashboardPage = {
         if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
     },
 
+    // ========== INDICATORS ==========
+    _indicators: {},       // { ema20: { enabled, series }, ... }
+    _indicatorDefs: [
+        { id: 'ema9',   name: 'EMA 9',   type: 'ema',  period: 9,   color: '#f5a623', overlay: true },
+        { id: 'ema21',  name: 'EMA 21',  type: 'ema',  period: 21,  color: '#4a90d9', overlay: true },
+        { id: 'ema50',  name: 'EMA 50',  type: 'ema',  period: 50,  color: '#9b59b6', overlay: true },
+        { id: 'sma20',  name: 'SMA 20',  type: 'sma',  period: 20,  color: '#e74c5e', overlay: true },
+        { id: 'sma50',  name: 'SMA 50',  type: 'sma',  period: 50,  color: '#f1c40f', overlay: true },
+        { id: 'sma200', name: 'SMA 200', type: 'sma',  period: 200, color: '#2ecc71', overlay: true },
+        { id: 'bb',     name: 'Bollinger Bands (20)', type: 'bb', period: 20, color: '#7c819a', overlay: true },
+        { id: 'rsi',    name: 'RSI (14)',   type: 'rsi',  period: 14, color: '#f5a623', overlay: false },
+        { id: 'macd',   name: 'MACD',       type: 'macd', color: '#4a90d9', overlay: false },
+    ],
+
+    showIndicatorsModal() {
+        // Build modal dynamically
+        let existing = document.getElementById('indicatorsModal');
+        if (existing) existing.remove();
+
+        const html = `
+        <div class="modal fade" id="indicatorsModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="background:var(--bc-card);border-color:var(--bc-border)">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title"><i class="bi bi-activity me-2"></i>Chart Indicators</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h6 class="text-secondary small fw-semibold mb-2">OVERLAYS</h6>
+                        ${this._indicatorDefs.filter(d => d.overlay).map(d => `
+                        <div class="form-check form-switch d-flex align-items-center justify-content-between py-2 border-bottom border-secondary">
+                            <div>
+                                <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:8px"></i>${d.name}</span>
+                            </div>
+                            <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
+                                onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
+                        </div>`).join('')}
+                        <h6 class="text-secondary small fw-semibold mt-3 mb-2">OSCILLATORS</h6>
+                        ${this._indicatorDefs.filter(d => !d.overlay).map(d => `
+                        <div class="form-check form-switch d-flex align-items-center justify-content-between py-2 border-bottom border-secondary">
+                            <div>
+                                <span class="fw-semibold" style="color:${d.color}"><i class="bi bi-circle-fill me-1" style="font-size:8px"></i>${d.name}</span>
+                                <small class="text-secondary ms-2">(separate pane)</small>
+                            </div>
+                            <input class="form-check-input" type="checkbox" id="ind-${d.id}" ${this._indicators[d.id]?.enabled ? 'checked' : ''}
+                                onchange="DashboardPage.toggleIndicator('${d.id}', this.checked)">
+                        </div>`).join('')}
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="DashboardPage.clearAllIndicators()">Clear All</button>
+                        <button class="btn btn-success btn-sm" data-bs-dismiss="modal">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modal = new bootstrap.Modal(document.getElementById('indicatorsModal'));
+        modal.show();
+    },
+
+    toggleIndicator(id, enabled) {
+        const def = this._indicatorDefs.find(d => d.id === id);
+        if (!def) return;
+
+        if (!enabled) {
+            // Remove indicator series from chart
+            if (this._indicators[id]?.series) {
+                if (Array.isArray(this._indicators[id].series)) {
+                    this._indicators[id].series.forEach(s => this.chart.removeSeries(s));
+                } else {
+                    this.chart.removeSeries(this._indicators[id].series);
+                }
+            }
+            delete this._indicators[id];
+            return;
+        }
+
+        // Get current candle data from cache
+        const cached = this._getCached(this.currentPair, this.currentTimeframe);
+        if (!cached || !cached.candles || cached.candles.length === 0) {
+            App.showToast('Load chart data first', 'warning');
+            return;
+        }
+
+        const candles = cached.candles;
+        this._indicators[id] = { enabled: true };
+
+        if (def.type === 'ema' || def.type === 'sma') {
+            const values = this._calcMA(candles, def.period, def.type);
+            const series = this.chart.addLineSeries({
+                color: def.color,
+                lineWidth: 1,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+            });
+            series.setData(values);
+            this._indicators[id].series = series;
+
+        } else if (def.type === 'bb') {
+            const bb = this._calcBB(candles, def.period);
+            const upper = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2 });
+            const lower = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2 });
+            const mid = this.chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 1 });
+            upper.setData(bb.upper);
+            lower.setData(bb.lower);
+            mid.setData(bb.mid);
+            this._indicators[id].series = [upper, lower, mid];
+
+        } else if (def.type === 'rsi') {
+            const rsi = this._calcRSI(candles, def.period);
+            const series = this.chart.addLineSeries({
+                color: def.color,
+                lineWidth: 1.5,
+                priceLineVisible: false,
+                lastValueVisible: true,
+                priceScaleId: 'rsi',
+            });
+            series.setData(rsi);
+            this.chart.priceScale('rsi').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
+            this._indicators[id].series = series;
+
+        } else if (def.type === 'macd') {
+            const macd = this._calcMACD(candles);
+            const macdLine = this.chart.addLineSeries({
+                color: '#4a90d9', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, priceScaleId: 'macd',
+            });
+            const signalLine = this.chart.addLineSeries({
+                color: '#e74c5e', lineWidth: 1, priceLineVisible: false, lastValueVisible: false, priceScaleId: 'macd',
+            });
+            const hist = this.chart.addHistogramSeries({
+                priceScaleId: 'macd', priceLineVisible: false, lastValueVisible: false,
+            });
+            macdLine.setData(macd.macd);
+            signalLine.setData(macd.signal);
+            hist.setData(macd.histogram);
+            this.chart.priceScale('macd').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
+            this._indicators[id].series = [macdLine, signalLine, hist];
+        }
+    },
+
+    clearAllIndicators() {
+        Object.keys(this._indicators).forEach(id => this.toggleIndicator(id, false));
+        // Uncheck all checkboxes in modal
+        document.querySelectorAll('#indicatorsModal input[type="checkbox"]').forEach(cb => cb.checked = false);
+    },
+
+    // ---- Indicator calculation helpers ----
+    _calcMA(candles, period, type) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            if (type === 'sma') {
+                let sum = 0;
+                for (let j = 0; j < period; j++) sum += candles[i - j].close;
+                result.push({ time: candles[i].time, value: sum / period });
+            } else {
+                // EMA
+                if (result.length === 0) {
+                    let sum = 0;
+                    for (let j = 0; j < period; j++) sum += candles[i - j].close;
+                    result.push({ time: candles[i].time, value: sum / period });
+                } else {
+                    const k = 2 / (period + 1);
+                    const prev = result[result.length - 1].value;
+                    result.push({ time: candles[i].time, value: candles[i].close * k + prev * (1 - k) });
+                }
+            }
+        }
+        return result;
+    },
+
+    _calcBB(candles, period) {
+        const upper = [], lower = [], mid = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < period; j++) sum += candles[i - j].close;
+            const avg = sum / period;
+            let sqSum = 0;
+            for (let j = 0; j < period; j++) sqSum += Math.pow(candles[i - j].close - avg, 2);
+            const std = Math.sqrt(sqSum / period);
+            const t = candles[i].time;
+            upper.push({ time: t, value: avg + 2 * std });
+            lower.push({ time: t, value: avg - 2 * std });
+            mid.push({ time: t, value: avg });
+        }
+        return { upper, lower, mid };
+    },
+
+    _calcRSI(candles, period) {
+        const result = [];
+        let gains = 0, losses = 0;
+        for (let i = 1; i <= period; i++) {
+            const diff = candles[i].close - candles[i - 1].close;
+            if (diff > 0) gains += diff; else losses -= diff;
+        }
+        let avgGain = gains / period;
+        let avgLoss = losses / period;
+        const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        result.push({ time: candles[period].time, value: 100 - 100 / (1 + rs) });
+        for (let i = period + 1; i < candles.length; i++) {
+            const diff = candles[i].close - candles[i - 1].close;
+            avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+            avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+            const rs2 = avgLoss === 0 ? 100 : avgGain / avgLoss;
+            result.push({ time: candles[i].time, value: 100 - 100 / (1 + rs2) });
+        }
+        return result;
+    },
+
+    _calcMACD(candles) {
+        const ema12 = this._calcMA(candles, 12, 'ema');
+        const ema26 = this._calcMA(candles, 26, 'ema');
+        // Align by time
+        const macdLine = [];
+        const ema26Map = {};
+        ema26.forEach(e => ema26Map[e.time] = e.value);
+        ema12.forEach(e => {
+            if (ema26Map[e.time] !== undefined) {
+                macdLine.push({ time: e.time, value: e.value - ema26Map[e.time] });
+            }
+        });
+        // Signal line (9-period EMA of MACD)
+        const signalLine = [];
+        for (let i = 8; i < macdLine.length; i++) {
+            if (signalLine.length === 0) {
+                let sum = 0;
+                for (let j = 0; j < 9; j++) sum += macdLine[i - j].value;
+                signalLine.push({ time: macdLine[i].time, value: sum / 9 });
+            } else {
+                const k = 2 / 10;
+                const prev = signalLine[signalLine.length - 1].value;
+                signalLine.push({ time: macdLine[i].time, value: macdLine[i].value * k + prev * (1 - k) });
+            }
+        }
+        // Histogram
+        const sigMap = {};
+        signalLine.forEach(s => sigMap[s.time] = s.value);
+        const histogram = macdLine.filter(m => sigMap[m.time] !== undefined).map(m => ({
+            time: m.time,
+            value: m.value - sigMap[m.time],
+            color: m.value - sigMap[m.time] >= 0 ? 'rgba(45,212,168,0.5)' : 'rgba(231,76,94,0.5)',
+        }));
+        return { macd: macdLine, signal: signalLine, histogram };
+    },
+
     destroy() {
+        // Clean up indicator series
+        Object.keys(this._indicators).forEach(id => {
+            if (this._indicators[id]?.series) {
+                if (Array.isArray(this._indicators[id].series)) {
+                    this._indicators[id].series.forEach(s => { try { this.chart.removeSeries(s); } catch(e){} });
+                } else {
+                    try { this.chart.removeSeries(this._indicators[id].series); } catch(e){}
+                }
+            }
+        });
+        this._indicators = {};
         if (this.chart) { this.chart.remove(); this.chart = null; }
         if (this.equityChart) { this.equityChart.remove(); this.equityChart = null; }
         if (this.refreshTimer) { clearInterval(this.refreshTimer); this.refreshTimer = null; }

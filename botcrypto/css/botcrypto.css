@@ -752,10 +752,57 @@ select option:checked {
 .connections-layer path.conn-false { stroke: var(--bc-red); stroke-dasharray: 6,3; }
 .connections-layer path.conn-normal { stroke: var(--bc-orange); }
 
-/* Bottom Toolbar */
-.builder-toolbar {
-    background: var(--bc-sidebar);
+/* Bottom Panel - Tabbed block palette */
+.builder-bottom-panel {
+    background: var(--bc-bg-dark);
     border-top: 1px solid var(--bc-border);
+    flex-shrink: 0;
+}
+
+.builder-tabs {
+    border-bottom: 1px solid var(--bc-border);
+    padding: 0 1rem;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.builder-tabs .nav-link {
+    color: var(--bc-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.builder-tabs .nav-link:hover {
+    color: var(--bc-text);
+    border-bottom-color: rgba(255,255,255,0.15);
+}
+
+.builder-tabs .nav-link.active {
+    color: var(--bc-primary);
+    border-bottom-color: var(--bc-primary);
+    background: transparent;
+}
+
+.builder-tab-content {
+    padding: 10px 1rem;
+}
+
+.builder-tab-pane {
+    display: none;
+}
+
+.builder-tab-pane.active {
+    display: block;
 }
 
 .toolbar-block {
@@ -783,41 +830,19 @@ select option:checked {
     font-size: 20px;
 }
 
-.tb-icon.tb-indicator { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
-.tb-icon.tb-group { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
-.tb-icon.tb-gain { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
-.tb-icon.tb-trailing { background: rgba(245,166,35,0.12); color: var(--bc-orange); }
-.tb-icon.tb-wait { background: rgba(241,196,15,0.12); color: var(--bc-orange); }
-.tb-icon.tb-fgi { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
-.tb-icon.tb-webhook { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
-.tb-icon.tb-buy { background: rgba(45,212,168,0.12); color: var(--bc-green); }
-.tb-icon.tb-sell { background: rgba(231,76,94,0.12); color: var(--bc-red); }
-.tb-icon.tb-takeprofit { background: rgba(45,212,168,0.12); color: var(--bc-primary); }
+.tb-icon.tb-indicator { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
+.tb-icon.tb-group { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
+.tb-icon.tb-gain { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
+.tb-icon.tb-trailing { background: rgba(245,166,35,0.15); color: var(--bc-orange); }
+.tb-icon.tb-wait { background: rgba(241,196,15,0.15); color: var(--bc-yellow); }
+.tb-icon.tb-webhook { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
+.tb-icon.tb-buy { background: rgba(45,212,168,0.15); color: var(--bc-green); }
+.tb-icon.tb-sell { background: rgba(231,76,94,0.15); color: var(--bc-red); }
+.tb-icon.tb-takeprofit { background: rgba(45,212,168,0.15); color: var(--bc-primary); }
 .tb-icon.tb-terminate { background: rgba(255,255,255,0.08); color: var(--bc-text-secondary); }
-.tb-icon.tb-reset { background: rgba(74,144,217,0.12); color: var(--bc-blue); }
+.tb-icon.tb-reset { background: rgba(74,144,217,0.15); color: var(--bc-blue); }
 
 .tb-name { font-size: 11px; font-weight: 500; color: var(--bc-text-secondary); }
-
-/* Toolbar groups (like botcrypto category sections) */
-.toolbar-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-.toolbar-group-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--bc-text-secondary);
-    letter-spacing: 0.5px;
-}
-.toolbar-divider {
-    width: 1px;
-    height: 60px;
-    background: var(--bc-border);
-    margin: 0 4px;
-}
 
 /* ============================================
    STRATEGY STORE CARDS
@@ -911,9 +936,6 @@ select option:checked {
     }
     .stat-value { font-size: 17px !important; }
     .stat-label { font-size: 9px !important; }
-    #sbSidebar {
-        width: 220px !important;
-    }
 }
 
 /* Mobile breakpoint */
@@ -971,39 +993,11 @@ select option:checked {
         font-size: 11px;
     }
 
-    /* Strategy builder sidebar - overlay on mobile */
-    #sbSidebar {
-        position: fixed !important;
-        top: 0;
-        left: 0;
-        height: 100vh;
-        z-index: 1060;
-        width: 260px !important;
-        overflow-y: auto;
-    }
-    #sbSidebar.d-none { display: none !important; }
-    #sbSidebar.show {
-        display: block !important;
-        box-shadow: 4px 0 24px rgba(0,0,0,0.4);
-    }
-
-    /* Strategy builder bottom toolbar - scroll horizontally */
-    .builder-toolbar {
-        overflow-x: auto;
-        justify-content: flex-start !important;
-        padding: 0.5rem 1rem !important;
-        gap: 0.25rem !important;
-        flex-wrap: nowrap;
-    }
-    .toolbar-block {
-        padding: 4px 8px;
-        min-width: 60px;
-    }
-    .tb-icon {
-        width: 36px;
-        height: 36px;
-        font-size: 16px;
-    }
+    /* Strategy builder bottom panel - compact on mobile */
+    .builder-tabs .nav-link { padding: 6px 10px; font-size: 11px; }
+    .builder-tab-content { padding: 8px 0.75rem; }
+    .toolbar-block { padding: 4px 8px; }
+    .tb-icon { width: 36px; height: 36px; font-size: 16px; }
     .tb-name { font-size: 9px; }
 
     /* Force trade form - stack */
