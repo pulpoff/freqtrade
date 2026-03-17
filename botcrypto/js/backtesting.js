@@ -61,11 +61,11 @@ const BacktestingPage = {
                         <!-- Date Range -->
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">Start Date</label>
-                            <input type="date" class="form-control" id="btStartDate" value="2024-01-01">
+                            <input type="date" class="form-control" id="btStartDate" value="${this._defaultStartDate()}">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small text-secondary">End Date</label>
-                            <input type="date" class="form-control" id="btEndDate" value="2024-03-01">
+                            <input type="date" class="form-control" id="btEndDate" value="${this._defaultEndDate()}">
                         </div>
                     </div>
 
@@ -758,6 +758,16 @@ const BacktestingPage = {
         } catch (e) {
             App.showToast(`Error loading result: ${e.message}`, 'error');
         }
+    },
+
+    _defaultStartDate() {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        return d.toISOString().slice(0, 10);
+    },
+
+    _defaultEndDate() {
+        return new Date().toISOString().slice(0, 10);
     },
 
     destroy() {
