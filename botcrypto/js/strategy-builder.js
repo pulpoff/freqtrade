@@ -213,7 +213,7 @@ const StrategyBuilderPage = {
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            const delta = e.deltaY > 0 ? -0.05 : 0.05;
             const newZoom = Math.min(3, Math.max(0.2, this._zoom + delta));
             // Zoom toward cursor
             const scale = newZoom / this._zoom;
@@ -1482,12 +1482,12 @@ ${entryConditions.length > 0 ?
     },
 
     zoomIn() {
-        this._zoom = Math.min(3, this._zoom + 0.15);
+        this._zoom = Math.min(3, this._zoom + 0.1);
         this._applyTransform();
     },
 
     zoomOut() {
-        this._zoom = Math.max(0.2, this._zoom - 0.15);
+        this._zoom = Math.max(0.2, this._zoom - 0.1);
         this._applyTransform();
     },
 

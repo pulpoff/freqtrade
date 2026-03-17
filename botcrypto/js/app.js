@@ -32,21 +32,11 @@ const App = {
         // Check GUI access
         this.checkGuiAccess();
 
-        // Initialize Bootstrap modal
-        this.connectModal = new bootstrap.Modal(document.getElementById('connectModal'));
-
-        // Setup connect button
-        document.getElementById('connectBtn').addEventListener('click', () => this.connect());
-        document.getElementById('serverPass').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this.connect();
-        });
-
-        // Check existing connection - MUST await before navigating
-        // so pages see API.connected = true and load real data
+        // Auto-connect using config or saved credentials
         if (API.token && API.baseUrl) {
             await this.tryReconnect();
         } else {
-            this.updateConnectionStatus(false);
+            await this.autoConnectFromConfig();
         }
 
         // Route based on hash
@@ -58,6 +48,38 @@ const App = {
         // Initial navigation
         const initialPage = location.hash.substring(1) || 'dashboard';
         this.navigate(initialPage, false);
+    },
+
+    /** Auto-connect to Freqtrade using credentials from ConfigDB */
+    async autoConnectFromConfig() {
+        try {
+            // Try active config first, then any config with API credentials
+            let config = await ConfigDB.getActiveConfig();
+            if (!config) {
+                const allConfigs = await ConfigDB.getAllConfigs();
+                config = allConfigs.find(c => c.apiPassword) || allConfigs[0];
+            }
+            if (!config) {
+                this.updateConnectionStatus(false);
+                return;
+            }
+
+            const host = config.apiHost || '0.0.0.0';
+            const port = config.apiPort || 8080;
+            const user = config.apiUsername || 'freqtrader';
+            const pass = config.apiPassword || '';
+
+            // Build URL - use localhost if host is 0.0.0.0
+            const connectHost = (host === '0.0.0.0' || host === '::') ? 'localhost' : host;
+            const url = `http://${connectHost}:${port}`;
+
+            await API.login(url, user, pass);
+            this.updateConnectionStatus(true);
+            this.showToast('Connected to Freqtrade', 'success');
+        } catch (e) {
+            console.warn('Auto-connect failed:', e.message);
+            this.updateConnectionStatus(false);
+        }
     },
 
     checkGuiAccess() {
@@ -133,6 +155,17 @@ const App = {
         backdrop.classList.remove('show');
     },
 
+    onLogoClick(event) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar.classList.contains('collapsed')) {
+            // Expand when collapsed
+            sidebar.classList.remove('collapsed');
+            localStorage.setItem('bc_sidebar_collapsed', 'false');
+        } else {
+            App.navigate('dashboard');
+        }
+    },
+
     toggleSidebarCollapse() {
         const sidebar = document.getElementById('sidebar');
         sidebar.classList.toggle('collapsed');
@@ -180,49 +213,34 @@ const App = {
         if (module.init) module.init();
     },
 
-    async connect() {
-        const url = document.getElementById('serverUrl').value.trim();
-        const user = document.getElementById('serverUser').value.trim();
-        const pass = document.getElementById('serverPass').value;
-        const errEl = document.getElementById('connectError');
-
-        if (!url) {
-            errEl.textContent = 'Please enter server URL';
-            errEl.classList.remove('d-none');
-            return;
-        }
-
-        const btn = document.getElementById('connectBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Connecting...';
-
+    /** Reconnect to Freqtrade - tries saved credentials first, then config */
+    async reconnect() {
+        this.showToast('Reconnecting...', 'info');
         try {
-            await API.login(url, user, pass);
-            this.updateConnectionStatus(true);
-            this.connectModal.hide();
-            errEl.classList.add('d-none');
-            this.showToast('Connected to Freqtrade!', 'success');
-
-            // Refresh current page fully to load real data
-            if (this.currentPage) {
-                const currentModule = this.currentPage.module();
-                if (currentModule && currentModule.destroy) currentModule.destroy();
-                const container = document.getElementById('pageContainer');
-                container.innerHTML = currentModule.render();
-                if (currentModule.init) currentModule.init();
+            // Try saved credentials first
+            const saved = localStorage.getItem('bc_credentials');
+            if (saved && API.baseUrl) {
+                const { username, password } = JSON.parse(saved);
+                await API.login(API.baseUrl, username, password);
+                this.updateConnectionStatus(true);
+                this.showToast('Reconnected to Freqtrade', 'success');
+                this._refreshCurrentPage();
+                return;
             }
+        } catch { /* fall through to config */ }
 
-            // Re-sync sidebar status after page load (API calls in init may temporarily reset it)
-            setTimeout(() => {
-                if (API.connected) this.updateConnectionStatus(true);
-            }, 2000);
-        } catch (e) {
-            errEl.textContent = `Connection failed: ${e.message}`;
-            errEl.classList.remove('d-none');
-            this.updateConnectionStatus(false);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-plug me-1"></i> Connect';
+        // Fall back to config
+        await this.autoConnectFromConfig();
+        if (API.connected) this._refreshCurrentPage();
+    },
+
+    _refreshCurrentPage() {
+        if (this.currentPage) {
+            const currentModule = this.currentPage.module();
+            if (currentModule && currentModule.destroy) currentModule.destroy();
+            const container = document.getElementById('pageContainer');
+            container.innerHTML = currentModule.render();
+            if (currentModule.init) currentModule.init();
         }
     },
 
@@ -264,7 +282,8 @@ const App = {
     },
 
     showConnectModal() {
-        this.connectModal.show();
+        // No modal - just reconnect using config
+        this.reconnect();
     },
 
     showToast(message, type = 'info') {

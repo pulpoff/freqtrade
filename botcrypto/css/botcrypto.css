@@ -154,7 +154,10 @@ body {
     justify-content: center;
 }
 .sidebar.collapsed .sidebar-collapse-btn {
-    font-size: 12px;
+    display: none;
+}
+.sidebar.collapsed .logo-icon {
+    cursor: pointer;
 }
 .sidebar.collapsed .nav-link {
     justify-content: center;
