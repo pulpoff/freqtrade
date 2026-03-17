@@ -606,6 +606,16 @@ select option:checked {
     height: calc(100vh - 72px);
     margin: -1.25rem -1.5rem;
 }
+@media (max-width: 768px) {
+    .builder-layout {
+        margin: -0.75rem;
+    }
+}
+@media (max-width: 480px) {
+    .builder-layout {
+        margin: -0.5rem;
+    }
+}
 
 .builder-canvas-wrapper {
     position: relative;
@@ -883,15 +893,158 @@ select option:checked {
 /* ============================================
    RESPONSIVE
    ============================================ */
+
+/* Sidebar backdrop overlay */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1040;
+}
+.sidebar-backdrop.show { display: block; }
+
+/* Tablet breakpoint */
+@media (max-width: 991px) {
+    #pageContainer {
+        padding: 1rem !important;
+    }
+    .stat-value { font-size: 17px !important; }
+    .stat-label { font-size: 9px !important; }
+    #sbSidebar {
+        width: 220px !important;
+    }
+}
+
+/* Mobile breakpoint */
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;
+        top: 0;
         left: 0;
+        height: 100vh;
         transform: translateX(-100%);
-        transition: transform 0.3s;
+        transition: transform 0.3s ease;
+        box-shadow: none;
     }
     .sidebar.show {
         transform: translateX(0);
+        box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+    }
+
+    #pageContainer {
+        padding: 0.75rem !important;
+    }
+
+    .navbar {
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Chart containers */
+    .chart-container, #mainChart {
+        height: 280px !important;
+    }
+    #equityChart {
+        height: 150px !important;
+    }
+
+    /* Bot info bar - stack vertically */
+    .card-body > .d-flex.align-items-center.justify-content-between {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+    .card-body > .d-flex.align-items-center.justify-content-between > .d-flex {
+        flex-wrap: wrap;
+    }
+
+    /* Chart toolbar - stack controls */
+    .card-body > .d-flex.align-items-center.justify-content-between.border-bottom {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+
+    /* Timeframe buttons - smaller */
+    .btn-group .btn-sm {
+        padding: 0.2rem 0.4rem;
+        font-size: 11px;
+    }
+
+    /* Strategy builder sidebar - overlay on mobile */
+    #sbSidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        z-index: 1060;
+        width: 260px !important;
+        overflow-y: auto;
+    }
+    #sbSidebar.d-none { display: none !important; }
+    #sbSidebar.show {
+        display: block !important;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+    }
+
+    /* Strategy builder bottom toolbar - scroll horizontally */
+    .builder-toolbar {
+        overflow-x: auto;
+        justify-content: flex-start !important;
+        padding: 0.5rem 1rem !important;
+        gap: 0.25rem !important;
+        flex-wrap: nowrap;
+    }
+    .toolbar-block {
+        padding: 4px 8px;
+        min-width: 60px;
+    }
+    .tb-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+    }
+    .tb-name { font-size: 9px; }
+
+    /* Force trade form - stack */
+    .card-body .row.g-3 > [class*="col-md-"] {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    /* Backtesting config row */
+    .card-body .row.g-2 > [class*="col-md-"] {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    /* Table font size */
+    .table { font-size: 12px; }
+    .table > thead > tr > th { font-size: 10px; padding: 0.4rem 0.5rem; }
+    .table > tbody > tr > td { padding: 0.4rem 0.5rem; }
+
+    /* Modal full width on mobile */
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100% - 1rem);
+    }
+
+    /* Cards - tighter padding */
+    .card-body { padding: 0.75rem; }
+    .card-header { padding: 0.5rem 0.75rem; }
+}
+
+/* Small phone */
+@media (max-width: 480px) {
+    #pageContainer {
+        padding: 0.5rem !important;
+    }
+    .stat-value { font-size: 15px !important; }
+    .chart-container, #mainChart {
+        height: 220px !important;
+    }
+    .navbar h5, .navbar .h5 {
+        font-size: 0.85rem;
     }
 }
 

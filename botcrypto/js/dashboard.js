@@ -68,39 +68,39 @@ const DashboardPage = {
             </div>
 
             <!-- Summary Stats Row -->
-            <div class="row g-3 mb-3" id="dashSummaryStats">
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+            <div class="row g-2 g-md-3 mb-3" id="dashSummaryStats">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashTotalProfit">0</div>
                         <div class="stat-label">Total Profit</div>
                     </div></div>
                 </div>
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashProfitPct">0%</div>
                         <div class="stat-label">Profit %</div>
                     </div></div>
                 </div>
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashClosedTrades">0</div>
                         <div class="stat-label">Closed Trades</div>
                     </div></div>
                 </div>
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashOpenTrades">0</div>
                         <div class="stat-label">Open Trades</div>
                     </div></div>
                 </div>
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashWinRate">0%</div>
                         <div class="stat-label">Win Rate</div>
                     </div></div>
                 </div>
-                <div class="col-md-2">
-                    <div class="card"><div class="card-body py-3 text-center">
+                <div class="col-4 col-md-2">
+                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
                         <div class="stat-value" id="dashBalance">0</div>
                         <div class="stat-label">Balance</div>
                         <div class="stat-sublabel" id="dashBalanceDetail"></div>
@@ -111,14 +111,14 @@ const DashboardPage = {
             <!-- Chart -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between border-bottom border-secondary pb-2 mb-2">
-                        <div class="d-flex align-items-center gap-3">
-                            <select class="form-select form-select-sm" style="width:150px" id="dashPairSelect"
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
+                        <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap">
+                            <select class="form-select form-select-sm" style="width:130px" id="dashPairSelect"
                                 onchange="DashboardPage.changePair(this.value)">
                                 <option value="">Loading...</option>
                             </select>
                             <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
-                            <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-activity me-1"></i> Indicators</button>
+                            <button class="btn btn-sm btn-link text-secondary d-none d-md-inline-block"><i class="bi bi-activity me-1"></i> Indicators</button>
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.refreshChart()"><i class="bi bi-arrow-clockwise"></i></button>

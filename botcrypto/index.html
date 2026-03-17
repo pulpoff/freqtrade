@@ -19,6 +19,8 @@
 </head>
 <body>
     <div id="app" class="d-flex">
+        <!-- Sidebar Backdrop (mobile) -->
+        <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="App.closeSidebar()"></div>
         <!-- Sidebar -->
         <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0">
             <div class="sidebar-header px-3 py-3 border-bottom border-secondary">
@@ -89,7 +91,7 @@
             <!-- Top Navbar -->
             <nav class="navbar navbar-dark bg-dark border-bottom border-secondary px-4">
                 <div class="d-flex align-items-center">
-                    <button class="btn btn-link text-secondary d-md-none me-2" id="menuToggle" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <button class="btn btn-link text-secondary d-md-none me-2" id="menuToggle" onclick="App.toggleSidebar()">
                         <i class="bi bi-list fs-4"></i>
                     </button>
                     <h5 class="mb-0 fw-semibold" id="pageTitle">Dashboard</h5>

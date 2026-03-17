@@ -54,14 +54,17 @@ const StrategyBuilderPage = {
         return `
         <div class="builder-layout d-flex flex-column">
             <!-- Top Bar -->
-            <div class="d-flex align-items-center justify-content-between bg-dark border-bottom border-secondary px-3 py-2">
-                <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center justify-content-between bg-dark border-bottom border-secondary px-2 px-md-3 py-2">
+                <div class="d-flex align-items-center gap-2 gap-md-3">
                     <button class="btn btn-link text-secondary p-0" onclick="App.navigate('dashboard')">
                         <i class="bi bi-chevron-left fs-5"></i>
                     </button>
-                    <i class="bi bi-diagram-3 text-warning"></i>
+                    <button class="btn btn-link text-secondary p-0 d-md-none" onclick="document.getElementById('sbSidebar').classList.toggle('show')">
+                        <i class="bi bi-layout-sidebar fs-5"></i>
+                    </button>
+                    <i class="bi bi-diagram-3 text-warning d-none d-md-inline"></i>
                     <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold"
-                        style="width:250px" value="${this.strategyName}"
+                        style="width:180px;max-width:40vw" value="${this.strategyName}"
                         onchange="StrategyBuilderPage.strategyName = this.value">
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -89,7 +92,7 @@ const StrategyBuilderPage = {
             <!-- Main area: Sidebar + Canvas -->
             <div class="d-flex flex-grow-1" style="min-height:0">
                 <!-- Left Sidebar - Strategy Info -->
-                <div class="bg-dark border-end border-secondary p-3" style="width:280px;overflow-y:auto">
+                <div id="sbSidebar" class="bg-dark border-end border-secondary p-3 d-none d-md-block" style="width:280px;overflow-y:auto">
                     <div class="mb-3">
                         <small class="text-secondary">Imported <span class="text-primary">0 times</span></small>
                         <div class="text-warning small mt-1">
