@@ -376,27 +376,6 @@ const DashboardPage = {
                     console.log('pair_candles failed:', e.message);
                 }
 
-                // Try 2: pair_history (loads from disk/exchange)
-                if (!candles) {
-                    try {
-                        const now = new Date();
-                        // Request more history based on timeframe
-                        const tfDays = { '1m': 7, '3m': 14, '5m': 30, '15m': 60, '30m': 90, '1h': 180, '4h': 365, '1d': 1000 };
-                        const days = tfDays[tf] || 30;
-                        const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-                        const timerange = `${start.toISOString().slice(0,10).replace(/-/g,'')}-${now.toISOString().slice(0,10).replace(/-/g,'')}`;
-                        const strategy = this.botConfig?.strategy || '';
-
-                        const data = await API.getPairHistory(pair, tf, timerange, strategy);
-                        if (data && data.columns && data.data && data.data.length > 0) {
-                            candles = API.parseCandleData(data);
-                            signals = API.parseSignals(data);
-                        }
-                    } catch (e) {
-                        console.log('pair_history failed:', e.message);
-                    }
-                }
-
                 if (candles && candles.length > 0) {
                     const volumes = candles.map(c => ({
                         time: c.time,
