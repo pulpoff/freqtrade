@@ -7,6 +7,9 @@ const API = {
     token: null,
     refreshToken: null,
     connected: false,
+    /** Track endpoints that fail with "not supported in backtesting mode" */
+    _disabledEndpoints: new Set(),
+    isBacktestingMode: false,
 
     /** Initialize from saved settings */
     init() {
@@ -22,6 +25,8 @@ const API = {
     /** Connect to Freqtrade instance */
     async login(url, username, password) {
         this.baseUrl = url.replace(/\/+$/, '');
+        this._disabledEndpoints.clear();
+        this.isBacktestingMode = false;
         try {
             const resp = await fetch(`${this.baseUrl}/api/v1/token/login`, {
                 method: 'POST',
@@ -57,6 +62,12 @@ const API = {
 
     /** Make authenticated request */
     async request(endpoint, options = {}) {
+        // Skip endpoints known to be unsupported in backtesting mode
+        const baseEndpoint = endpoint.split('?')[0];
+        if (this._disabledEndpoints.has(baseEndpoint)) {
+            throw new Error('Endpoint not available in backtesting mode');
+        }
+
         const url = `${this.baseUrl}/api/v1${endpoint}`;
         const headers = {
             'Content-Type': 'application/json',
@@ -80,6 +91,13 @@ const API = {
             }
             if (!resp.ok) {
                 const errBody = await resp.text();
+                // Detect backtesting mode errors and disable the endpoint
+                if (errBody.includes('not supported in backtesting mode') || errBody.includes('NotImplementedError')) {
+                    this._disabledEndpoints.add(baseEndpoint);
+                    this.isBacktestingMode = true;
+                    console.log(`Endpoint ${baseEndpoint} disabled (backtesting mode)`);
+                    throw new Error('Endpoint not available in backtesting mode');
+                }
                 throw new Error(`API Error ${resp.status}: ${errBody}`);
             }
             return await resp.json();
