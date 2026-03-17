@@ -8,9 +8,10 @@ const DashboardPage = {
     equityChart: null,
     candleSeries: null,
     volumeSeries: null,
-    currentPair: 'XRP/USDT',
-    currentTimeframe: '30m',
+    currentPair: '',
+    currentTimeframe: '',
     refreshTimer: null,
+    botConfig: null,
 
     render() {
         return `
@@ -22,9 +23,9 @@ const DashboardPage = {
                         <div class="d-flex align-items-center gap-3">
                             <select class="form-select form-select-sm" style="width:150px" id="dashPairSelect"
                                 onchange="DashboardPage.changePair(this.value)">
-                                <option value="XRP/USDT">XRP/USDT</option>
+                                <option value="">Loading...</option>
                             </select>
-                            ${Components.timeframeSelector(this.currentTimeframe, 'DashboardPage.changeTimeframe')}
+                            <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
                             <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-activity me-1"></i> Indicators</button>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -34,9 +35,8 @@ const DashboardPage = {
                     </div>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <small class="text-secondary" id="dashChartInfo">
-                            <i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe}
+                            <i class="bi bi-bar-chart"></i> Loading chart data...
                         </small>
-                        <small class="text-secondary ms-3">Volume (20) <i class="bi bi-graph-up"></i></small>
                     </div>
                     <div id="mainChart" class="chart-container" style="height:400px"></div>
                 </div>
@@ -78,7 +78,7 @@ const DashboardPage = {
 
     async init() {
         setTimeout(async () => {
-            await this.loadPairList();
+            await this.loadBotConfig();
             this.initMainChart();
             this.initEquityChart();
             await this.loadData();
@@ -87,27 +87,67 @@ const DashboardPage = {
         }, 100);
     },
 
-    async loadPairList() {
+    async loadBotConfig() {
         const select = document.getElementById('dashPairSelect');
-        if (!select) return;
 
         try {
             if (API.connected) {
-                const config = await API.getConfig();
-                const whitelist = config.exchange?.pair_whitelist || [];
-                if (whitelist.length > 0) {
-                    select.innerHTML = whitelist.map(p =>
-                        `<option value="${p}" ${p === this.currentPair ? 'selected' : ''}>${p}</option>`
-                    ).join('');
-                    // If current pair not in whitelist, switch to first
-                    if (!whitelist.includes(this.currentPair)) {
-                        this.currentPair = whitelist[0];
-                        select.value = this.currentPair;
+                // Load config and whitelist in parallel
+                const [config, whitelistData, openTrades] = await Promise.all([
+                    API.getConfig().catch(() => null),
+                    API.getWhitelist().catch(() => null),
+                    API.getOpenTrades().catch(() => []),
+                ]);
+
+                this.botConfig = config;
+
+                // Get the strategy's timeframe from config
+                if (config && config.timeframe) {
+                    this.currentTimeframe = config.timeframe;
+                    const tfBtns = document.getElementById('dashTfBtns');
+                    if (tfBtns) tfBtns.innerHTML = Components.timeframeSelector(this.currentTimeframe, 'DashboardPage.changeTimeframe');
+                }
+
+                // Build pair list from: whitelist API > config whitelist > open trades
+                let pairs = [];
+
+                // Primary: whitelist endpoint (returns the resolved/dynamic pair list)
+                if (whitelistData && whitelistData.whitelist && whitelistData.whitelist.length > 0) {
+                    pairs = whitelistData.whitelist;
+                }
+                // Fallback: config whitelist
+                if (pairs.length === 0 && config && config.exchange?.pair_whitelist?.length > 0) {
+                    pairs = config.exchange.pair_whitelist;
+                }
+                // Also add pairs from open trades that might not be in whitelist
+                if (Array.isArray(openTrades) && openTrades.length > 0) {
+                    const tradePairs = openTrades.map(t => t.pair).filter(Boolean);
+                    tradePairs.forEach(p => {
+                        if (!pairs.includes(p)) pairs.push(p);
+                    });
+                }
+
+                if (pairs.length > 0) {
+                    if (!this.currentPair || !pairs.includes(this.currentPair)) {
+                        this.currentPair = pairs[0];
+                    }
+                    if (select) {
+                        select.innerHTML = pairs.map(p =>
+                            `<option value="${p}" ${p === this.currentPair ? 'selected' : ''}>${p}</option>`
+                        ).join('');
                     }
                 }
             }
         } catch (e) {
-            console.log('Could not load pair list:', e.message);
+            console.log('Could not load bot config:', e.message);
+        }
+
+        // Defaults if nothing loaded
+        if (!this.currentPair) this.currentPair = 'BTC/USDT';
+        if (!this.currentTimeframe) this.currentTimeframe = '5m';
+
+        if (select && select.options.length <= 1 && select.options[0]?.value === '') {
+            select.innerHTML = `<option value="${this.currentPair}">${this.currentPair}</option>`;
         }
     },
 
@@ -118,6 +158,8 @@ const DashboardPage = {
 
     changeTimeframe(tf) {
         this.currentTimeframe = tf;
+        const tfBtns = document.getElementById('dashTfBtns');
+        if (tfBtns) tfBtns.innerHTML = Components.timeframeSelector(tf, 'DashboardPage.changeTimeframe');
         this.refreshChart();
     },
 
@@ -160,11 +202,57 @@ const DashboardPage = {
     async loadChartData() {
         if (!this.candleSeries) return;
 
+        const info = document.getElementById('dashChartInfo');
+
         try {
-            if (API.connected) {
-                const data = await API.getPairCandles(this.currentPair, this.currentTimeframe, 500);
-                if (data && data.columns && data.data && data.data.length > 0) {
-                    const candles = API.parseCandleData(data);
+            if (API.connected && this.currentPair) {
+                // Try 1: pair_candles (requires strategy-analyzed data in cache)
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - Loading...`;
+
+                let candles = null;
+                try {
+                    const data = await API.getPairCandles(this.currentPair, this.currentTimeframe, 500);
+                    if (data && data.columns && data.data && data.data.length > 0) {
+                        candles = API.parseCandleData(data);
+
+                        // Add signal markers
+                        const signals = API.parseSignals(data);
+                        if (signals.length > 0) {
+                            const markers = signals.map(s => {
+                                const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
+                                return {
+                                    time: s.time,
+                                    position: isBuy ? 'belowBar' : 'aboveBar',
+                                    color: isBuy ? '#2dd4a8' : '#e74c5e',
+                                    shape: 'circle',
+                                    text: isBuy ? 'B' : 'S',
+                                };
+                            }).sort((a, b) => a.time - b.time);
+                            this.candleSeries.setMarkers(markers);
+                        }
+                    }
+                } catch (e) {
+                    console.log('pair_candles failed:', e.message);
+                }
+
+                // Try 2: pair_history (loads from disk/exchange, works in webserver mode)
+                if (!candles) {
+                    try {
+                        const now = new Date();
+                        const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        const timerange = `${start.toISOString().slice(0,10).replace(/-/g,'')}-${now.toISOString().slice(0,10).replace(/-/g,'')}`;
+                        const strategy = this.botConfig?.strategy || '';
+
+                        const data = await API.getPairHistory(this.currentPair, this.currentTimeframe, timerange, strategy);
+                        if (data && data.columns && data.data && data.data.length > 0) {
+                            candles = API.parseCandleData(data);
+                        }
+                    } catch (e) {
+                        console.log('pair_history failed:', e.message);
+                    }
+                }
+
+                if (candles && candles.length > 0) {
                     this.candleSeries.setData(candles);
 
                     const volumes = candles.map(c => ({
@@ -174,28 +262,10 @@ const DashboardPage = {
                     }));
                     this.volumeSeries.setData(volumes);
 
-                    // Add signal markers from strategy
-                    const signals = API.parseSignals(data);
-                    if (signals.length > 0) {
-                        const markers = signals.map(s => {
-                            const candle = candles.find(c => c.time === s.time);
-                            if (!candle) return null;
-                            const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
-                            return {
-                                time: s.time,
-                                position: isBuy ? 'belowBar' : 'aboveBar',
-                                color: isBuy ? '#2dd4a8' : '#e74c5e',
-                                shape: 'circle',
-                                text: isBuy ? 'B' : 'S',
-                            };
-                        }).filter(Boolean);
-                        this.candleSeries.setMarkers(markers);
-                    }
-
-                    // Also add open trade markers
+                    // Add open trade markers
                     try {
                         const openTrades = await API.getOpenTrades();
-                        if (Array.isArray(openTrades) && openTrades.length > 0) {
+                        if (Array.isArray(openTrades)) {
                             const tradeMarkers = [];
                             for (const t of openTrades) {
                                 if (t.pair === this.currentPair && t.open_date) {
@@ -210,26 +280,26 @@ const DashboardPage = {
                                 }
                             }
                             if (tradeMarkers.length > 0) {
-                                const existingMarkers = signals.length > 0 ?
-                                    signals.map(s => {
-                                        const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
-                                        return { time: s.time, position: isBuy ? 'belowBar' : 'aboveBar', color: isBuy ? '#2dd4a8' : '#e74c5e', shape: 'circle', text: isBuy ? 'B' : 'S' };
-                                    }) : [];
-                                const allMarkers = [...existingMarkers, ...tradeMarkers].sort((a, b) => a.time - b.time);
-                                this.candleSeries.setMarkers(allMarkers);
+                                const existing = this.candleSeries.markers ? [] : [];
+                                const all = [...existing, ...tradeMarkers].sort((a, b) => a.time - b.time);
+                                this.candleSeries.setMarkers(all);
                             }
                         }
-                    } catch (e) { /* open trades markers are optional */ }
+                    } catch (e) { /* optional */ }
 
                     this.chart.timeScale().fitContent();
+                    if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} (${candles.length} candles)`;
                     return;
                 }
+
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair}, ${this.currentTimeframe} - No data available`;
             }
         } catch (e) {
             console.log('Chart data load error:', e.message);
         }
 
         // Fallback: demo data
+        if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${this.currentPair || 'XRP/USDT'}, ${this.currentTimeframe || '30m'} (demo)`;
         const demoData = Components.generateDemoCandles(300, 0.25);
         this.candleSeries.setData(demoData);
 
@@ -240,7 +310,6 @@ const DashboardPage = {
         }));
         this.volumeSeries.setData(volumes);
 
-        // Demo buy/sell markers
         const markers = [];
         for (let i = 20; i < demoData.length; i += Math.floor(8 + Math.random() * 15)) {
             markers.push({
@@ -274,7 +343,8 @@ const DashboardPage = {
             lineWidth: 2,
         });
 
-        this._equityAreaSeries.setData(Components.generateDemoEquity(100, 30000));
+        // Show placeholder until real data loads
+        this._equityAreaSeries.setData(Components.generateDemoEquity(30, 10000));
         this.equityChart.timeScale().fitContent();
     },
 
@@ -284,25 +354,22 @@ const DashboardPage = {
             if (!API.connected) return;
             const daily = await API.getDaily(60);
             if (daily && daily.data && daily.data.length > 0) {
-                let cumProfit = 0;
-                const startBalance = daily.stake_currency_decimals ? 1000 : 1000;
-
                 // Get starting balance from config
-                let balance = 1000;
-                try {
-                    const config = await API.getConfig();
-                    balance = config.dry_run_wallet || config.available_capital || 1000;
-                } catch (e) {}
+                let startBalance = 1000;
+                if (this.botConfig) {
+                    startBalance = this.botConfig.dry_run_wallet || this.botConfig.available_capital || 1000;
+                }
 
+                let cumProfit = 0;
                 const equityData = daily.data.map(d => {
                     cumProfit += (d.abs_profit || 0);
                     return {
                         time: Math.floor(new Date(d.date).getTime() / 1000),
-                        value: balance + cumProfit,
+                        value: startBalance + cumProfit,
                     };
-                }).filter(d => !isNaN(d.time));
+                }).filter(d => !isNaN(d.time) && d.time > 0);
 
-                if (equityData.length > 0) {
+                if (equityData.length > 1) {
                     this._equityAreaSeries.setData(equityData);
                     this.equityChart.timeScale().fitContent();
                 }
@@ -359,7 +426,7 @@ const DashboardPage = {
             if (balance) {
                 const db = document.getElementById('dashBalance');
                 const dq = document.getElementById('dashQuote');
-                if (db) db.textContent = `${Components.formatNumber(balance.total || 0, 2)} ${balance.symbol || balance.stake || 'USDT'}`;
+                if (db) db.textContent = `${Components.formatNumber(balance.total || 0, 4)} ${balance.symbol || balance.stake || 'USDT'}`;
                 if (dq) dq.textContent = balance.note || '';
             }
 
@@ -378,12 +445,10 @@ const DashboardPage = {
         if (tt) tt.innerHTML = Components.tradesTable(demoTrades);
 
         const pd = document.getElementById('dashProfitDisplay');
-        if (pd) pd.innerHTML = Components.profitDisplay(0, 10926.701, 71.43, 260.1595);
+        if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
 
         const db = document.getElementById('dashBalance');
-        if (db) db.textContent = '0 XRP';
-        const dq = document.getElementById('dashQuote');
-        if (dq) dq.textContent = '40926.701 USDT';
+        if (db) db.textContent = '0 USDT';
     },
 
     destroy() {
