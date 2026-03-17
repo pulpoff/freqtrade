@@ -2057,10 +2057,29 @@ ${entryConditions.length > 0 ?
             if (timeframe) btConfig.timeframe = timeframe;
             if (freqaimodel) btConfig.freqaimodel = freqaimodel;
 
-            this._updatePanelProgress(10, 'Resetting...', 'Clearing previous backtest');
+            this._updatePanelProgress(5, 'Resetting...', 'Clearing previous backtest');
             await API.resetBacktest().catch(() => {});
 
-            this._updatePanelProgress(15, 'Starting backtest...', `Strategy: ${strategyName}`);
+            // Pre-download data for selected pair and common informative timeframes
+            this._updatePanelProgress(8, 'Downloading data...', `${selectedPair} (multiple timeframes)`);
+            const dlTimeframes = [timeframe || '5m'];
+            for (const tf of ['1h', '4h', '1d']) {
+                if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
+            }
+            try {
+                const dlResult = await API.downloadData({
+                    pairs: [selectedPair],
+                    timeframes: dlTimeframes,
+                    timerange: `${startDate}-${endDate}`,
+                });
+                if (dlResult && dlResult.job_id) {
+                    await this._waitForDownload(dlResult.job_id);
+                }
+            } catch(dlErr) {
+                console.log('Pre-download skipped:', dlErr.message);
+            }
+
+            this._updatePanelProgress(20, 'Starting backtest...', `Strategy: ${strategyName}`);
             await API.startBacktest(btConfig);
 
             this._btStrategyName = strategyName;
@@ -2098,7 +2117,9 @@ ${entryConditions.length > 0 ?
                 setTimeout(() => this._displayPanelResults(status.backtest_result || status), 300);
             } else if (status.status === 'error') {
                 const errMsg = status.status_msg || 'Unknown error';
-                if ((errMsg.includes('No data found') || errMsg.includes('No data')) && !this._btAutoDownloaded) {
+                const isDataError = errMsg.includes('No data found') || errMsg.includes('No data')
+                    || errMsg.includes('Length of values') || errMsg.includes('does not match length');
+                if (isDataError && !this._btAutoDownloaded) {
                     this._btAutoDownloaded = true;
                     this._updatePanelProgress(0, 'No data - downloading...', 'Auto-downloading market data');
                     this._autoDownloadForPanel();
@@ -2121,6 +2142,30 @@ ${entryConditions.length > 0 ?
             this._btRunning = false;
             this.resetBacktestPanel();
             App.showToast(`Poll error: ${e.message}`, 'error');
+        }
+    },
+
+    async _waitForDownload(jobId) {
+        const maxWait = 120; // seconds
+        for (let i = 0; i < maxWait; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            try {
+                const jobs = await API.getBackgroundJobs();
+                const job = jobs?.find(j => j.id === jobId) || {};
+                if (job.status === 'success') {
+                    this._updatePanelProgress(18, 'Data ready', 'Download complete');
+                    return;
+                }
+                if (job.status === 'failed') {
+                    console.log('Download job failed:', job.error);
+                    return;
+                }
+                // Still running
+                const pct = 8 + Math.min(10, i * 0.5);
+                const tasks = Object.values(job.progress_tasks || {});
+                const desc = tasks.length > 0 ? tasks[tasks.length - 1].description : 'Downloading...';
+                this._updatePanelProgress(pct, 'Downloading data...', desc);
+            } catch(e) { return; }
         }
     },
 
@@ -2163,7 +2208,10 @@ ${entryConditions.length > 0 ?
             // Use the selected pair (single coin for strategy builder backtests)
             const pairs = [this._btSelectedPair || document.getElementById('sbBtPair')?.value || 'BTC/USDT'];
             const timeframes = [timeframe];
-            if (timeframe !== '1h' && timeframe !== '4h') timeframes.push('1h');
+            // Include common informative timeframes that strategies often need
+            for (const tf of ['1h', '4h', '1d']) {
+                if (!timeframes.includes(tf)) timeframes.push(tf);
+            }
             this._updatePanelProgress(5, `Downloading data for ${pairs.length} pair(s)...`, pairs.join(', '));
             const result = await API.downloadData({ pairs, timeframes, timerange });
             if (result && result.job_id) {

@@ -46,7 +46,8 @@ router = APIRouter()
 def balance(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
     """Account Balances"""
     if not rpc:
-        return {"currencies": [], "total": 0, "symbol": "", "value": 0,
+        return {"currencies": [], "total": 0, "total_bot": 0, "symbol": "",
+                "value": 0, "value_bot": 0,
                 "stake": config.get("stake_currency", "USDT"), "note": "",
                 "starting_capital": 0, "starting_capital_ratio": 0,
                 "starting_capital_pct": 0, "starting_capital_fiat": 0,

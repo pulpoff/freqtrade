@@ -1565,15 +1565,15 @@ h4.fw-semibold, h5.fw-semibold {
    ============================================ */
 .sb-backtest-panel,
 .sb-analysis-panel {
-    position: absolute;
+    position: fixed;
     top: 0;
-    left: 1.5rem;
+    left: var(--sidebar-collapsed-width);
     bottom: 0;
     width: 340px;
     max-width: 40vw;
     background: var(--bc-bg-dark);
     border-right: 1px solid var(--bc-border);
-    z-index: 60;
+    z-index: 1060;
     overflow-y: auto;
     overflow-x: hidden;
     transform: translateX(-100%);
