@@ -443,7 +443,13 @@ const BacktestingPage = {
                 }
                 this.hideProgress();
                 this.isRunning = false;
-                App.showToast(`Backtest error: ${errMsg}`, 'error');
+                if (errMsg.includes('freqai') || errMsg.includes('FreqAI') || errMsg.includes('freqaimodel')) {
+                    this._showErrorModal('FreqAI Model Required',
+                        'This strategy requires a FreqAI model to run. Please select a FreqAI model from the dropdown before launching the backtest.',
+                        errMsg);
+                } else {
+                    this._showErrorModal('Backtest Error', 'The backtest failed with an error.', errMsg);
+                }
             } else {
                 this.pollTimer = setTimeout(() => this.pollBacktest(), 2000);
             }
@@ -1010,6 +1016,36 @@ const BacktestingPage = {
             btn.closest('.btn-group').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         }
+    },
+
+    _showErrorModal(title, message, detail) {
+        let modal = document.getElementById('btErrorModal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'btErrorModal';
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="background:var(--bc-card);border:1px solid var(--bc-border);color:var(--bc-text)">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>${title}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>${message}</p>
+                        <div class="bg-dark rounded p-3 mt-2" style="font-size:0.8rem;max-height:200px;overflow:auto">
+                            <code class="text-danger">${detail}</code>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        new bootstrap.Modal(modal).show();
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
     },
 
     destroy() {

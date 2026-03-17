@@ -1567,10 +1567,10 @@ h4.fw-semibold, h5.fw-semibold {
 .sb-analysis-panel {
     position: absolute;
     top: 0;
-    left: 0;
+    left: 1.5rem;
     bottom: 0;
-    width: 520px;
-    max-width: 45vw;
+    width: 340px;
+    max-width: 40vw;
     background: var(--bc-bg-dark);
     border-right: 1px solid var(--bc-border);
     z-index: 60;
@@ -1714,6 +1714,7 @@ h4.fw-semibold, h5.fw-semibold {
 @media (max-width: 768px) {
     .sb-backtest-panel,
     .sb-analysis-panel {
+        left: 0;
         width: 100vw;
         max-width: 100vw;
     }
