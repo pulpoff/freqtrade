@@ -245,6 +245,8 @@ const DashboardPage = {
 
     changePair(pair) {
         this.currentPair = pair;
+        // Clear chart immediately so old data doesn't linger
+        this._applyChartData([], [], []);
         this.refreshChart();
     },
 
@@ -255,6 +257,8 @@ const DashboardPage = {
         // Clear cache for this pair+tf to force fresh fetch
         const key = this._cacheKey(this.currentPair, tf);
         delete this._cache[key];
+        // Clear chart immediately so old data doesn't linger
+        this._applyChartData([], [], []);
         this.refreshChart();
     },
 
@@ -321,7 +325,13 @@ const DashboardPage = {
 
     /** Apply candle + volume + marker data to chart */
     _applyChartData(candles, volumes, signals) {
-        if (!this.candleSeries || !candles || candles.length === 0) return;
+        if (!this.candleSeries) return;
+        if (!candles || candles.length === 0) {
+            this.candleSeries.setData([]);
+            if (this.volumeSeries) this.volumeSeries.setData([]);
+            this.candleSeries.setMarkers([]);
+            return;
+        }
         this.candleSeries.setData(candles);
         if (this.volumeSeries && volumes) this.volumeSeries.setData(volumes);
         if (signals && signals.length > 0) {
@@ -355,7 +365,7 @@ const DashboardPage = {
         if (cached) {
             this._applyChartData(cached.candles, cached.volumes, cached.signals);
             if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${cached.candles.length} candles, cached)`;
-            this.chart.timeScale().fitContent();
+            this.chart.timeScale().scrollToRealTime();
             loaded = true;
 
             // Add open trade markers on top of cached data
@@ -431,7 +441,7 @@ const DashboardPage = {
                     // Add open trade markers
                     this._addTradeMarkers(pair);
 
-                    this.chart.timeScale().fitContent();
+                    this.chart.timeScale().scrollToRealTime();
                     if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} (${candles.length} candles)`;
                     return;
                 }

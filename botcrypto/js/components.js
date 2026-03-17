@@ -282,7 +282,11 @@ const Components = {
             timeScale: {
                 borderColor: '#2e3348',
                 timeVisible: true,
+                rightOffset: 5,
+                minBarSpacing: 1,
             },
+            handleScroll: true,
+            handleScale: true,
             ...options
         });
         return chart;
