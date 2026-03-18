@@ -17,30 +17,22 @@ const BacktestingPage = {
         <div id="backtestingPage">
             <!-- Config Section -->
             <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h5>
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <h6 class="fw-semibold mb-0"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h6>
+                    </div>
 
-                    <div class="row g-2 g-md-3">
-                        <!-- Strategy Selection -->
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small text-secondary">Strategy</label>
-                            <div class="input-group">
-                                <select class="form-select" id="btStrategy">
-                                    <option value="">-- Select Strategy --</option>
-                                </select>
-                                <button class="btn btn-outline-secondary" onclick="BacktestingPage.loadPyFile()" title="Load .py file">
-                                    <i class="bi bi-file-earmark-code"></i>
-                                </button>
+                    <div class="row g-2 align-items-end">
+                        <div class="col"><label class="form-label small text-secondary mb-0">Strategy</label>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" id="btStrategy"><option value="">-- Select --</option></select>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="BacktestingPage.loadPyFile()" title="Load .py file"><i class="bi bi-file-earmark-code"></i></button>
                             </div>
-                            <input type="file" id="btFileInput" accept=".py" style="display:none"
-                                onchange="BacktestingPage.onFileSelected(event)">
-                            <small class="text-secondary mt-1 d-block" id="btStrategyInfo"></small>
+                            <input type="file" id="btFileInput" accept=".py" style="display:none" onchange="BacktestingPage.onFileSelected(event)">
+                            <small class="text-secondary d-none" id="btStrategyInfo"></small>
                         </div>
-
-                        <!-- FreqAI Model -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">FreqAI Model</label>
-                            <select class="form-select" id="btFreqaiModel">
+                        <div class="col"><label class="form-label small text-secondary mb-0">FreqAI Model</label>
+                            <select class="form-select form-select-sm" id="btFreqaiModel">
                                 <option value="">None</option>
                                 <option value="LightGBMRegressor">LightGBMRegressor</option>
                                 <option value="LightGBMClassifier">LightGBMClassifier</option>
@@ -52,74 +44,46 @@ const BacktestingPage = {
                                 <option value="ReinforcementLearner">ReinforcementLearner</option>
                             </select>
                         </div>
-
-                        <!-- Coin Pair -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Coin Pair</label>
-                            <select class="form-select" id="btPair">
+                        <div class="col"><label class="form-label small text-secondary mb-0">Coin Pair</label>
+                            <select class="form-select form-select-sm" id="btPair"></select>
+                        </div>
+                        <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Timeframe</label>
+                            <select class="form-select form-select-sm" id="btTimeframe">
+                                <option value="" selected>Default</option>
+                                <option value="1m">1m</option><option value="5m">5m</option>
+                                <option value="15m">15m</option><option value="30m">30m</option>
+                                <option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
                             </select>
                         </div>
-
-                        <!-- Timeframe -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Timeframe</label>
-                            <select class="form-select" id="btTimeframe">
-                                <option value="" selected>Strategy default</option>
-                                <option value="1m">1m</option>
-                                <option value="5m">5m</option>
-                                <option value="15m">15m</option>
-                                <option value="30m">30m</option>
-                                <option value="1h">1h</option>
-                                <option value="4h">4h</option>
-                                <option value="1d">1d</option>
-                            </select>
+                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">Start Date</label>
+                            <input type="date" class="form-control form-control-sm" id="btStartDate" value="${this._defaultStartDate()}">
                         </div>
-
+                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">End Date</label>
+                            <input type="date" class="form-control form-control-sm" id="btEndDate" value="${this._defaultEndDate()}">
+                        </div>
                     </div>
 
-                    <div class="row g-2 g-md-3 mt-1">
-                        <!-- Date Range -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Start Date</label>
-                            <input type="date" class="form-control" id="btStartDate" value="${this._defaultStartDate()}">
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">End Date</label>
-                            <input type="date" class="form-control" id="btEndDate" value="${this._defaultEndDate()}">
-                        </div>
-                        <!-- Stake Amount -->
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small text-secondary">Initial Wallet (Dry Run)</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="btWallet" value="1000">
-                                <span class="input-group-text">USDT</span>
+                    <div class="row g-2 align-items-end mt-1">
+                        <div class="col-auto" style="width:140px"><label class="form-label small text-secondary mb-0">Wallet</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control form-control-sm" id="btWallet" value="1000">
+                                <span class="input-group-text" style="font-size:0.75rem">USDT</span>
                             </div>
                         </div>
-
-                        <!-- Stake per trade -->
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small text-secondary">Stake Amount</label>
-                            <input type="text" class="form-control" id="btStakeAmount" value="unlimited">
+                        <div class="col-auto" style="width:120px"><label class="form-label small text-secondary mb-0">Stake</label>
+                            <input type="text" class="form-control form-control-sm" id="btStakeAmount" value="unlimited">
                         </div>
-
-                        <!-- Max Open Trades -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Max Open Trades</label>
-                            <input type="number" class="form-control" id="btMaxTrades" value="3">
+                        <div class="col-auto" style="width:80px"><label class="form-label small text-secondary mb-0">Max Trades</label>
+                            <input type="number" class="form-control form-control-sm" id="btMaxTrades" value="3">
                         </div>
-
-                        <!-- Enable Protections -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Protections</label>
-                            <div class="form-check form-switch mt-2">
+                        <div class="col-auto d-flex align-items-center pt-3">
+                            <div class="form-check form-switch mb-0">
                                 <input type="checkbox" class="form-check-input" id="btProtections">
-                                <label class="form-check-label" for="btProtections">Enable</label>
+                                <label class="form-check-label small" for="btProtections">Protections</label>
                             </div>
                         </div>
-
-                        <!-- Run Button -->
-                        <div class="col-12 col-md-2 d-flex align-items-end">
-                            <button class="btn btn-success w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
+                        <div class="col d-flex align-items-end">
+                            <button class="btn btn-success btn-sm w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
                                 <i class="bi bi-play-fill me-1"></i> Run Backtest
                             </button>
                         </div>
