@@ -76,6 +76,9 @@ const BacktestingPage = {
                             </select>
                         </div>
 
+                    </div>
+
+                    <div class="row g-2 g-md-3 mt-1">
                         <!-- Date Range -->
                         <div class="col-6 col-md-2">
                             <label class="form-label small text-secondary">Start Date</label>
@@ -85,9 +88,6 @@ const BacktestingPage = {
                             <label class="form-label small text-secondary">End Date</label>
                             <input type="date" class="form-control" id="btEndDate" value="${this._defaultEndDate()}">
                         </div>
-                    </div>
-
-                    <div class="row g-2 g-md-3 mt-1">
                         <!-- Stake Amount -->
                         <div class="col-6 col-md-3">
                             <label class="form-label small text-secondary">Initial Wallet (Dry Run)</label>
