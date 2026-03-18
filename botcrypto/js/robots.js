@@ -317,15 +317,29 @@ const RobotsPage = {
         }
         try {
             if (action === 'start') {
+                let started = false;
+                // First attempt
                 try {
                     await API.startBot();
+                    started = true;
                 } catch (e) {
                     if (e.message && e.message.includes('not in the correct state')) {
-                        // Bot may need a reload first, try reload then start
-                        App.showToast('Reloading config before starting...', 'info');
+                        // Bot may need reload or is still initializing - retry with backoff
+                        App.showToast('Bot initializing... reloading config and retrying', 'info');
                         await API.request('/reload_config', { method: 'POST' }).catch(() => {});
-                        await new Promise(r => setTimeout(r, 2000));
-                        await API.startBot();
+                        // Retry up to 4 times with increasing delays (3s, 5s, 8s, 12s)
+                        const delays = [3000, 5000, 8000, 12000];
+                        for (let i = 0; i < delays.length && !started; i++) {
+                            await new Promise(r => setTimeout(r, delays[i]));
+                            try {
+                                await API.startBot();
+                                started = true;
+                            } catch (retryErr) {
+                                if (!retryErr.message?.includes('not in the correct state')) throw retryErr;
+                                App.showToast(`Still initializing... retry ${i + 2}/5`, 'info');
+                            }
+                        }
+                        if (!started) throw new Error('Bot is not in the correct state after multiple retries. It may still be loading strategies/models.');
                     } else {
                         throw e;
                     }
@@ -340,7 +354,7 @@ const RobotsPage = {
         } catch (e) {
             const msg = e.message || '';
             if (msg.includes('not in the correct state')) {
-                App.showToast('Bot is not in a startable state. Try stopping it first, then starting again.', 'warning');
+                App.showToast('Bot is still loading (strategies/ML models). Please wait and try again.', 'warning');
             } else {
                 App.showToast(`Failed: ${msg}`, 'error');
             }
