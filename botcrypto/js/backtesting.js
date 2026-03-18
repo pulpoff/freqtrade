@@ -989,33 +989,62 @@ const BacktestingPage = {
                 return;
             }
 
+            const fmtTs = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts * 1000);
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            };
+            const fmtRunDate = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts * 1000);
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+                       d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            };
+
             container.innerHTML = `
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover table-sm mb-0">
                     <thead><tr>
-                        <th>Strategy</th><th>Timerange</th><th>Profit</th><th>Trades</th><th>Date</th><th></th>
+                        <th>Strategy</th><th>Date Range</th><th>Timeframe</th><th>Run Date</th><th></th>
                     </tr></thead>
                     <tbody>
-                        ${history.map(h => `
+                        ${history.map(h => {
+                            const dateRange = (h.backtest_start_ts && h.backtest_end_ts)
+                                ? `${fmtTs(h.backtest_start_ts)} - ${fmtTs(h.backtest_end_ts)}`
+                                : '-';
+                            return `
                         <tr>
                             <td class="fw-semibold">${h.strategy || '-'}</td>
-                            <td>${h.timerange || '-'}</td>
-                            <td class="${(h.profit_total || 0) >= 0 ? 'text-profit' : 'text-loss'}">
-                                ${Components.formatPercent((h.profit_total || 0) * 100)}
-                            </td>
-                            <td>${h.trades || '-'}</td>
-                            <td class="text-secondary small">${h.backtest_start || Components.formatDate(h.run_id) || '-'}</td>
-                            <td>
-                                <button class="btn btn-outline-success btn-sm" onclick="BacktestingPage.loadHistoryResult('${h.filename || ''}', '${h.strategy || ''}')">
+                            <td class="small">${dateRange}</td>
+                            <td class="small">${h.timeframe || '-'}</td>
+                            <td class="text-secondary small">${fmtRunDate(h.backtest_start_time)}</td>
+                            <td class="text-end" style="white-space:nowrap">
+                                <button class="btn btn-outline-success btn-sm me-1" onclick="BacktestingPage.loadHistoryResult('${h.filename || ''}', '${h.strategy || ''}')" title="View results">
                                     <i class="bi bi-eye"></i>
                                 </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="BacktestingPage.deleteHistoryEntry('${h.filename || ''}')" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </td>
-                        </tr>`).join('')}
+                        </tr>`;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>`;
         } catch (e) {
             container.innerHTML = `<div class="text-center text-secondary py-3">Error loading history: ${e.message}</div>`;
+        }
+    },
+
+    async deleteHistoryEntry(filename) {
+        if (!filename) return;
+        if (!confirm('Delete this backtest result?')) return;
+        try {
+            await API.deleteBacktestHistory(filename);
+            App.showToast('Backtest result deleted', 'success');
+            this.loadHistory();
+        } catch (e) {
+            App.showToast(`Delete failed: ${e.message}`, 'error');
         }
     },
 
