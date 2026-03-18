@@ -974,10 +974,10 @@ const BacktestingPage = {
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead><tr>
-                            <th>Strategy</th><th>Timerange</th><th>Profit</th><th>Trades</th><th>Date</th><th></th>
+                            <th>Strategy</th><th>Pair</th><th>Timerange</th><th>Timeframe</th><th>Trades</th><th>Profit</th><th>FreqAI</th><th>Date</th><th></th>
                         </tr></thead>
                         <tbody>
-                            <tr class="text-secondary"><td colspan="6" class="text-center py-3">Connect to Freqtrade to see backtest history</td></tr>
+                            <tr class="text-secondary"><td colspan="9" class="text-center py-3">Connect to Freqtrade to see backtest history</td></tr>
                         </tbody>
                     </table>
                 </div>`;
@@ -1006,18 +1006,22 @@ const BacktestingPage = {
             <div class="table-responsive">
                 <table class="table table-hover table-sm mb-0">
                     <thead><tr>
-                        <th>Strategy</th><th>Date Range</th><th>Timeframe</th><th>Run Date</th><th></th>
+                        <th>Strategy</th><th>Pair</th><th>Date Range</th><th>Timeframe</th><th>Trades</th><th>Profit</th><th>FreqAI</th><th>Run Date</th><th></th>
                     </tr></thead>
                     <tbody>
-                        ${history.map(h => {
+                        ${history.map((h, idx) => {
                             const dateRange = (h.backtest_start_ts && h.backtest_end_ts)
                                 ? `${fmtTs(h.backtest_start_ts)} - ${fmtTs(h.backtest_end_ts)}`
                                 : '-';
                             return `
                         <tr>
                             <td class="fw-semibold">${h.strategy || '-'}</td>
+                            <td class="small" id="btHistPair_${idx}"><span class="text-secondary">...</span></td>
                             <td class="small">${dateRange}</td>
                             <td class="small">${h.timeframe || '-'}</td>
+                            <td class="small" id="btHistTrades_${idx}"><span class="text-secondary">...</span></td>
+                            <td class="small" id="btHistProfit_${idx}"><span class="text-secondary">...</span></td>
+                            <td class="small" id="btHistFreqai_${idx}"><span class="text-secondary">...</span></td>
                             <td class="text-secondary small">${fmtRunDate(h.backtest_start_time)}</td>
                             <td class="text-end" style="white-space:nowrap">
                                 <button class="btn btn-outline-success btn-sm me-1" onclick="BacktestingPage.loadHistoryResult('${h.filename || ''}', '${h.strategy || ''}')" title="View results">
@@ -1032,6 +1036,62 @@ const BacktestingPage = {
                     </tbody>
                 </table>
             </div>`;
+
+            // Fetch summary data for each history entry in the background
+            history.forEach((h, idx) => {
+                if (!h.filename || !h.strategy) {
+                    ['Pair', 'Trades', 'Profit', 'Freqai'].forEach(col => {
+                        const el = document.getElementById(`btHist${col}_${idx}`);
+                        if (el) el.textContent = '-';
+                    });
+                    return;
+                }
+                API.getBacktestResult(h.filename, h.strategy).then(result => {
+                    let sr = null;
+                    if (result && result.strategy && typeof result.strategy === 'object') {
+                        const vals = Object.values(result.strategy);
+                        if (vals.length > 0) sr = vals[0];
+                    }
+                    if (!sr) sr = result;
+
+                    // Pair
+                    const pairEl = document.getElementById(`btHistPair_${idx}`);
+                    if (pairEl) {
+                        const trades = sr.trades || [];
+                        const pairs = [...new Set(trades.map(t => t.pair))];
+                        pairEl.textContent = pairs.length > 0 ? pairs.join(', ') : (sr.pairlist || '-');
+                    }
+
+                    // Trades count
+                    const tradesEl = document.getElementById(`btHistTrades_${idx}`);
+                    if (tradesEl) {
+                        const count = (sr.trades || []).length || sr.trade_count || 0;
+                        tradesEl.textContent = count;
+                    }
+
+                    // Profit
+                    const profitEl = document.getElementById(`btHistProfit_${idx}`);
+                    if (profitEl) {
+                        const profitAbs = sr.profit_total_abs || 0;
+                        const profitPct = (sr.profit_total || 0) * 100;
+                        const currency = sr.stake_currency || 'USDT';
+                        const color = profitAbs >= 0 ? 'text-profit' : 'text-loss';
+                        profitEl.innerHTML = `<span class="${color} fw-semibold">${profitAbs >= 0 ? '+' : ''}${Components.formatNumber(profitAbs, 2)} ${currency}</span> <span class="text-secondary">(${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(1)}%)</span>`;
+                    }
+
+                    // FreqAI model
+                    const freqaiEl = document.getElementById(`btHistFreqai_${idx}`);
+                    if (freqaiEl) {
+                        const model = sr.freqai?.model || sr.freqai_model || '';
+                        freqaiEl.textContent = model || '-';
+                    }
+                }).catch(() => {
+                    ['Pair', 'Trades', 'Profit', 'Freqai'].forEach(col => {
+                        const el = document.getElementById(`btHist${col}_${idx}`);
+                        if (el) el.textContent = '-';
+                    });
+                });
+            });
         } catch (e) {
             container.innerHTML = `<div class="text-center text-secondary py-3">Error loading history: ${e.message}</div>`;
         }
