@@ -891,6 +891,8 @@ const StrategyBuilderPage = {
             html += this._waitPropertiesForm(node);
         } else if (node.type === 'group') {
             html += this._groupPropertiesForm(node);
+        } else if (node.type === 'logic') {
+            html += this._logicPropertiesForm(node);
         }
 
         html += `
@@ -933,6 +935,7 @@ const StrategyBuilderPage = {
             exit_signal: 'Exit signal that triggers closing a position based on strategy conditions.',
             filter: 'Entry filter that validates trade conditions before execution.',
             ai: 'FreqAI machine learning model for predictive trading signals.',
+            logic: 'Custom Python code block parsed from the strategy. Contains logic that could not be mapped to a visual block.',
         };
         return descs[type] || '';
     },
@@ -1227,6 +1230,22 @@ const StrategyBuilderPage = {
                 onclick="StrategyBuilderPage.updateParam(${node.id}, 'logic', 'AND'); StrategyBuilderPage.editNode(${node.id})">AND</button>
             <button class="btn ${p.logic === 'OR' ? 'btn-success' : 'btn-outline-secondary'}"
                 onclick="StrategyBuilderPage.updateParam(${node.id}, 'logic', 'OR'); StrategyBuilderPage.editNode(${node.id})">OR</button>
+        </div>`;
+    },
+
+    _logicPropertiesForm(node) {
+        const p = node.params;
+        const code = p.code || '';
+        const label = p._label || 'Logic';
+        return `
+        <h6 class="text-light mb-2">Label</h6>
+        <input type="text" class="form-control form-control-sm mb-3" value="${this._escapeHtml(label)}"
+            style="background:var(--bc-card);border-color:var(--bc-border);color:var(--bc-text)"
+            onchange="StrategyBuilderPage.updateParam(${node.id}, '_label', this.value)">
+
+        <h6 class="text-light mb-2">Python Code</h6>
+        <div class="mb-3 p-2 rounded" style="background:#0d1117;border:1px solid var(--bc-border);max-height:300px;overflow-y:auto">
+            <pre class="mb-0 small" style="white-space:pre-wrap;word-break:break-all;line-height:1.5">${code ? this._highlightPython(code) : '<span class="text-secondary">No code captured</span>'}</pre>
         </div>`;
     },
 
