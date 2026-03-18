@@ -9,6 +9,9 @@ const RobotsPage = {
     searchQuery: '',
     refreshTimer: null,
 
+    /** Currently selected bot for detail view */
+    _selectedBotId: null,
+
     render() {
         const myStrategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
@@ -64,16 +67,26 @@ const RobotsPage = {
                 ` : filtered.map((s, i) => this._renderStrategyCard(s, i)).join('')}
             </div>
 
-            <!-- Bots Section -->
-            <div class="d-flex align-items-center justify-content-between mt-4 mb-3">
+            <!-- ===== BOTS SECTION ===== -->
+            <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
                 <h5 class="fw-semibold mb-0"><i class="bi bi-robot me-2"></i>My Bots</h5>
-                <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.addBot()">
-                    <i class="bi bi-plus-lg me-1"></i> Add Bot
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.addBot()">
+                        <i class="bi bi-plus-lg me-1"></i> Add Bot
+                    </button>
+                </div>
             </div>
-            <div id="botsContainer">
-                ${this._renderBotCards()}
+
+            <!-- Running Bots Strip (compact horizontal list) -->
+            <div class="d-flex gap-2 flex-wrap mb-2" id="runningBotsStrip">
+                ${this._renderBotStrip()}
             </div>
+
+            <!-- Saved Bot Configs (collapsible) -->
+            <div id="savedBotCards">${this._renderSavedBotCards()}</div>
+
+            <!-- Bot Detail View (inline, below bots) -->
+            <div id="botDetailInline" style="display:none"></div>
         </div>`;
     },
 
@@ -316,122 +329,25 @@ const RobotsPage = {
     },
 
     async loadActiveBotInfo() {
-        const el = document.getElementById('activeBotInfo');
-        if (!el) return;
+        // Update the bot strip with current status (dot colors)
+        const strip = document.getElementById('runningBotsStrip');
+        if (!strip) return;
 
-        if (!API.connected) {
-            el.innerHTML = `<div class="col-12 text-center text-secondary py-3">
-                <small>Connect to Freqtrade to see bot status</small>
-            </div>`;
-            return;
-        }
+        if (!API.connected) return;
 
         try {
-            // Try engine status first (for managed strategies)
-            const engineStatus = await API.getEngineStatus().catch(() => null);
-
-            if (engineStatus && engineStatus.engine_mode) {
-                // Engine mode - show managed strategies
-                const strategies = engineStatus.strategies || [];
-                if (strategies.length === 0) {
-                    el.innerHTML = `<div class="col-12 text-center text-secondary py-3">
-                        <i class="bi bi-robot fs-4 d-block mb-1"></i>
-                        <small>No strategies deployed. Create a bot config and click Deploy to start trading.</small>
-                    </div>`;
-                } else {
-                    el.innerHTML = strategies.map(s => {
-                        const statusColor = s.status === 'running' ? 'success' : s.status === 'error' ? 'danger' : s.status === 'starting' ? 'warning' : 'secondary';
-                        const statusIcon = s.status === 'running' ? 'play-circle' : s.status === 'error' ? 'exclamation-triangle' : s.status === 'starting' ? 'hourglass-split' : 'stop-circle';
-                        return `
-                        <div class="col-12 mb-2">
-                            <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background:var(--bc-bg);border:1px solid var(--bc-border);cursor:pointer"
-                                onclick="RobotsPage.openBotDetail('${s.strategy_id}', '${(s.strategy_name || '').replace(/'/g, "\\'")}', ${JSON.stringify(s.pairs || []).replace(/"/g, '&quot;')}, '${s.exchange}', '${s.trading_mode}', ${s.dry_run})">
-                                <div class="d-flex align-items-center gap-3">
-                                    <span class="badge bg-${statusColor}"><i class="bi bi-${statusIcon} me-1"></i>${s.status}</span>
-                                    <div>
-                                        <span class="fw-semibold">${s.strategy_name}</span>
-                                        <div class="d-flex gap-1 mt-1">
-                                            <span class="badge bg-secondary" style="font-size:10px">${s.exchange}</span>
-                                            <span class="badge bg-info" style="font-size:10px">${s.trading_mode}</span>
-                                            <span class="badge ${s.dry_run ? 'bg-warning text-dark' : 'bg-danger'}" style="font-size:10px">${s.dry_run ? 'Dry' : 'LIVE'}</span>
-                                            ${(s.pairs || []).slice(0, 2).map(p => `<span class="badge bg-primary" style="font-size:10px">${p.split('/')[0]}</span>`).join('')}
-                                            ${(s.pairs || []).length > 2 ? `<span class="badge bg-secondary" style="font-size:10px">+${s.pairs.length - 2}</span>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="d-flex gap-1" onclick="event.stopPropagation()">
-                                    ${s.status === 'running' || s.status === 'starting' ?
-                                        `<button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop', '${s.strategy_id}')"><i class="bi bi-stop-fill"></i></button>` :
-                                        `<button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start', '${s.strategy_id}')"><i class="bi bi-play-fill"></i></button>`
-                                    }
-                                    ${s.status === 'stopped' || s.status === 'error' ?
-                                        `<button class="btn btn-outline-danger btn-sm" onclick="RobotsPage.removeManagedStrategy('${s.strategy_id}')"><i class="bi bi-trash"></i></button>` : ''}
-                                </div>
-                            </div>
-                            ${s.error ? `<div class="text-danger small mt-1 ps-2" style="max-height:60px;overflow:auto"><pre class="mb-0 small">${s.error.substring(0, 200)}</pre></div>` : ''}
-                        </div>`;
-                    }).join('');
-                }
-                return;
+            const config = await API.getConfig().catch(() => null);
+            const state = config?.state || 'unknown';
+            // Update active bot dot color
+            const dot = document.getElementById('stripActiveDot');
+            if (dot) {
+                dot.style.background = state === 'running' ? '#2dd4a8' : (state === 'stopped' ? '#e74c5e' : '#f5a623');
             }
 
-            // Legacy trade mode
-            const [config, profit, openTrades, count, balance] = await Promise.all([
-                API.getConfig().catch(() => null),
-                API.getProfit().catch(() => null),
-                API.getOpenTrades().catch(() => []),
-                API.getTradeCount().catch(() => null),
-                API.getBalance().catch(() => null),
-            ]);
-
-            const state = config?.state || 'unknown';
-            const strategy = config?.strategy || '-';
-            const exchange = config?.exchange || '-';
-            const pair = config?.trading_mode || 'spot';
-            const dryRun = config?.dry_run;
-            const openCount = Array.isArray(openTrades) ? openTrades.length : (count?.current || 0);
-            const closedCount = count?.closed || 0;
-            const totalProfit = profit?.profit_all_coin || 0;
-            const profitPct = profit?.profit_all_percent || ((profit?.profit_all_ratio_sum || 0) * 100);
-            const stakeCurrency = profit?.stake_currency || config?.stake_currency || 'USDT';
-            const totalBalance = balance?.total || 0;
-
-            el.innerHTML = `
-                <div class="col-6 col-md-2">
-                    <div class="text-secondary small mb-1">Status</div>
-                    <span class="badge ${state === 'running' ? 'bg-success' : state === 'stopped' ? 'bg-danger' : 'bg-warning'} fs-6">
-                        <i class="bi bi-${state === 'running' ? 'play-circle' : 'stop-circle'} me-1"></i>
-                        ${state.charAt(0).toUpperCase() + state.slice(1)}
-                    </span>
-                    ${dryRun !== undefined ? `<br><span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'} mt-1">${dryRun ? 'Dry Run' : 'LIVE'}</span>` : ''}
-                </div>
-                <div class="col-6 col-md-2">
-                    <div class="text-secondary small mb-1">Strategy</div>
-                    <div class="fw-semibold">${strategy}</div>
-                    <small class="text-secondary">${exchange} · ${pair}</small>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="text-secondary small mb-1">Open / Closed</div>
-                    <div class="fw-semibold">${openCount} <span class="text-secondary">/</span> ${closedCount}</div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="text-secondary small mb-1">Total Profit</div>
-                    <div class="fw-semibold ${totalProfit >= 0 ? 'text-profit' : 'text-loss'}">
-                        ${totalProfit >= 0 ? '+' : ''}${Components.formatNumber(totalProfit, 2)} ${stakeCurrency}
-                    </div>
-                    <small class="${profitPct >= 0 ? 'text-profit' : 'text-loss'}">${profitPct >= 0 ? '+' : ''}${Components.formatNumber(profitPct, 2)}%</small>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="text-secondary small mb-1">Balance</div>
-                    <div class="fw-semibold">${Components.formatNumber(totalBalance, 2)} ${stakeCurrency}</div>
-                </div>
-                <div class="col-12 col-md-2">
-                    <div class="text-secondary small mb-1">Open Trades</div>
-                    ${Array.isArray(openTrades) && openTrades.length > 0 ?
-                        openTrades.slice(0, 3).map(t => `<div class="small"><span class="fw-semibold">${Components.cleanPairName ? Components.cleanPairName(t.pair) : t.pair}</span> <span class="${(t.profit_ratio || 0) >= 0 ? 'text-profit' : 'text-loss'}">${Components.formatNumber((t.profit_ratio || 0) * 100, 2)}%</span></div>`).join('') +
-                        (openTrades.length > 3 ? `<small class="text-secondary">+${openTrades.length - 3} more</small>` : '')
-                    : '<small class="text-secondary">None</small>'}
-                </div>`;
+            // Auto-select active bot on first load if nothing selected
+            if (!this._selectedBotId) {
+                this.selectBot('active');
+            }
         } catch (e) {
             console.log('Bot info error:', e.message);
         }
@@ -506,31 +422,191 @@ const RobotsPage = {
         localStorage.setItem('bc_bots', JSON.stringify(bots));
     },
 
-    _renderBotCards() {
+    /** Render compact bot strip (running bots + active freqtrade bot as clickable pills) */
+    _renderBotStrip() {
+        let html = '';
+        // Active Freqtrade bot pill
+        html += `<div class="bot-pill ${this._selectedBotId === 'active' ? 'active' : ''}" onclick="RobotsPage.selectBot('active')"
+            style="cursor:pointer;padding:6px 14px;border-radius:20px;border:1px solid var(--bc-border);background:${this._selectedBotId === 'active' ? 'var(--bc-primary)' : 'var(--bc-card)'};color:${this._selectedBotId === 'active' ? '#111' : 'var(--bc-text)'};display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;transition:all 0.15s">
+            <i class="bi bi-broadcast"></i> Active Bot
+            <span class="status-dot connected" style="width:6px;height:6px;display:inline-block;border-radius:50%;background:#2dd4a8" id="stripActiveDot"></span>
+        </div>`;
+
+        // Engine managed bots
         const bots = this._getSavedBots();
-        // Always show the active Freqtrade bot first, then saved bot configs
-        let html = `
-        <div class="card mb-3" id="activeBotCard">
-            <div class="card-body py-2">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <h6 class="fw-semibold mb-0"><i class="bi bi-broadcast me-2 text-success"></i>Active Freqtrade Bot</h6>
-                    <div class="d-flex gap-2" id="robotBotControls">
-                        <button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start')"><i class="bi bi-play-fill me-1"></i>Start</button>
-                        <button class="btn btn-warning btn-sm" onclick="RobotsPage.controlBot('pause')"><i class="bi bi-pause-fill me-1"></i>Pause</button>
-                        <button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop')"><i class="bi bi-stop-fill me-1"></i>Stop</button>
-                        <button class="btn btn-outline-info btn-sm" onclick="RobotsPage.editActiveBot()"><i class="bi bi-pencil me-1"></i>Edit</button>
+        bots.forEach((bot, i) => {
+            const isRunning = bot._liveStatus === 'running' || bot._liveStatus === 'starting';
+            const isSelected = this._selectedBotId === `saved-${i}`;
+            const statusColor = isRunning ? '#2dd4a8' : (bot._liveStatus === 'error' ? '#e74c5e' : '#7c819a');
+            html += `<div class="bot-pill ${isSelected ? 'active' : ''}" onclick="RobotsPage.selectBot('saved-${i}')"
+                style="cursor:pointer;padding:6px 14px;border-radius:20px;border:1px solid var(--bc-border);background:${isSelected ? 'var(--bc-primary)' : 'var(--bc-card)'};color:${isSelected ? '#111' : 'var(--bc-text)'};display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;transition:all 0.15s">
+                <i class="bi bi-robot"></i> ${bot.name || 'Bot ' + (i+1)}
+                <span style="width:6px;height:6px;display:inline-block;border-radius:50%;background:${statusColor}"></span>
+            </div>`;
+        });
+
+        return html;
+    },
+
+    /** Select a bot to show its detail view inline */
+    async selectBot(botId) {
+        this._selectedBotId = botId;
+        // Re-render bot strip to update active pill
+        const strip = document.getElementById('runningBotsStrip');
+        if (strip) strip.innerHTML = this._renderBotStrip();
+
+        const container = document.getElementById('botDetailInline');
+        if (!container) return;
+
+        this._cleanupBotDetail();
+        container.style.display = '';
+
+        if (botId === 'active') {
+            // Show active Freqtrade bot detail
+            this._showActiveBotDetail(container);
+        } else if (botId.startsWith('saved-')) {
+            const idx = parseInt(botId.replace('saved-', ''));
+            const bots = this._getSavedBots();
+            const bot = bots[idx];
+            if (bot && bot.strategy_id) {
+                // Show engine-managed bot detail
+                const pairs = bot.pairs ? bot.pairs.split(',').map(p => p.trim()) : [];
+                this._showBotDetailInline(container, bot.strategy_id, bot.strategy || bot.name, pairs, bot.exchange, bot.trading_mode, true);
+            } else {
+                // Not deployed - show config
+                container.innerHTML = `<div class="card mt-2"><div class="card-body text-center py-4">
+                    <i class="bi bi-robot d-block mb-2" style="font-size:2rem;opacity:0.4"></i>
+                    <p class="text-secondary mb-2">"${bot?.name || 'Bot'}" is not deployed yet.</p>
+                    <button class="btn btn-success btn-sm" onclick="RobotsPage.deployBot(${idx})"><i class="bi bi-cloud-upload me-1"></i>Deploy Now</button>
+                </div></div>`;
+            }
+        }
+    },
+
+    async _showActiveBotDetail(container) {
+        if (!API.connected) {
+            container.innerHTML = '<div class="card mt-2"><div class="card-body text-center text-secondary py-4">Connect to Freqtrade to see bot data</div></div>';
+            return;
+        }
+
+        try {
+            const [config, whitelist] = await Promise.all([
+                API.getConfig().catch(() => null),
+                API.getWhitelist().catch(() => null),
+            ]);
+
+            const pairs = whitelist?.whitelist || config?.exchange?.pair_whitelist || [];
+            const strategy = config?.strategy || '-';
+            const exchange = config?.exchange || '-';
+            const mode = config?.trading_mode || 'spot';
+            const dryRun = config?.dry_run;
+
+            this._showBotDetailInline(container, null, strategy, pairs, exchange, mode, dryRun);
+        } catch(e) {
+            container.innerHTML = `<div class="card mt-2"><div class="card-body text-center text-secondary py-4">Error loading bot data: ${e.message}</div></div>`;
+        }
+    },
+
+    _showBotDetailInline(container, strategyId, strategyName, pairs, exchange, tradingMode, dryRun) {
+        this._bdStrategyId = strategyId;
+        this._bdStrategyName = strategyName;
+        this._bdPairs = pairs || [];
+        this._bdCurrentPair = this._bdPairs[0] || 'BTC/USDT:USDT';
+
+        container.innerHTML = `
+        <div class="mt-2">
+            <!-- Bot Header -->
+            <div class="card mb-0" style="border-radius:8px 8px 0 0">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-robot text-success"></i>
+                            <span class="fw-semibold">${strategyName}</span>
+                            <span class="badge bg-success"><i class="bi bi-play-circle me-1"></i>running</span>
+                            <span class="badge bg-secondary" style="font-size:10px">${exchange}</span>
+                            <span class="badge bg-info" style="font-size:10px">${tradingMode}</span>
+                            <span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'}" style="font-size:10px">${dryRun ? 'Dry Run' : 'LIVE'}</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <button class="btn btn-sm btn-outline-success px-2" onclick="RobotsPage.controlBot('start', ${strategyId ? "'" + strategyId + "'" : 'null'})" title="Start"><i class="bi bi-play-fill"></i></button>
+                            <button class="btn btn-sm btn-outline-secondary px-2" onclick="RobotsPage.controlBot('stop', ${strategyId ? "'" + strategyId + "'" : 'null'})" title="Stop"><i class="bi bi-stop-fill"></i></button>
+                            <button class="btn btn-sm btn-outline-warning px-2" onclick="RobotsPage.controlBot('pause')" title="Pause"><i class="bi bi-pause-fill"></i></button>
+                            <button class="btn btn-sm btn-link text-secondary" onclick="RobotsPage._bdLoadData()"><i class="bi bi-arrow-clockwise"></i></button>
+                        </div>
                     </div>
                 </div>
-                <div class="row g-3" id="activeBotInfo">
-                    <div class="col-12 text-center text-secondary py-2"><small>Loading...</small></div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="row g-0 mb-0">
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdProfit">-</div><div class="stat-label">Profit</div>
+                </div></div></div>
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdProfitPct">-</div><div class="stat-label">Profit %</div>
+                </div></div></div>
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdTradeCount">0</div><div class="stat-label">Trades</div>
+                </div></div></div>
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdWinRate">-</div><div class="stat-label">Win Rate</div>
+                </div></div></div>
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdOpenTrades">0</div><div class="stat-label">Open</div>
+                </div></div></div>
+                <div class="col-2"><div class="card" style="border-radius:0"><div class="card-body py-2 text-center">
+                    <div class="stat-value" style="font-size:16px" id="bdAvgProfit">-</div><div class="stat-label">Balance</div>
+                </div></div></div>
+            </div>
+
+            <!-- Chart -->
+            <div class="card" style="border-radius:0">
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <select class="form-select form-select-sm" style="width:140px" id="bdPairSelect"
+                                onchange="RobotsPage._bdChangePair(this.value)">
+                                ${this._bdPairs.map(p => `<option value="${p}" ${p === this._bdCurrentPair ? 'selected' : ''}>${Components.cleanPairName(p)}</option>`).join('')}
+                            </select>
+                            <span id="bdTfBtns">${Components.timeframeSelector(this._bdCurrentTf, 'RobotsPage._bdChangeTf')}</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="RobotsPage._bdShowIndicators()">
+                                <i class="bi bi-activity me-1"></i> Indicators
+                            </button>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-secondary" id="bdChartInfo"><i class="bi bi-bar-chart"></i> Loading...</small>
+                            <button class="btn btn-sm btn-link text-secondary" onclick="RobotsPage._bdLoadChart()"><i class="bi bi-arrow-clockwise"></i></button>
+                        </div>
+                    </div>
+                    <!-- Chart legend -->
+                    <div class="d-flex align-items-center gap-3 mb-1 px-1" style="font-size:11px">
+                        <span><span style="display:inline-block;width:10px;height:10px;background:#2dd4a8;border-radius:2px;margin-right:3px"></span>Candles</span>
+                        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(74,144,217,0.5);border-radius:2px;margin-right:3px"></span>Volume</span>
+                        <span><span style="display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid #2dd4a8;margin-right:3px"></span>Entry</span>
+                        <span><span style="display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #f5a623;margin-right:3px"></span>Exit</span>
+                    </div>
+                    <div id="bdChart" style="height:420px"></div>
+                </div>
+            </div>
+
+            <!-- Open Trades Table -->
+            <div class="card" style="border-radius:0 0 8px 8px;border-top:1px solid var(--bc-border)">
+                <div class="card-header py-1 text-center" style="background:var(--bc-bg-dark)">
+                    <span class="fw-semibold" style="font-size:13px">Open Trades</span>
+                </div>
+                <div class="card-body p-0" style="max-height:350px;overflow-y:auto">
+                    <div id="bdTradesTable"><div class="text-center text-secondary py-3">Loading trades...</div></div>
                 </div>
             </div>
         </div>`;
 
-        // Saved bot configs
-        html += `<div id="savedBotCards">${this._renderSavedBotCards()}</div>`;
-
-        return html;
+        // Initialize chart & load data
+        setTimeout(() => {
+            this._bdInitChart();
+            this._bdLoadData();
+            if (this._bdRefreshTimer) clearInterval(this._bdRefreshTimer);
+            this._bdRefreshTimer = setInterval(() => this._bdLoadData(), 15000);
+        }, 200);
     },
 
     _renderSavedBotCards() {
@@ -914,101 +990,20 @@ const RobotsPage = {
     },
 
     async openBotDetail(strategyId, strategyName, pairs, exchange, tradingMode, dryRun) {
-        this._bdStrategyId = strategyId;
-        this._bdStrategyName = strategyName;
-        this._bdPairs = pairs || [];
-        this._bdCurrentPair = this._bdPairs[0] || 'BTC/USDT:USDT';
-        this._cleanupBotDetail();
-
-        // Build modal HTML
-        const el = document.createElement('div');
-        el.id = 'botDetailWrapper';
-        el.innerHTML = `
-        <div class="modal fade" id="botDetailModal" tabindex="-1">
-            <div class="modal-dialog modal-fullscreen">
-                <div class="modal-content bg-dark">
-                    <div class="modal-header border-secondary py-2">
-                        <div class="d-flex align-items-center gap-3">
-                            <h6 class="modal-title mb-0"><i class="bi bi-robot me-2"></i>${strategyName}</h6>
-                            <span class="badge bg-success"><i class="bi bi-play-circle me-1"></i>running</span>
-                            <span class="badge" style="background:rgba(255,255,255,0.12);color:#fff">${exchange}</span>
-                            <span class="badge" style="background:rgba(74,144,217,0.3);color:#fff">${tradingMode}</span>
-                            <span class="badge" style="background:${dryRun ? 'rgba(245,166,35,0.3)' : 'rgba(231,76,94,0.3)'};color:#fff">${dryRun ? 'Dry' : 'LIVE'}</span>
-                        </div>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-2" style="overflow-y:auto">
-                        <!-- Stats Row -->
-                        <div class="row g-2 mb-2" id="bdStats">
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdProfit">-</div><div class="stat-label">Profit</div>
-                            </div></div></div>
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdProfitPct">-</div><div class="stat-label">Profit %</div>
-                            </div></div></div>
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdTradeCount">0</div><div class="stat-label">Trades</div>
-                            </div></div></div>
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdWinRate">-</div><div class="stat-label">Win Rate</div>
-                            </div></div></div>
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdOpenTrades">0</div><div class="stat-label">Open</div>
-                            </div></div></div>
-                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
-                                <div class="stat-value" id="bdAvgProfit">-</div><div class="stat-label">Avg Profit</div>
-                            </div></div></div>
-                        </div>
-
-                        <!-- Chart -->
-                        <div class="card mb-2">
-                            <div class="card-body p-2">
-                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
-                                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                                        <select class="form-select form-select-sm" style="width:140px" id="bdPairSelect"
-                                            onchange="RobotsPage._bdChangePair(this.value)">
-                                            ${this._bdPairs.map(p => `<option value="${p}" ${p === this._bdCurrentPair ? 'selected' : ''}>${Components.cleanPairName ? Components.cleanPairName(p) : p}</option>`).join('')}
-                                        </select>
-                                        <span id="bdTfBtns">${Components.timeframeSelector(this._bdCurrentTf, 'RobotsPage._bdChangeTf')}</span>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="RobotsPage._bdShowIndicators()">
-                                            <i class="bi bi-activity me-1"></i> Indicators
-                                        </button>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <small class="text-secondary" id="bdChartInfo"><i class="bi bi-bar-chart"></i> Loading...</small>
-                                        <button class="btn btn-sm btn-link text-secondary" onclick="RobotsPage._bdLoadChart()"><i class="bi bi-arrow-clockwise"></i></button>
-                                    </div>
-                                </div>
-                                <div id="bdChart" style="height:450px"></div>
-                            </div>
-                        </div>
-
-                        <!-- Trades -->
-                        <div class="card">
-                            <div class="card-body p-2">
-                                <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-left-right me-2"></i>Open Trades</h6>
-                                <div id="bdTradesTable"><div class="text-center text-secondary py-3">Loading trades...</div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-        document.body.appendChild(el);
-
-        const modal = new bootstrap.Modal(el.querySelector('.modal'));
-        el.querySelector('.modal').addEventListener('hidden.bs.modal', () => {
-            this._cleanupBotDetail();
-            el.remove();
-        });
-        modal.show();
-
-        // Initialize chart & load data
-        setTimeout(() => {
-            this._bdInitChart();
-            this._bdLoadData();
-            this._bdRefreshTimer = setInterval(() => this._bdLoadData(), 15000);
-        }, 300);
+        // Redirect to inline detail view - find the matching saved bot
+        const bots = this._getSavedBots();
+        const idx = bots.findIndex(b => b.strategy_id === strategyId);
+        if (idx >= 0) {
+            this.selectBot(`saved-${idx}`);
+        } else {
+            // Fallback: show inline directly
+            const container = document.getElementById('botDetailInline');
+            if (container) {
+                this._cleanupBotDetail();
+                container.style.display = '';
+                this._showBotDetailInline(container, strategyId, strategyName, pairs || [], exchange, tradingMode, dryRun);
+            }
+        }
     },
 
     _bdInitChart() {
@@ -1140,29 +1135,46 @@ const RobotsPage = {
     },
 
     async _bdLoadData() {
-        if (!this._bdStrategyId) return;
         try {
-            const [tradesData, profitData] = await Promise.all([
-                API.getManagedStrategyTrades(this._bdStrategyId).catch(() => ({ trades: [] })),
-                API.getManagedStrategyProfit(this._bdStrategyId).catch(() => ({})),
-            ]);
+            let trades = [], profitData = {}, balance = null;
+
+            if (this._bdStrategyId) {
+                // Engine managed strategy
+                const [tradesData, profitRes] = await Promise.all([
+                    API.getManagedStrategyTrades(this._bdStrategyId).catch(() => ({ trades: [] })),
+                    API.getManagedStrategyProfit(this._bdStrategyId).catch(() => ({})),
+                ]);
+                trades = tradesData.trades || [];
+                profitData = profitRes;
+            } else {
+                // Active bot (legacy mode)
+                const [openTrades, profitRes, balRes] = await Promise.all([
+                    API.getOpenTrades().catch(() => []),
+                    API.getProfit().catch(() => ({})),
+                    API.getBalance().catch(() => null),
+                ]);
+                trades = Array.isArray(openTrades) ? openTrades : [];
+                profitData = profitRes;
+                balance = balRes;
+            }
 
             // Update stats
-            const trades = tradesData.trades || [];
             const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
             const profit = profitData.profit_all_coin || profitData.profit_closed_coin || 0;
             const profitPct = profitData.profit_all_percent || profitData.profit_closed_percent || 0;
-            const tradeCount = profitData.trade_count || profitData.closed_trade_count || 0;
+            const totalTrades = (profitData.winning_trades || 0) + (profitData.losing_trades || 0);
+            const tradeCount = profitData.trade_count || profitData.closed_trade_count || totalTrades || 0;
             const winRate = profitData.winning_trades !== undefined && tradeCount > 0
                 ? ((profitData.winning_trades / tradeCount) * 100).toFixed(1) + '%' : '-';
-            const avgProfit = profitData.avg_profit || 0;
+            const balanceTotal = balance ? (balance.total || 0) : 0;
+            const currency = profitData.stake_currency || 'USDT';
 
-            setEl('bdProfit', `${profit >= 0 ? '+' : ''}${parseFloat(profit).toFixed(2)}`);
+            setEl('bdProfit', `${profit >= 0 ? '+' : ''}${parseFloat(profit).toFixed(2)} ${currency}`);
             setEl('bdProfitPct', `${profitPct >= 0 ? '+' : ''}${parseFloat(profitPct).toFixed(2)}%`);
             setEl('bdTradeCount', tradeCount);
             setEl('bdWinRate', winRate);
             setEl('bdOpenTrades', trades.length);
-            setEl('bdAvgProfit', `${avgProfit >= 0 ? '+' : ''}${parseFloat(avgProfit).toFixed(2)}%`);
+            setEl('bdAvgProfit', balance ? `${Components.formatNumber(balanceTotal, 2)} ${currency}` : '-');
 
             // Color profit
             const profitEl = document.getElementById('bdProfit');
@@ -1170,25 +1182,34 @@ const RobotsPage = {
             const pctEl = document.getElementById('bdProfitPct');
             if (pctEl) pctEl.style.color = profitPct >= 0 ? 'var(--bc-green)' : 'var(--bc-red)';
 
-            // Trades table
+            // Trades table (matching original Freqtrade UI format)
             const tt = document.getElementById('bdTradesTable');
             if (tt) {
                 if (trades.length === 0) {
                     tt.innerHTML = '<div class="text-center text-secondary py-3"><i class="bi bi-inbox me-2"></i>No open trades</div>';
                 } else {
-                    tt.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
-                        <thead><tr><th>Pair</th><th>Side</th><th>Amount</th><th>Open Rate</th><th>Current</th><th>Profit</th><th>Opened</th></tr></thead>
+                    tt.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0" style="font-size:12px">
+                        <thead><tr><th>ID</th><th>Pair</th><th>Amount</th><th>Stake amount</th><th>Open rate</th><th>Current rate</th><th>Current profit %</th><th>Open date</th><th>Actions</th></tr></thead>
                         <tbody>${trades.map(t => {
-                            const pct = ((t.profit_pct || 0) * 100);
-                            const isWin = pct >= 0;
+                            const profitAbs = t.profit_abs || 0;
+                            const profitPctT = t.profit_ratio ? (t.profit_ratio * 100) : (t.profit_pct ? t.profit_pct * 100 : 0);
+                            const isWin = profitPctT >= 0;
+                            const cls = isWin ? 'text-profit' : 'text-loss';
+                            const bgCls = isWin ? 'bg-profit' : 'bg-loss';
+                            const icon = isWin ? 'bi-triangle-fill' : 'bi-triangle-fill';
+                            const iconStyle = !isWin ? 'transform:rotate(180deg);display:inline-block;' : '';
+                            const leverage = t.leverage ? `(${t.leverage}x)` : '(1x)';
                             return `<tr>
-                                <td class="fw-semibold">${t.pair}</td>
-                                <td><span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'}">${t.is_short ? 'Short' : 'Long'}</span></td>
-                                <td>${parseFloat(t.amount || 0).toFixed(4)}</td>
-                                <td>${parseFloat(t.open_rate || 0).toFixed(6)}</td>
-                                <td>${parseFloat(t.current_rate || 0).toFixed(6)}</td>
-                                <td class="fw-bold" style="color:${isWin ? 'var(--bc-green)' : 'var(--bc-red)'}">${isWin ? '+' : ''}${pct.toFixed(2)}%</td>
-                                <td class="text-secondary small">${t.open_date ? new Date(t.open_date).toLocaleString() : '-'}</td>
+                                <td>${t.trade_id || '-'} | ${t.is_short ? 'Short' : 'Long'}</td>
+                                <td class="fw-semibold">${Components.cleanPairName(t.pair)}</td>
+                                <td>${Components.formatNumber(t.amount, 2)}</td>
+                                <td>${Components.formatNumber(t.stake_amount, 3)} ${leverage}</td>
+                                <td>${Components.formatNumber(t.open_rate, 4)}</td>
+                                <td>${Components.formatNumber(t.current_rate || 0, 4)}</td>
+                                <td><span class="${cls}"><i class="bi ${icon} me-1" style="font-size:7px;${iconStyle}"></i></span>
+                                    <span class="badge ${bgCls} ${cls} px-2">${Components.formatNumber(profitPctT, 2)}% (${Components.formatNumber(profitAbs, 3)})</span></td>
+                                <td class="text-secondary">${Components.formatDate(t.open_date)}</td>
+                                <td><button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="API.forceExit(${t.trade_id}).then(()=>RobotsPage._bdLoadData())" title="Force Exit"><i class="bi bi-box-arrow-right"></i></button></td>
                             </tr>`;
                         }).join('')}</tbody></table></div>`;
                 }
