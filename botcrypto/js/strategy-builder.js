@@ -3291,16 +3291,16 @@ ${entryConditions.length > 0 ?
         const btBackdrop = document.getElementById('sbBacktestBackdrop');
         if (btBackdrop) btBackdrop.remove();
         panel.classList.add('open');
-        if (this._importedStrategyCode) {
-            this._renderAnalysis(this._importedStrategyCode);
+        // Always analyze the current strategy: use imported code if available, otherwise generate from visual builder
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const code = imported[this.strategyName]?.content || this._importedStrategyCode || this._buildFreqtradeStrategy();
+        if (code) {
+            this._renderAnalysis(code);
         } else {
             const content = document.getElementById('sbAnalysisContent');
             if (content) content.innerHTML = `<div class="text-center text-secondary py-4">
                 <i class="bi bi-file-earmark-code fs-1 d-block mb-2 opacity-50"></i>
-                <p class="small">Import a Python strategy to see analysis</p>
-                <button class="btn btn-sm btn-outline-info" onclick="StrategyBuilderPage.importStrategy()">
-                    <i class="bi bi-download me-1"></i> Import Strategy
-                </button></div>`;
+                <p class="small">Add some nodes to your strategy first</p></div>`;
         }
     },
 
