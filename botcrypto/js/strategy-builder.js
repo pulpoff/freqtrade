@@ -444,7 +444,14 @@ const StrategyBuilderPage = {
             : '';
 
         // Node type class for distinctive styling
-        const nodeTypeClass = `node-type-${node.type}`;
+        let nodeSubClass = '';
+        if (node.type === 'indicator') {
+            const ct = node.params.compareType || '';
+            if (ct === 'Composite') nodeSubClass = 'node-composite';
+            else if (ct === 'Filter') nodeSubClass = 'node-filter';
+            else if (ct === 'Exit Signal') nodeSubClass = 'node-exit';
+        }
+        const nodeTypeClass = `node-type-${node.type} ${nodeSubClass}`;
         const paramsClass = node.type === 'indicator' ? 'params-indicator' : node.type === 'gain' ? '' : '';
 
         return `
@@ -527,9 +534,9 @@ const StrategyBuilderPage = {
 
             const connIdx = this.connections.indexOf(conn);
             const isSelected = this._selectedConnection === connIdx;
-            // Invisible wider hit-area path for easier clicking
-            const hitArea = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer" onclick="StrategyBuilderPage.selectConnection(${connIdx})"/>`;
-            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-mid="url(#${markerRef})" marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+            // Wide hit-area path for easier clicking, with hover glow via CSS
+            const hitArea = `<path class="conn-hitarea" d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" onclick="StrategyBuilderPage.selectConnection(${connIdx})"/>`;
+            const visPath = `<path class="${isSelected ? 'conn-selected' : ''}" d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-mid="url(#${markerRef})" marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
 
             // Mid-path direction arrow: compute point at t=0.5 on cubic bezier and tangent
             const t = 0.5;
@@ -857,14 +864,21 @@ const StrategyBuilderPage = {
         const title = document.getElementById('nodePropertiesTitle');
         const body = document.getElementById('nodePropertiesBody');
 
-        const displayLabel = node.type === 'indicator' ? (node.params.type || bt.label) : bt.label;
+        const displayLabel = node.type === 'indicator' ? (node.params._label || node.params.type || bt.label) : bt.label;
         title.innerHTML = `<i class="bi ${bt.icon} me-2"></i> ${displayLabel}`;
 
-        let descKey = node.type === 'indicator' && node.params.type === 'Price' ? 'price' : node.type;
+        const ct = node.params?.compareType || '';
+        let descKey = node.type === 'indicator' && node.params.type === 'Price' ? 'price' :
+                      ct === 'Composite' ? 'composite' :
+                      ct === 'Exit Signal' ? 'exit_signal' :
+                      ct === 'Filter' ? 'filter' :
+                      ct === 'AI' ? 'ai' : node.type;
         let html = `<p class="text-secondary small">${this._getBlockDescription(descKey)}</p>`;
 
         if (node.type === 'buy' || node.type === 'sell') {
             html += this._orderPropertiesForm(node);
+        } else if (node.type === 'indicator' && (node.params.compareType === 'Composite' || node.params.compareType === 'Exit Signal' || node.params.compareType === 'Filter' || node.params.compareType === 'Custom' || node.params.compareType === 'AI')) {
+            html += this._compositePropertiesForm(node);
         } else if (node.type === 'indicator') {
             html += this._indicatorPropertiesForm(node);
         } else if (node.type === 'gain') {
@@ -915,6 +929,10 @@ const StrategyBuilderPage = {
             terminate: 'End point of the strategy.',
             webhook: 'Receive external signals via webhook URL.',
             reset: 'Reset the strategy flow and start over.',
+            composite: 'Composite signal combining multiple conditions from the strategy code.',
+            exit_signal: 'Exit signal that triggers closing a position based on strategy conditions.',
+            filter: 'Entry filter that validates trade conditions before execution.',
+            ai: 'FreqAI machine learning model for predictive trading signals.',
         };
         return descs[type] || '';
     },
@@ -1075,6 +1093,63 @@ const StrategyBuilderPage = {
             <input type="number" class="form-control form-control-sm" value="${p.comparePeriod || 0}"
                 onchange="StrategyBuilderPage.updateParam(${node.id}, 'comparePeriod', parseInt(this.value))">
         </div>`}`;
+    },
+
+    _compositePropertiesForm(node) {
+        const p = node.params;
+        const subConds = p._subConds || [];
+        const deps = p._deps || [];
+        const rawCode = p._rawCode || '';
+        const signalType = p.compareType === 'Composite' ? 'Composite Signal' :
+                           p.compareType === 'Exit Signal' ? 'Exit Signal' :
+                           p.compareType === 'Filter' ? 'Entry Filter' :
+                           p.compareType === 'AI' ? 'AI Model' : 'Signal';
+
+        const typeColor = p.compareType === 'Composite' ? '#26a69a' :
+                          p.compareType === 'Exit Signal' ? '#e91e63' :
+                          p.compareType === 'Filter' ? '#ff9800' :
+                          p.compareType === 'AI' ? '#7c4dff' : '#4a90d9';
+
+        let html = `
+        <div class="card mb-3" style="background:rgba(${p.compareType === 'Composite' ? '38,166,154' : p.compareType === 'Exit Signal' ? '233,30,99' : p.compareType === 'Filter' ? '255,152,0' : '74,144,217'},0.08);border:1px solid ${typeColor}40;border-radius:8px">
+            <div class="card-body py-2">
+                <span class="badge mb-2" style="background:${typeColor}">${signalType}</span>
+                <div class="text-light small fw-semibold">${this._escapeHtml(p.type || 'Signal')}</div>
+            </div>
+        </div>`;
+
+        if (subConds.length > 0) {
+            html += `<h6 class="text-light mb-2">Conditions (${subConds.length})</h6>
+            <div class="mb-3" style="max-height:200px;overflow-y:auto">`;
+            subConds.forEach((cond, i) => {
+                html += `<div class="d-flex align-items-start gap-2 mb-1 p-2 rounded" style="background:var(--bc-card);border:1px solid var(--bc-border)">
+                    <span class="badge bg-secondary" style="min-width:22px">${i + 1}</span>
+                    <code class="small text-info" style="word-break:break-all">${this._escapeHtml(cond)}</code>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        if (deps.length > 0) {
+            html += `<h6 class="text-light mb-2">Dependencies</h6>
+            <div class="d-flex flex-wrap gap-1 mb-3">
+                ${deps.map(d => `<span class="badge bg-secondary">${this._escapeHtml(d)}</span>`).join('')}
+            </div>`;
+        }
+
+        if (rawCode) {
+            html += `<h6 class="text-light mb-2">Source Code</h6>
+            <div class="mb-3 p-2 rounded" style="background:#0d1117;border:1px solid var(--bc-border);max-height:150px;overflow-y:auto">
+                <pre class="mb-0 small" style="color:#c9d1d9;white-space:pre-wrap;word-break:break-all">${this._escapeHtml(rawCode)}</pre>
+            </div>`;
+        }
+
+        html += `
+        <h6 class="text-light mb-2">Summary</h6>
+        <input type="text" class="form-control form-control-sm mb-3" value="${this._escapeHtml(p.condition || '')}" readonly
+            style="background:var(--bc-card);border-color:var(--bc-border);color:var(--bc-text)">`;
+
+        return html;
     },
 
     _gainPropertiesForm(node) {
@@ -1699,7 +1774,10 @@ ${entryConditions.length > 0 ?
                         condition: sig.conditionSummary || 'Signal',
                         compareType: 'Composite',
                         comparePeriod: 0, compareValue: 0,
-                        _label: sig.label
+                        _label: sig.label,
+                        _subConds: sig.subConds || [],
+                        _deps: sig.deps || [],
+                        _rawCode: sig.rawCode || ''
                     }
                 };
                 this.nodes.push(node);
@@ -1766,7 +1844,9 @@ ${entryConditions.length > 0 ?
                     condition: confirmChecks.map(c => c.label).join(', '),
                     compareType: 'Filter',
                     comparePeriod: 0, compareValue: 0,
-                    _label: 'Entry Confirm'
+                    _label: 'Entry Confirm',
+                    _subConds: confirmChecks.map(c => c.label),
+                    _deps: []
                 }
             };
             this.nodes.push(confirmNode);
@@ -2219,7 +2299,9 @@ ${entryConditions.length > 0 ?
                     label: `${name}: ${label}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
                     deps: [...deps],
-                    subCondCount: subConds.length
+                    subCondCount: subConds.length,
+                    subConds,
+                    rawCode: body.trim()
                 });
             }
         }
@@ -2240,7 +2322,8 @@ ${entryConditions.length > 0 ?
                 signals.push({
                     name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
-                    deps: [...deps], subCondCount: subConds.length
+                    deps: [...deps], subCondCount: subConds.length,
+                    subConds, rawCode: items.trim()
                 });
             }
         }
