@@ -334,6 +334,16 @@ class StrategyManager:
         data_dir = config.get("user_data_dir", "user_data")
         os.makedirs(f"{data_dir}/strategies/{strategy_id}", exist_ok=True)
 
+        # Disable FreqAI if required sub-keys are missing (inherited incomplete config)
+        freqai = config.get("freqai")
+        if freqai and freqai.get("enabled"):
+            if "feature_parameters" not in freqai or "data_split_parameters" not in freqai:
+                logger.info(
+                    f"Strategy '{strategy_id}': Disabling inherited FreqAI config "
+                    f"(missing required sub-keys)"
+                )
+                config["freqai"] = {"enabled": False}
+
         # Set internals
         config.setdefault("internals", {})
         config["internals"].setdefault("process_throttle_secs", PROCESS_THROTTLE_SECS)
