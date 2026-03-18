@@ -676,6 +676,7 @@ const StrategyStorePage = {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
         this.importToBuilder(id);
+        BacktestingPage.pendingStrategy = `visual:${s.name}`;
         setTimeout(() => App.navigate('backtesting'), 100);
     },
 
@@ -697,6 +698,9 @@ const StrategyStorePage = {
     },
 
     backtestUserStrategy(index) {
+        const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
+        const s = saved[index];
+        if (s) BacktestingPage.pendingStrategy = `visual:${s.name}`;
         this.loadUserStrategy(index);
         setTimeout(() => App.navigate('backtesting'), 100);
     },
@@ -976,19 +980,8 @@ class NewStrategy(IStrategy):
     /** Backtest an imported strategy */
     backtestImported(name) {
         // Navigate to backtesting with this strategy pre-selected
+        BacktestingPage.pendingStrategy = name;
         App.navigate('backtesting');
-        setTimeout(() => {
-            const select = document.getElementById('btStrategy');
-            if (select) {
-                // Look for the strategy in the dropdown
-                for (const opt of select.options) {
-                    if (opt.value === name) {
-                        select.value = name;
-                        return;
-                    }
-                }
-            }
-        }, 500);
     },
 
     /** Delete an imported strategy */

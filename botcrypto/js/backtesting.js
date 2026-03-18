@@ -183,6 +183,19 @@ const BacktestingPage = {
 
     async init() {
         await this.loadStrategies();
+        // Auto-select strategy if one was requested (e.g. from strategy store)
+        if (this.pendingStrategy) {
+            const select = document.getElementById('btStrategy');
+            if (select) {
+                for (const opt of select.options) {
+                    if (opt.value === this.pendingStrategy || opt.textContent === this.pendingStrategy) {
+                        select.value = opt.value;
+                        break;
+                    }
+                }
+            }
+            this.pendingStrategy = null;
+        }
         await this.loadPairList();
         this.loadHistory();
         this.loadCurrentConfig();
