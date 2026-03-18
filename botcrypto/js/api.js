@@ -285,6 +285,9 @@ const API = {
     async getBacktestResult(filename, strategy) {
         return this.request(`/backtest/history/result?filename=${encodeURIComponent(filename)}&strategy=${encodeURIComponent(strategy)}`);
     },
+    async deleteBacktestHistory(filename) {
+        return this.request(`/backtest/history/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    },
 
     // ========== LOCKS ==========
     async getLocks() { return this.request('/locks'); },

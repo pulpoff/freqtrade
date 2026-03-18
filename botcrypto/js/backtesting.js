@@ -17,30 +17,22 @@ const BacktestingPage = {
         <div id="backtestingPage">
             <!-- Config Section -->
             <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="fw-semibold mb-3"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h5>
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <h6 class="fw-semibold mb-0"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h6>
+                    </div>
 
-                    <div class="row g-2 g-md-3">
-                        <!-- Strategy Selection -->
-                        <div class="col-12 col-md-4">
-                            <label class="form-label small text-secondary">Strategy</label>
-                            <div class="input-group">
-                                <select class="form-select" id="btStrategy">
-                                    <option value="">-- Select Strategy --</option>
-                                </select>
-                                <button class="btn btn-outline-secondary" onclick="BacktestingPage.loadPyFile()" title="Load .py file">
-                                    <i class="bi bi-file-earmark-code"></i>
-                                </button>
+                    <div class="row g-2 align-items-end">
+                        <div class="col"><label class="form-label small text-secondary mb-0">Strategy</label>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" id="btStrategy"><option value="">-- Select --</option></select>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="BacktestingPage.loadPyFile()" title="Load .py file"><i class="bi bi-file-earmark-code"></i></button>
                             </div>
-                            <input type="file" id="btFileInput" accept=".py" style="display:none"
-                                onchange="BacktestingPage.onFileSelected(event)">
-                            <small class="text-secondary mt-1 d-block" id="btStrategyInfo"></small>
+                            <input type="file" id="btFileInput" accept=".py" style="display:none" onchange="BacktestingPage.onFileSelected(event)">
+                            <small class="text-secondary d-none" id="btStrategyInfo"></small>
                         </div>
-
-                        <!-- FreqAI Model -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">FreqAI Model</label>
-                            <select class="form-select" id="btFreqaiModel">
+                        <div class="col"><label class="form-label small text-secondary mb-0">FreqAI Model</label>
+                            <select class="form-select form-select-sm" id="btFreqaiModel">
                                 <option value="">None</option>
                                 <option value="LightGBMRegressor">LightGBMRegressor</option>
                                 <option value="LightGBMClassifier">LightGBMClassifier</option>
@@ -52,74 +44,46 @@ const BacktestingPage = {
                                 <option value="ReinforcementLearner">ReinforcementLearner</option>
                             </select>
                         </div>
-
-                        <!-- Coin Pair -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Coin Pair</label>
-                            <select class="form-select" id="btPair">
+                        <div class="col"><label class="form-label small text-secondary mb-0">Coin Pair</label>
+                            <select class="form-select form-select-sm" id="btPair"></select>
+                        </div>
+                        <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Timeframe</label>
+                            <select class="form-select form-select-sm" id="btTimeframe">
+                                <option value="" selected>Default</option>
+                                <option value="1m">1m</option><option value="5m">5m</option>
+                                <option value="15m">15m</option><option value="30m">30m</option>
+                                <option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
                             </select>
                         </div>
-
-                        <!-- Timeframe -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Timeframe</label>
-                            <select class="form-select" id="btTimeframe">
-                                <option value="" selected>Strategy default</option>
-                                <option value="1m">1m</option>
-                                <option value="5m">5m</option>
-                                <option value="15m">15m</option>
-                                <option value="30m">30m</option>
-                                <option value="1h">1h</option>
-                                <option value="4h">4h</option>
-                                <option value="1d">1d</option>
-                            </select>
+                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">Start Date</label>
+                            <input type="date" class="form-control form-control-sm" id="btStartDate" value="${this._defaultStartDate()}">
                         </div>
-
+                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">End Date</label>
+                            <input type="date" class="form-control form-control-sm" id="btEndDate" value="${this._defaultEndDate()}">
+                        </div>
                     </div>
 
-                    <div class="row g-2 g-md-3 mt-1">
-                        <!-- Date Range -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Start Date</label>
-                            <input type="date" class="form-control" id="btStartDate" value="${this._defaultStartDate()}">
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">End Date</label>
-                            <input type="date" class="form-control" id="btEndDate" value="${this._defaultEndDate()}">
-                        </div>
-                        <!-- Stake Amount -->
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small text-secondary">Initial Wallet (Dry Run)</label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="btWallet" value="1000">
-                                <span class="input-group-text">USDT</span>
+                    <div class="row g-2 align-items-end mt-1">
+                        <div class="col-auto" style="width:140px"><label class="form-label small text-secondary mb-0">Wallet</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control form-control-sm" id="btWallet" value="1000">
+                                <span class="input-group-text" style="font-size:0.75rem">USDT</span>
                             </div>
                         </div>
-
-                        <!-- Stake per trade -->
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small text-secondary">Stake Amount</label>
-                            <input type="text" class="form-control" id="btStakeAmount" value="unlimited">
+                        <div class="col-auto" style="width:120px"><label class="form-label small text-secondary mb-0">Stake</label>
+                            <input type="text" class="form-control form-control-sm" id="btStakeAmount" value="unlimited">
                         </div>
-
-                        <!-- Max Open Trades -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Max Open Trades</label>
-                            <input type="number" class="form-control" id="btMaxTrades" value="3">
+                        <div class="col-auto" style="width:80px"><label class="form-label small text-secondary mb-0">Max Trades</label>
+                            <input type="number" class="form-control form-control-sm" id="btMaxTrades" value="3">
                         </div>
-
-                        <!-- Enable Protections -->
-                        <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Protections</label>
-                            <div class="form-check form-switch mt-2">
+                        <div class="col-auto d-flex align-items-center pt-3">
+                            <div class="form-check form-switch mb-0">
                                 <input type="checkbox" class="form-check-input" id="btProtections">
-                                <label class="form-check-label" for="btProtections">Enable</label>
+                                <label class="form-check-label small" for="btProtections">Protections</label>
                             </div>
                         </div>
-
-                        <!-- Run Button -->
-                        <div class="col-12 col-md-2 d-flex align-items-end">
-                            <button class="btn btn-success w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
+                        <div class="col d-flex align-items-end">
+                            <button class="btn btn-success btn-sm w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
                                 <i class="bi bi-play-fill me-1"></i> Run Backtest
                             </button>
                         </div>
@@ -807,75 +771,123 @@ const BacktestingPage = {
         App.showToast(`Backtest completed! ${trades.length} trades`, 'success');
     },
 
-    initResultChart(trades, stratResult) {
+    async initResultChart(trades, stratResult) {
         const container = document.getElementById('btChart');
         if (!container) return;
         container.innerHTML = '';
 
+        const pairs = [...new Set(trades.map(t => t.pair).filter(Boolean))];
+        const pair = pairs[0] || document.getElementById('btPair')?.value || 'BTC/USDT:USDT';
+        const timeframe = stratResult.timeframe || document.getElementById('btTimeframe')?.value || '5m';
+
         const tb = document.getElementById('btChartToolbar');
         if (tb) {
-            const pairs = [...new Set(trades.map(t => t.pair).filter(Boolean))];
             tb.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
-                <small class="text-secondary">Pairs: ${pairs.join(', ') || 'N/A'}</small>
+                <small class="text-secondary">Pair: ${pair}</small>
                 <small class="text-secondary ms-3">Trades: ${trades.length}</small>
             </div>`;
         }
 
-        this.chart = Components.createChart(container);
+        this.chart = Components.createChart(container, {
+            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
+        });
         if (!this.chart) return;
 
-        const lineSeries = this.chart.addLineSeries({
-            color: '#2dd4a8',
-            lineWidth: 2,
-        });
+        // Fetch actual OHLCV candle data for the pair
+        let candleData = [];
+        try {
+            const ohlcv = await API.getPairOhlcv(pair, timeframe, 3000);
+            if (ohlcv && ohlcv.data && ohlcv.data.length > 0) {
+                // Filter to backtest period
+                const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
+                const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
 
-        let cumProfit = 0;
-        const startBalance = stratResult.starting_balance || 1000;
-        const equityData = trades.map(t => {
-            cumProfit += (t.profit_abs || 0);
-            const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
-            return { time: closeTime, value: startBalance + cumProfit };
-        }).filter(d => d.time > 0).sort((a, b) => a.time - b.time);
+                candleData = ohlcv.data
+                    .map(d => ({ time: Math.floor(d[0] / 1000), open: d[1], high: d[2], low: d[3], close: d[4] }))
+                    .filter(d => d.time >= btStart - 3600 && d.time <= btEnd + 3600)
+                    .sort((a, b) => a.time - b.time);
 
-        // Remove duplicates (same timestamp)
-        const uniqueEquity = [];
-        const seenTimes = new Set();
-        equityData.forEach(d => {
-            if (!seenTimes.has(d.time)) {
-                seenTimes.add(d.time);
-                uniqueEquity.push(d);
+                // Deduplicate
+                const seen = new Set();
+                candleData = candleData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
             }
-        });
-
-        if (uniqueEquity.length > 1) {
-            lineSeries.setData(uniqueEquity);
+        } catch (e) {
+            console.log('Could not fetch OHLCV data:', e.message);
         }
 
-        // Add trade markers
-        const markers = trades.map(t => {
-            const time = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
-            if (!time || !seenTimes.has(time)) return null;
-            const isWin = (t.profit_abs || 0) >= 0;
-            return {
-                time,
-                position: isWin ? 'aboveBar' : 'belowBar',
-                color: isWin ? '#2dd4a8' : '#e74c5e',
-                shape: 'circle',
-                text: isWin ? 'W' : 'L',
-            };
-        }).filter(Boolean).sort((a, b) => a.time - b.time);
+        if (candleData.length > 0) {
+            // Candlestick chart with price data
+            const candleSeries = this.chart.addCandlestickSeries({
+                upColor: '#2dd4a8',
+                downColor: '#e74c5e',
+                borderUpColor: '#2dd4a8',
+                borderDownColor: '#e74c5e',
+                wickUpColor: '#2dd4a8',
+                wickDownColor: '#e74c5e',
+            });
+            candleSeries.setData(candleData);
 
-        const uniqueMarkers = [];
-        const markerTimes = new Set();
-        markers.forEach(m => {
-            if (!markerTimes.has(m.time)) {
-                markerTimes.add(m.time);
-                uniqueMarkers.push(m);
+            // Build B (buy) and S (sell) markers from trades
+            const markers = [];
+            trades.forEach(t => {
+                const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
+                const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+
+                // Snap to nearest candle time
+                const snapTo = (ts) => {
+                    if (!ts) return 0;
+                    let best = candleData[0]?.time || 0;
+                    let bestDiff = Math.abs(ts - best);
+                    for (const c of candleData) {
+                        const diff = Math.abs(ts - c.time);
+                        if (diff < bestDiff) { best = c.time; bestDiff = diff; }
+                        if (c.time > ts + 3600) break;
+                    }
+                    return best;
+                };
+
+                if (openTime) {
+                    markers.push({
+                        time: snapTo(openTime),
+                        position: 'belowBar',
+                        color: '#2dd4a8',
+                        shape: 'arrowUp',
+                        text: 'B',
+                    });
+                }
+                if (closeTime) {
+                    const isWin = (t.profit_abs || 0) >= 0;
+                    markers.push({
+                        time: snapTo(closeTime),
+                        position: 'aboveBar',
+                        color: isWin ? '#2dd4a8' : '#e74c5e',
+                        shape: 'arrowDown',
+                        text: 'S',
+                    });
+                }
+            });
+
+            // Sort and deduplicate markers by time (lightweight-charts requirement)
+            markers.sort((a, b) => a.time - b.time);
+            if (markers.length > 0) {
+                candleSeries.setMarkers(markers);
             }
-        });
 
-        if (uniqueMarkers.length > 0) {
-            lineSeries.setMarkers(uniqueMarkers);
+            this._candleSeries = candleSeries;
+        } else {
+            // Fallback: line chart from trade data if no OHLCV available
+            const lineSeries = this.chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
+            const pricePoints = [];
+            trades.forEach(t => {
+                if (t.open_date && t.open_rate) pricePoints.push({ time: Math.floor(new Date(t.open_date).getTime() / 1000), value: t.open_rate });
+                if (t.close_date && t.close_rate) pricePoints.push({ time: Math.floor(new Date(t.close_date).getTime() / 1000), value: t.close_rate });
+            });
+            pricePoints.sort((a, b) => a.time - b.time);
+            const seen = new Set();
+            const unique = pricePoints.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+            if (unique.length > 1) lineSeries.setData(unique);
+            this._candleSeries = lineSeries;
         }
 
         this.chart.timeScale().fitContent();
@@ -977,33 +989,62 @@ const BacktestingPage = {
                 return;
             }
 
+            const fmtTs = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts * 1000);
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            };
+            const fmtRunDate = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts * 1000);
+                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
+                       d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            };
+
             container.innerHTML = `
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover table-sm mb-0">
                     <thead><tr>
-                        <th>Strategy</th><th>Timerange</th><th>Profit</th><th>Trades</th><th>Date</th><th></th>
+                        <th>Strategy</th><th>Date Range</th><th>Timeframe</th><th>Run Date</th><th></th>
                     </tr></thead>
                     <tbody>
-                        ${history.map(h => `
+                        ${history.map(h => {
+                            const dateRange = (h.backtest_start_ts && h.backtest_end_ts)
+                                ? `${fmtTs(h.backtest_start_ts)} - ${fmtTs(h.backtest_end_ts)}`
+                                : '-';
+                            return `
                         <tr>
                             <td class="fw-semibold">${h.strategy || '-'}</td>
-                            <td>${h.timerange || '-'}</td>
-                            <td class="${(h.profit_total || 0) >= 0 ? 'text-profit' : 'text-loss'}">
-                                ${Components.formatPercent((h.profit_total || 0) * 100)}
-                            </td>
-                            <td>${h.trades || '-'}</td>
-                            <td class="text-secondary small">${h.backtest_start || Components.formatDate(h.run_id) || '-'}</td>
-                            <td>
-                                <button class="btn btn-outline-success btn-sm" onclick="BacktestingPage.loadHistoryResult('${h.filename || ''}', '${h.strategy || ''}')">
+                            <td class="small">${dateRange}</td>
+                            <td class="small">${h.timeframe || '-'}</td>
+                            <td class="text-secondary small">${fmtRunDate(h.backtest_start_time)}</td>
+                            <td class="text-end" style="white-space:nowrap">
+                                <button class="btn btn-outline-success btn-sm me-1" onclick="BacktestingPage.loadHistoryResult('${h.filename || ''}', '${h.strategy || ''}')" title="View results">
                                     <i class="bi bi-eye"></i>
                                 </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="BacktestingPage.deleteHistoryEntry('${h.filename || ''}')" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </td>
-                        </tr>`).join('')}
+                        </tr>`;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>`;
         } catch (e) {
             container.innerHTML = `<div class="text-center text-secondary py-3">Error loading history: ${e.message}</div>`;
+        }
+    },
+
+    async deleteHistoryEntry(filename) {
+        if (!filename) return;
+        if (!confirm('Delete this backtest result?')) return;
+        try {
+            await API.deleteBacktestHistory(filename);
+            App.showToast('Backtest result deleted', 'success');
+            this.loadHistory();
+        } catch (e) {
+            App.showToast(`Delete failed: ${e.message}`, 'error');
         }
     },
 
