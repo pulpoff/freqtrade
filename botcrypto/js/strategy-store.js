@@ -252,9 +252,9 @@ const StrategyStorePage = {
                             ${badges.length > 0 ? `<div class="d-flex gap-1 flex-wrap mb-2">${badges.join('')}</div>` : ''}
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="d-flex gap-1">
-                                    <span class="badge bg-primary bg-opacity-10 text-primary">${s.timeframe}</span>
-                                    <span class="badge bg-success bg-opacity-10 text-success">${s.pair}</span>
-                                    <span class="badge bg-warning bg-opacity-10 text-warning">${s.category}</span>
+                                    <span class="badge bg-primary text-white">${s.timeframe}</span>
+                                    <span class="badge bg-success text-white">${s.pair}</span>
+                                    <span class="badge bg-warning text-dark">${s.category}</span>
                                 </div>
                                 <div class="d-flex gap-1 align-items-center">
                                     ${s.isRemote ? `<button class="btn btn-outline-primary btn-sm py-0 px-1" onclick="event.stopPropagation(); StrategyStorePage.editCode('remote', '${s.name}')" title="Edit code"><i class="bi bi-code-slash"></i></button>` : ''}
@@ -410,9 +410,9 @@ const StrategyStorePage = {
                             <h6 class="fw-semibold mt-3">Botcrypto note <span class="badge bg-secondary">${s.note}</span></h6>
 
                             <div class="mt-3">
-                                <span class="badge bg-primary bg-opacity-10 text-primary me-1">${s.timeframe}</span>
-                                <span class="badge bg-success bg-opacity-10 text-success me-1">${s.pair}</span>
-                                <span class="badge bg-warning bg-opacity-10 text-warning">${s.category}</span>
+                                <span class="badge bg-primary me-1">${s.timeframe}</span>
+                                <span class="badge bg-success me-1">${s.pair}</span>
+                                <span class="badge bg-warning text-dark me-1">${s.category}</span>
                             </div>
 
                             <hr class="border-secondary">
@@ -678,11 +678,13 @@ const StrategyStorePage = {
     async backtestTemplate(id) {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
-        // Import strategy data without navigating away
         await this.importToBuilder(id, true);
-        // If the strategy is a remote Freqtrade strategy, use its name directly
-        BacktestingPage.pendingStrategy = s.isRemote ? s.name : `visual:${s.name}`;
-        App.navigate('backtesting');
+        // Navigate to strategy builder and auto-open backtest panel
+        App.navigate('strategy-builder');
+        setTimeout(() => {
+            StrategyBuilderPage.renderNodes();
+            StrategyBuilderPage.toggleBacktestPanel();
+        }, 300);
     },
 
     loadUserStrategy(index) {
@@ -706,7 +708,6 @@ const StrategyStorePage = {
         const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         const s = saved[index];
         if (!s) return;
-        // Load strategy data into builder without navigating
         StrategyBuilderPage.nodes = JSON.parse(JSON.stringify(s.nodes));
         StrategyBuilderPage.connections = JSON.parse(JSON.stringify(s.connections));
         StrategyBuilderPage.strategyName = s.name;
@@ -714,8 +715,11 @@ const StrategyStorePage = {
         StrategyBuilderPage.nextId = s.nextId || 1;
         StrategyBuilderPage.timeUnit = s.timeUnit || '5m';
         StrategyBuilderPage.autoSave();
-        BacktestingPage.pendingStrategy = `visual:${s.name}`;
-        App.navigate('backtesting');
+        App.navigate('strategy-builder');
+        setTimeout(() => {
+            StrategyBuilderPage.renderNodes();
+            StrategyBuilderPage.toggleBacktestPanel();
+        }, 300);
     },
 
     deleteUserStrategy(index) {
@@ -992,9 +996,11 @@ class NewStrategy(IStrategy):
 
     /** Backtest an imported strategy */
     backtestImported(name) {
-        // Navigate to backtesting with this strategy pre-selected
-        BacktestingPage.pendingStrategy = name;
-        App.navigate('backtesting');
+        // Load into visual builder first, then open backtest panel
+        this.openImportedInVisual(name);
+        setTimeout(() => {
+            StrategyBuilderPage.toggleBacktestPanel();
+        }, 400);
     },
 
     /** Delete an imported strategy */
