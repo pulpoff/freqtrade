@@ -46,6 +46,8 @@ const StrategyBuilderPage = {
         webhook: { label: 'WEBHOOK', icon: 'bi-link-45deg', iconClass: 'n-webhook', category: 'external', hasOutput: true, hasInput: true,
             params: { url: '' }},
         reset: { label: 'RESET', icon: 'bi-arrow-counterclockwise', iconClass: 'n-reset', category: 'flow', hasOutput: true, hasInput: true },
+        logic: { label: 'Logic', icon: 'bi-braces', iconClass: 'n-logic', category: 'logic', hasOutput: true, hasInput: true,
+            params: { code: '', _label: 'Logic' }},
     },
 
     // Indicator types available
@@ -432,6 +434,8 @@ const StrategyBuilderPage = {
             paramsText = `Act: ${node.params.activation}% CB: ${node.params.callback}%`;
         } else if (node.type === 'wait') {
             paramsText = `${node.params.duration}${node.params.unit}`;
+        } else if (node.type === 'logic') {
+            paramsText = node.params._label || 'Logic';
         }
 
         // Volume pill for buy/sell nodes
@@ -454,7 +458,7 @@ const StrategyBuilderPage = {
                 <div class="node-icon ${bt.iconClass}">
                     ${bt.letter ? `<span class="fw-bold fs-3">${letter}</span>` : bt.text ? `<span class="fw-bold small">${bt.text}</span>` : `<i class="bi ${bt.icon}"></i>`}
                 </div>
-                <div class="node-label">${node.type === 'indicator' ? (node.params.type || 'EMA') : bt.label}</div>
+                <div class="node-label">${node.type === 'indicator' ? (node.params.type || 'EMA') : node.type === 'logic' ? (node.params._label || 'Logic') : bt.label}</div>
                 ${bt.hasOutput && !bt.hasTwoOutputs ? `<div class="node-connector output" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'output')"></div>` : ''}
                 ${bt.hasTwoOutputs ? `
                     <div class="node-connector output-true" onmousedown="StrategyBuilderPage.onConnectorMouseDown(event, ${node.id}, 'output-true')"></div>
@@ -1209,15 +1213,12 @@ const StrategyBuilderPage = {
         <div class="modal fade" tabindex="-1">
             <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-height:90vh">
                 <div class="modal-content bg-dark border-secondary" style="max-height:90vh">
-                    <div class="modal-header border-secondary flex-shrink-0">
-                        <h5 class="modal-title"><i class="bi bi-code-slash me-2"></i>Generated Strategy Code</h5>
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-secondary">${code.split('\n').length} lines</span>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
+                    <div class="modal-header border-secondary flex-shrink-0" style="position:relative">
+                        <h5 class="modal-title"><i class="bi bi-code-slash me-2"></i>Generated Strategy Code <span class="badge bg-secondary ms-2">${code.split('\n').length} lines</span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute;top:12px;right:12px"></button>
                     </div>
                     <div class="modal-body p-0" style="overflow-y:auto;max-height:70vh;min-height:200px">
-                        <pre class="bg-black m-0 p-3 text-success small" style="white-space:pre-wrap;word-wrap:break-word;overflow-x:auto;tab-size:4"><code id="codeViewContent"></code></pre>
+                        <pre class="m-0 p-3 small" style="background:#0d1117;white-space:pre-wrap;word-wrap:break-word;overflow-x:auto;tab-size:4;line-height:1.5"><code id="codeViewContent"></code></pre>
                     </div>
                     <div class="modal-footer border-secondary flex-shrink-0">
                         <button class="btn btn-outline-success" id="codeViewCopyBtn">
@@ -1229,8 +1230,8 @@ const StrategyBuilderPage = {
             </div>
         </div>`;
         document.body.appendChild(modal);
-        // Set code content safely via textContent (handles all special chars)
-        modal.querySelector('#codeViewContent').textContent = code;
+        // Set code content with Python syntax highlighting
+        modal.querySelector('#codeViewContent').innerHTML = this._highlightPython(code);
         // Wire copy button safely
         modal.querySelector('#codeViewCopyBtn').addEventListener('click', () => {
             navigator.clipboard.writeText(this._lastGeneratedCode)
@@ -1245,6 +1246,32 @@ const StrategyBuilderPage = {
             if (body) body.scrollTop = 0;
         });
         modal.querySelector('.modal').addEventListener('hidden.bs.modal', () => modal.remove());
+    },
+
+    /** Simple Python syntax highlighting */
+    _highlightPython(code) {
+        const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const escaped = esc(code);
+        return escaped
+            // Comments
+            .replace(/(#[^\n]*)/g, '<span style="color:#6a9955">$1</span>')
+            // Triple-quoted strings (docstrings)
+            .replace(/("""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')/g, '<span style="color:#ce9178">$1</span>')
+            // Strings (double and single quoted)
+            .replace(/(&quot;[^&]*?&quot;|"[^"]*?")/g, '<span style="color:#ce9178">$1</span>')
+            .replace(/(&#x27;[^&]*?&#x27;|'[^']*?')/g, '<span style="color:#ce9178">$1</span>')
+            // Keywords
+            .replace(/\b(import|from|class|def|return|if|elif|else|for|while|in|not|and|or|is|None|True|False|try|except|raise|with|as|pass|break|continue|yield|lambda|self)\b/g,
+                '<span style="color:#569cd6">$1</span>')
+            // Decorators
+            .replace(/(@\w+)/g, '<span style="color:#dcdcaa">$1</span>')
+            // Numbers
+            .replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/g, '<span style="color:#b5cea8">$1</span>')
+            // Built-in functions
+            .replace(/\b(print|len|range|int|float|str|list|dict|set|tuple|abs|min|max|round|sum|sorted|enumerate|zip|map|filter|isinstance|hasattr|getattr|setattr|super|type|bool)\b(?=\s*\()/g,
+                '<span style="color:#dcdcaa">$1</span>')
+            // Known libraries
+            .replace(/\b(pd|np|ta|pta|qtpylib|dataframe)\b/g, '<span style="color:#4ec9b0">$1</span>');
     },
 
     _escapeHtml(text) {
@@ -1586,6 +1613,9 @@ ${entryConditions.length > 0 ?
         // === PARSE INDICATORS ===
         const indicators = this._parseIndicators(indSection || code);
 
+        // === PARSE UNRECOGNIZED LOGIC BLOCKS ===
+        const logicBlocks = this._parseUnrecognizedLogic(indSection || code, indicators);
+
         // === PARSE COMPOSITE SIGNALS from populate_indicators ===
         const compositeSignals = this._parseCompositeSignals(indSection || code);
 
@@ -1637,6 +1667,24 @@ ${entryConditions.length > 0 ?
         });
         if (indicatorNodes.length > 0) x += xStep;
 
+        // 2b. Logic blocks (unrecognized code)
+        const logicNodes = [];
+        if (logicBlocks.length > 0) {
+            const totalItems = allIndicators.length + logicBlocks.length;
+            logicBlocks.forEach((lb, i) => {
+                const yOff = (allIndicators.length + i - (totalItems - 1) / 2) * ySpacing;
+                const node = {
+                    id: this.nextId++, type: 'logic',
+                    x: x - (indicatorNodes.length > 0 ? 0 : xStep), y: yBase + yOff,
+                    params: { code: lb.code, _label: lb.label }
+                };
+                this.nodes.push(node);
+                logicNodes.push(node);
+                this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
+            });
+            if (indicatorNodes.length === 0) x += xStep;
+        }
+
         // 3. Composite signal nodes (e.g. price_peak, price_reversal, macd_reversal)
         const signalNodes = [];
         if (compositeSignals.length > 0) {
@@ -1673,7 +1721,7 @@ ${entryConditions.length > 0 ?
         }
 
         // 4. Entry condition group nodes
-        const allEntrySourceNodes = signalNodes.length > 0 ? signalNodes : indicatorNodes;
+        const allEntrySourceNodes = [...(signalNodes.length > 0 ? signalNodes : indicatorNodes), ...logicNodes];
         let longGroupNode = null, shortGroupNode = null;
 
         if (canLong && entryLongConds.length > 0) {
@@ -2034,6 +2082,101 @@ ${entryConditions.length > 0 ?
         }
 
         return indicators;
+    },
+
+    /** Detect unrecognized code blocks in populate_indicators that weren't matched as known indicators */
+    _parseUnrecognizedLogic(code, knownIndicators) {
+        const logicBlocks = [];
+        const knownTypes = new Set(knownIndicators.map(i => i.type.toLowerCase()));
+        // Known indicator patterns that _parseIndicators already handles
+        const knownPatterns = [
+            /ta\.\w+\s*\(/gi, /\.ta\.\w+\s*\(/gi, /pta\.\w+\s*\(/gi, /qtpylib\.\w+/gi,
+            /dataframe\['(close|open|high|low|volume|date)'\]/gi,
+            /\.rolling\(\d+\)\.(?:mean|std|min|max)/gi,
+            /\.shift\(\d+\)/gi, /\.pct_change/gi,
+        ];
+        // Known column names that are standard
+        const standardCols = new Set([
+            'close', 'open', 'high', 'low', 'volume', 'date',
+            'ema', 'sma', 'rsi', 'macd', 'macdsignal', 'macdhist',
+            'bb_upper', 'bb_lower', 'bb_middle', 'bbands',
+            'adx', 'atr', 'cci', 'mfi', 'obv', 'willr',
+            'stoch', 'slowk', 'slowd', 'fastk', 'fastd',
+        ]);
+
+        // Find all dataframe['col'] = ... assignments that look like custom logic
+        const lines = code.split('\n');
+        let logicNum = 0;
+        let blockLines = [];
+        let blockName = '';
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith('#') || line.startsWith('return') || line.startsWith('def ')) continue;
+
+            // Match dataframe column assignments
+            const colAssign = line.match(/dataframe\['(\w+)'\]\s*=/);
+            if (colAssign) {
+                const colName = colAssign[1].toLowerCase();
+                // Skip if it's a standard/known indicator column
+                if (standardCols.has(colName)) continue;
+                // Skip if it matches a known indicator type
+                if (knownTypes.has(colName)) continue;
+                // Skip simple ta.XXX calls that were already parsed
+                if (knownPatterns.some(p => { p.lastIndex = 0; return p.test(line); })) continue;
+
+                // This is unrecognized logic - collect it
+                logicNum++;
+                const snippet = line.length > 60 ? line.substring(0, 58) + '...' : line;
+                // Collect continuation lines (indented or multi-line expression)
+                let fullCode = line;
+                let j = i + 1;
+                while (j < lines.length && lines[j].match(/^\s{8,}/) && !lines[j].trim().startsWith('dataframe[')) {
+                    fullCode += '\n' + lines[j];
+                    j++;
+                }
+                logicBlocks.push({
+                    label: `Logic ${logicNum}`,
+                    code: fullCode,
+                    column: colAssign[1],
+                    snippet: snippet
+                });
+            }
+
+            // Also detect for/while loops, if blocks that do complex processing
+            const loopMatch = line.match(/^(for|while)\s+/);
+            if (loopMatch && !line.includes('ta.') && !line.includes('pta.')) {
+                logicNum++;
+                let fullCode = line;
+                let j = i + 1;
+                while (j < lines.length && (lines[j].match(/^\s{8,}/) || lines[j].trim() === '')) {
+                    fullCode += '\n' + lines[j];
+                    j++;
+                }
+                logicBlocks.push({
+                    label: `Logic ${logicNum}`,
+                    code: fullCode,
+                    column: '',
+                    snippet: line.length > 60 ? line.substring(0, 58) + '...' : line
+                });
+            }
+
+            // Detect helper function calls that aren't standard
+            const funcCall = line.match(/(\w+)\s*\(.*dataframe/);
+            if (funcCall && !line.includes('ta.') && !line.includes('pta.') && !line.includes('qtpylib')
+                && !['merge_informative_pair', 'print', 'log', 'len', 'abs', 'min', 'max', 'round', 'int', 'float', 'str', 'np'].includes(funcCall[1])
+                && !colAssign) {
+                logicNum++;
+                logicBlocks.push({
+                    label: `Logic ${logicNum}`,
+                    code: line,
+                    column: '',
+                    snippet: line.length > 60 ? line.substring(0, 58) + '...' : line
+                });
+            }
+        }
+
+        return logicBlocks;
     },
 
     /** Parse composite signal definitions: dataframe['signal'] = (cond1) & (cond2) | (cond3) */

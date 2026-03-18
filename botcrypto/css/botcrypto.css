@@ -851,6 +851,7 @@ select option:checked {
 .node-icon.n-wait { background: rgba(241,196,15,0.15); color: var(--bc-yellow); }
 .node-icon.n-webhook { background: var(--bc-blue); color: white; }
 .node-icon.n-reset { background: var(--bc-blue); color: white; }
+.node-icon.n-logic { background: rgba(156,39,176,0.15); color: #ce93d8; border: 2px solid rgba(156,39,176,0.3); }
 
 .node-label {
     padding: 4px 10px 8px;
