@@ -2529,10 +2529,20 @@ ${entryConditions.length > 0 ?
 
         let strategyName = this._importedStrategyName || this.strategyName;
         if (!strategyName || strategyName === 'My Strategy') {
-            const code = this._generateStrategyCode();
-            if (!code) { App.showToast('Create a strategy first', 'warning'); return; }
             strategyName = this.strategyName.replace(/[^a-zA-Z0-9_]/g, '_') || 'VisualStrategy';
         }
+
+        // Get strategy code: imported original .py or generated from visual builder
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const strategyCode = imported[strategyName]?.content || this._importedStrategyCode || this._buildFreqtradeStrategy();
+        if (!strategyCode) {
+            App.showToast('Create a strategy first', 'warning');
+            return;
+        }
+
+        // Extract class name from strategy code
+        const classMatch = strategyCode.match(/class\s+(\w+)\s*\(/);
+        const className = classMatch ? classMatch[1] : strategyName;
 
         const selectedPair = document.getElementById('sbBtPair')?.value;
         if (!selectedPair) {
@@ -2558,8 +2568,23 @@ ${entryConditions.length > 0 ?
         this._updatePanelProgress(5, 'Preparing...', 'Initializing backtest');
 
         try {
+            // Upload strategy code to Freqtrade so it's available on disk
+            this._updatePanelProgress(5, 'Uploading strategy...', className);
+            try {
+                await API.request('/strategies/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({ strategy: strategyCode, name: className })
+                });
+            } catch (uploadErr) {
+                console.error('Strategy upload failed:', uploadErr);
+                this.resetBacktestPanel();
+                App.showToast(`Failed to upload strategy: ${uploadErr.message}`, 'error');
+                this._btRunning = false;
+                return;
+            }
+
             const btConfig = {
-                strategy: strategyName,
+                strategy: className,
                 timerange: `${startDate}-${endDate}`,
                 max_open_trades: maxTrades,
                 stake_amount: stakeAmount === 'unlimited' ? 'unlimited' : parseFloat(stakeAmount),
@@ -2592,10 +2617,10 @@ ${entryConditions.length > 0 ?
                 console.log('Pre-download skipped:', dlErr.message);
             }
 
-            this._updatePanelProgress(20, 'Starting backtest...', `Strategy: ${strategyName}`);
+            this._updatePanelProgress(20, 'Starting backtest...', `Strategy: ${className}`);
             await API.startBacktest(btConfig);
 
-            this._btStrategyName = strategyName;
+            this._btStrategyName = className;
             this._pollPanelBacktest();
         } catch(e) {
             this.resetBacktestPanel();
