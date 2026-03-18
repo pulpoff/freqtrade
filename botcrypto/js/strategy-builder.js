@@ -475,16 +475,16 @@ const StrategyBuilderPage = {
             svg.style.height = maxY + 'px';
         }
 
-        // SVG defs for arrowhead markers (use hardcoded colors - CSS vars don't work in SVG innerHTML)
+        // SVG defs for arrowhead markers
         const defs = `<defs>
-            <marker id="arrowNormal" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
+            <marker id="arrowNormal" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#f5a623"/>
             </marker>
-            <marker id="arrowTrue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
+            <marker id="arrowTrue" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#f5a623"/>
             </marker>
-            <marker id="arrowFalse" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#e74c5e"/>
+            <marker id="arrowFalse" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#e74c5e"/>
             </marker>
         </defs>`;
 
@@ -516,19 +516,35 @@ const StrategyBuilderPage = {
             const markerRef = conn.type === 'false' ? 'arrowFalse' : conn.type === 'true' ? 'arrowTrue' : 'arrowNormal';
 
             const connIdx = this.connections.indexOf(conn);
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2;
             const isSelected = this._selectedConnection === connIdx;
-            const selStroke = isSelected ? ' stroke-opacity="1" stroke-width="4"' : '';
             // Invisible wider hit-area path for easier clicking
             const hitArea = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer" onclick="StrategyBuilderPage.selectConnection(${connIdx})"/>`;
-            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-mid="url(#${markerRef})" marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+
+            // Mid-path direction arrow: compute point at t=0.5 on cubic bezier and tangent
+            const t = 0.5;
+            const mt = 1 - t;
+            const mx = mt*mt*mt*x1 + 3*mt*mt*t*cx1 + 3*mt*t*t*cx2 + t*t*t*x2;
+            const my = mt*mt*mt*y1 + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y2;
+            // Tangent at t=0.5
+            const tx = 3*mt*mt*(cx1-x1) + 6*mt*t*(cx2-cx1) + 3*t*t*(x2-cx2);
+            const ty = 3*mt*mt*(y1-y1) + 6*mt*t*(y2-y1) + 3*t*t*(y2-y2);
+            const angle = Math.atan2(ty, tx);
+            const arrowSize = 6;
+            const ax1 = mx + arrowSize * Math.cos(angle);
+            const ay1 = my + arrowSize * Math.sin(angle);
+            const ax2 = mx - arrowSize * Math.cos(angle - Math.PI / 3);
+            const ay2 = my - arrowSize * Math.sin(angle - Math.PI / 3);
+            const ax3 = mx - arrowSize * Math.cos(angle + Math.PI / 3);
+            const ay3 = my - arrowSize * Math.sin(angle + Math.PI / 3);
+            const midArrow = `<polygon points="${ax1},${ay1} ${ax2},${ay2} ${ax3},${ay3}" fill="${strokeColor}" style="pointer-events:none"/>`;
+
             // Delete button shown when selected
             const delBtn = isSelected ? `<g onclick="StrategyBuilderPage.deleteConnection(${connIdx})" style="cursor:pointer">
-                <circle cx="${midX}" cy="${midY}" r="12" fill="#e74c5e" stroke="#fff" stroke-width="1.5"/>
-                <text x="${midX}" y="${midY + 4}" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">×</text>
+                <circle cx="${mx}" cy="${my}" r="12" fill="#e74c5e" stroke="#fff" stroke-width="1.5"/>
+                <text x="${mx}" y="${my + 4}" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">×</text>
             </g>` : '';
-            return hitArea + visPath + delBtn;
+            return hitArea + visPath + (isSelected ? '' : midArrow) + delBtn;
         }).join('');
 
         svg.innerHTML = defs + paths;
