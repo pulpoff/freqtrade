@@ -37,6 +37,13 @@ const DashboardPage = {
         '1d': 1000,   // ~2.7 years
     },
 
+    /** Track signal entry/exit counts */
+    _signalCounts: { enterLong: 0, exitLong: 0, enterShort: 0, exitShort: 0 },
+    /** Heikin Ashi mode */
+    _heikinAshi: false,
+    /** Raw candle data before HA conversion */
+    _rawCandles: null,
+
     render() {
         return `
         <div id="dashboardPage">
@@ -46,113 +53,201 @@ const DashboardPage = {
                 <span><strong>Backtesting Mode</strong> - Trade data and live balances are not available. Use the Backtesting page to run strategy tests.</span>
             </div>` : ''}
 
-            <!-- Bot Info Bar -->
-            <div class="card mb-3">
-                <div class="card-body py-2">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="badge badge-bc" id="dashBotStatus">
-                                <span class="status-dot disconnected me-1"></span> Offline
-                            </span>
-                            <span class="text-secondary small" id="dashStrategyName"><i class="bi bi-diagram-3 me-1"></i>-</span>
-                            <span class="text-secondary small" id="dashExchangeName"><i class="bi bi-bank me-1"></i>-</span>
-                            <span class="text-secondary small" id="dashTradingMode"></span>
-                        </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <button class="btn btn-sm btn-outline-success" onclick="DashboardPage.refreshAll()">
-                                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Multi Pane Layout: Left Panel + Chart Area -->
+            <div class="row g-0" style="min-height:calc(100vh - 120px)">
 
-            <!-- Summary Stats Row -->
-            <div class="row g-2 g-md-3 mb-3" id="dashSummaryStats">
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashTotalProfit">0</div>
-                        <div class="stat-label">Total Profit</div>
-                    </div></div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashProfitPct">0%</div>
-                        <div class="stat-label">Profit %</div>
-                    </div></div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashClosedTrades">0</div>
-                        <div class="stat-label">Closed Trades</div>
-                    </div></div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashOpenTrades">0</div>
-                        <div class="stat-label">Open Trades</div>
-                    </div></div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashWinRate">0%</div>
-                        <div class="stat-label">Win Rate</div>
-                    </div></div>
-                </div>
-                <div class="col-4 col-md-2">
-                    <div class="card"><div class="card-body py-2 py-md-3 text-center">
-                        <div class="stat-value" id="dashBalance">0</div>
-                        <div class="stat-label">Balance</div>
-                        <div class="stat-sublabel" id="dashBalanceDetail"></div>
-                    </div></div>
-                </div>
-            </div>
-
-            <!-- Chart -->
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
-                        <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap">
-                            <select class="form-select form-select-sm dash-pair-select" id="dashPairSelect"
-                                onchange="DashboardPage.changePair(this.value)">
-                                <option value="">Loading...</option>
-                            </select>
-                            <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="DashboardPage.showIndicatorsModal()"><i class="bi bi-activity me-1"></i> Indicators</button>
+                <!-- LEFT PANEL: Tabbed sidebar -->
+                <div class="col-12 col-lg-3 col-xl-3" id="dashLeftPanel">
+                    <div class="card h-100" style="border-radius:0;border-right:1px solid var(--bc-border)">
+                        <!-- Bot Controls -->
+                        <div class="card-header py-2 text-center border-bottom" style="background:var(--bc-bg-dark)">
+                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                <button class="btn btn-sm btn-outline-success px-2" onclick="DashboardPage.botAction('start')" title="Start Bot"><i class="bi bi-play-fill"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary px-2" onclick="DashboardPage.botAction('stop')" title="Stop Bot"><i class="bi bi-stop-fill"></i></button>
+                                <button class="btn btn-sm btn-outline-warning px-2" onclick="DashboardPage.botAction('pause')" title="Pause (Stop Entry)"><i class="bi bi-pause-fill"></i></button>
+                                <button class="btn btn-sm btn-outline-info px-2" onclick="DashboardPage.botAction('reload')" title="Reload Config"><i class="bi bi-arrow-clockwise"></i></button>
+                                <button class="btn btn-sm btn-outline-danger px-2" onclick="DashboardPage.botAction('forceclose')" title="Force Close All"><i class="bi bi-x-square"></i></button>
+                            </div>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
-                            <button class="btn btn-sm btn-link text-secondary" onclick="DashboardPage.refreshChart()"><i class="bi bi-arrow-clockwise"></i></button>
-                            <button class="btn btn-sm btn-link text-secondary"><i class="bi bi-arrows-fullscreen"></i></button>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <small class="text-secondary" id="dashChartInfo">
-                            <i class="bi bi-bar-chart"></i> Loading chart data...
-                        </small>
-                    </div>
-                    <div id="mainChart" class="chart-container" style="height:400px"></div>
-                </div>
-            </div>
 
-            <!-- Bottom: Equity + Trades -->
-            <div class="row g-3">
-                <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Equity Curve</h6>
-                            <div id="equityChart" style="height:180px"></div>
-                            <div id="dashProfitDisplay">
-                                ${Components.profitDisplay(0, 0, 0, 0)}
+                        <!-- Tab Navigation -->
+                        <div class="d-flex justify-content-center border-bottom" style="background:var(--bc-bg-dark)">
+                            <button class="btn btn-sm btn-link dash-tab-btn active" data-tab="whitelist" onclick="DashboardPage.switchTab('whitelist')" title="Whitelist"><i class="bi bi-list-ul"></i></button>
+                            <button class="btn btn-sm btn-link dash-tab-btn" data-tab="botinfo" onclick="DashboardPage.switchTab('botinfo')" title="Bot Info"><i class="bi bi-info-circle"></i></button>
+                            <button class="btn btn-sm btn-link dash-tab-btn" data-tab="performance" onclick="DashboardPage.switchTab('performance')" title="Period Breakdown"><i class="bi bi-graph-up"></i></button>
+                            <button class="btn btn-sm btn-link dash-tab-btn" data-tab="balance" onclick="DashboardPage.switchTab('balance')" title="Bot Balance"><i class="bi bi-wallet2"></i></button>
+                            <button class="btn btn-sm btn-link dash-tab-btn" data-tab="tradelist" onclick="DashboardPage.switchTab('tradelist')" title="Trade List"><i class="bi bi-card-list"></i></button>
+                        </div>
+
+                        <!-- Tab Content -->
+                        <div class="card-body p-0" style="overflow-y:auto;max-height:calc(100vh - 250px)">
+                            <!-- Whitelist Tab -->
+                            <div class="dash-tab-content active" id="dashTabWhitelist">
+                                <h6 class="fw-semibold text-center py-2 mb-0 border-bottom" style="font-size:14px">Whitelist Methods</h6>
+                                <div class="text-center py-1 px-2" id="dashWhitelistMethod">
+                                    <span class="badge bg-secondary bg-opacity-25 px-3 py-1">StaticPairList</span>
+                                </div>
+                                <h6 class="fw-semibold text-center py-2 mb-0 border-bottom" style="font-size:14px">Whitelist</h6>
+                                <div class="px-2 py-2" id="dashWhitelistPairs">
+                                    <div class="text-center text-secondary py-3 small">Loading...</div>
+                                </div>
+                                <h6 class="fw-semibold text-center py-2 mb-0 border-bottom" style="font-size:14px">Blacklist
+                                    <button class="btn btn-sm btn-link text-secondary float-end py-0" onclick="DashboardPage.showBlacklistModal()"><i class="bi bi-plus-square"></i></button>
+                                </h6>
+                                <div class="px-2 py-2" id="dashBlacklistPairs">
+                                    <div class="text-center text-secondary py-2 small">No blacklist entries</div>
+                                </div>
+                            </div>
+
+                            <!-- Bot Info Tab -->
+                            <div class="dash-tab-content" id="dashTabBotinfo" style="display:none">
+                                <div class="px-3 py-2" id="dashBotInfoContent">
+                                    <div class="text-center text-secondary py-4 small">Loading bot info...</div>
+                                </div>
+                            </div>
+
+                            <!-- Period Breakdown Tab -->
+                            <div class="dash-tab-content" id="dashTabPerformance" style="display:none">
+                                <h6 class="fw-semibold text-center py-2 mb-0 border-bottom" style="font-size:14px">Period Breakdown
+                                    <button class="btn btn-sm btn-link text-secondary float-end py-0" onclick="DashboardPage.loadPeriodData()"><i class="bi bi-arrow-clockwise"></i></button>
+                                </h6>
+                                <div class="d-flex justify-content-center gap-1 py-2 border-bottom">
+                                    <button class="btn btn-sm btn-outline-secondary active period-btn" onclick="DashboardPage.setPeriodView('daily')">Days</button>
+                                    <button class="btn btn-sm btn-outline-secondary period-btn" onclick="DashboardPage.setPeriodView('weekly')">Weeks</button>
+                                    <button class="btn btn-sm btn-outline-secondary period-btn" onclick="DashboardPage.setPeriodView('monthly')">Months</button>
+                                </div>
+                                <div id="dashPeriodChart" style="height:150px" class="px-1"></div>
+                                <div class="table-responsive" id="dashPeriodTable" style="max-height:400px;overflow-y:auto">
+                                    <div class="text-center text-secondary py-3 small">Loading...</div>
+                                </div>
+                            </div>
+
+                            <!-- Balance Tab -->
+                            <div class="dash-tab-content" id="dashTabBalance" style="display:none">
+                                <h6 class="fw-semibold text-center py-2 mb-0 border-bottom" style="font-size:14px">Bot Balance
+                                    <button class="btn btn-sm btn-link text-secondary float-end py-0" onclick="DashboardPage.loadBalanceData()"><i class="bi bi-arrow-clockwise"></i></button>
+                                </h6>
+                                <div id="dashBalanceChart" style="height:200px" class="px-2 py-2"></div>
+                                <div class="table-responsive" id="dashBalanceTable">
+                                    <div class="text-center text-secondary py-3 small">Loading balance...</div>
+                                </div>
+                            </div>
+
+                            <!-- Trade List Tab -->
+                            <div class="dash-tab-content" id="dashTabTradelist" style="display:none">
+                                <div class="px-2 py-2">
+                                    <input type="text" class="form-control form-control-sm mb-2" placeholder="Filter" id="dashTradeFilter"
+                                        oninput="DashboardPage.filterTradeList(this.value)"
+                                        style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
+                                </div>
+                                <div id="dashTradeListContent" style="max-height:calc(100vh - 340px);overflow-y:auto">
+                                    <div class="text-center text-secondary py-3 small">Loading trades...</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-8">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div id="dashTradesTable">
-                                ${Components.tradesTable([])}
+
+                <!-- RIGHT PANEL: Chart + Open Trades -->
+                <div class="col-12 col-lg-9 col-xl-9">
+                    <!-- Chart Header -->
+                    <div class="card" style="border-radius:0">
+                        <div class="card-header py-2" style="background:var(--bc-bg-dark)">
+                            <div class="text-center fw-semibold" style="font-size:13px">Chart</div>
+                        </div>
+                        <div class="card-body pb-0 pt-2 px-2">
+                            <!-- Chart Toolbar -->
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-1">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <small class="text-secondary" id="dashChartLabel"></small>
+                                    <select class="form-select form-select-sm dash-pair-select" id="dashPairSelect"
+                                        onchange="DashboardPage.changePair(this.value)">
+                                        <option value="">Loading...</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-link text-secondary py-0" onclick="DashboardPage.refreshChart()"><i class="bi bi-arrow-clockwise"></i></button>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <small class="text-secondary" id="dashSignalCounts">Long entries: 0  Long exit: 0<br>Short entries: 0</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-check form-check-inline mb-0" style="font-size:12px">
+                                        <input class="form-check-input" type="checkbox" id="dashHeikinAshi" onchange="DashboardPage.toggleHeikinAshi(this.checked)">
+                                        <span class="text-secondary">Heikin Ashi</span>
+                                    </label>
+                                    <span id="dashTfBtns">${Components.timeframeSelector(this.currentTimeframe || '5m', 'DashboardPage.changeTimeframe')}</span>
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="DashboardPage.showIndicatorsModal()" style="font-size:12px"><i class="bi bi-activity me-1"></i>Indicators</button>
+                                </div>
                             </div>
+                            <!-- Chart Legend -->
+                            <div class="d-flex align-items-center gap-3 mb-1 px-1" style="font-size:11px">
+                                <span><span style="display:inline-block;width:10px;height:10px;background:#2dd4a8;border-radius:2px;margin-right:3px"></span>Candles</span>
+                                <span><span style="display:inline-block;width:10px;height:10px;background:rgba(74,144,217,0.5);border-radius:2px;margin-right:3px"></span>Volume</span>
+                                <span><span style="display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid #2dd4a8;margin-right:3px"></span>Entry</span>
+                                <span><span style="display:inline-block;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid #f5a623;margin-right:3px"></span>Exit</span>
+                                <span><span style="display:inline-block;width:8px;height:8px;background:#4a90d9;border-radius:50%;margin-right:3px"></span>Trades</span>
+                            </div>
+                            <!-- OHLCV Info bar -->
+                            <div class="d-flex align-items-center gap-3 px-1 mb-1" style="font-size:11px" id="dashOhlcvBar">
+                                <small class="text-secondary" id="dashChartInfo">
+                                    <i class="bi bi-bar-chart"></i> Loading chart data...
+                                </small>
+                            </div>
+                            <div id="mainChart" class="chart-container" style="height:420px"></div>
+                        </div>
+                    </div>
+
+                    <!-- Open Trades Table -->
+                    <div class="card" style="border-radius:0;border-top:1px solid var(--bc-border)">
+                        <div class="card-header py-1 text-center" style="background:var(--bc-bg-dark)">
+                            <span class="fw-semibold" style="font-size:13px">Open Trades</span>
+                            <span class="badge bg-success ms-1" id="dashOpenTradeCount" style="font-size:10px">0</span>
+                        </div>
+                        <div class="card-body p-0" style="max-height:350px;overflow-y:auto">
+                            <table class="table table-hover table-sm mb-0" id="dashOpenTradesTable" style="font-size:12px">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Pair</th>
+                                        <th>Amount</th>
+                                        <th>Stake amount</th>
+                                        <th>Open rate</th>
+                                        <th>Current rate</th>
+                                        <th>Current profit %</th>
+                                        <th>Open date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashOpenTradesBody">
+                                    <tr><td colspan="9" class="text-center text-secondary py-3">No open trades</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Closed Trades Table (below open trades) -->
+                    <div class="card" style="border-radius:0;border-top:1px solid var(--bc-border)">
+                        <div class="card-header py-1 text-center" style="background:var(--bc-bg-dark)">
+                            <span class="fw-semibold" style="font-size:13px">Closed Trades</span>
+                            <span class="badge bg-info ms-1" id="dashClosedTradeCount" style="font-size:10px">0</span>
+                        </div>
+                        <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
+                            <table class="table table-hover table-sm mb-0" id="dashClosedTradesTable" style="font-size:12px">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Pair</th>
+                                        <th>Profit</th>
+                                        <th>Open rate</th>
+                                        <th>Close rate</th>
+                                        <th>Exit reason</th>
+                                        <th>Duration</th>
+                                        <th>Close date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashClosedTradesBody">
+                                    <tr><td colspan="8" class="text-center text-secondary py-3">No closed trades</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -164,11 +259,311 @@ const DashboardPage = {
         setTimeout(async () => {
             await this.loadBotConfig();
             this.initMainChart();
-            this.initEquityChart();
             await this.loadData();
             // Auto-refresh every 30 seconds
             this.refreshTimer = setInterval(() => this.loadData(), 30000);
         }, 100);
+    },
+
+    // ========== TAB NAVIGATION ==========
+    switchTab(tabName) {
+        document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.dash-tab-content').forEach(c => c.style.display = 'none');
+        const btn = document.querySelector(`.dash-tab-btn[data-tab="${tabName}"]`);
+        if (btn) btn.classList.add('active');
+        const tabMap = {
+            whitelist: 'dashTabWhitelist', botinfo: 'dashTabBotinfo',
+            performance: 'dashTabPerformance', balance: 'dashTabBalance',
+            tradelist: 'dashTabTradelist'
+        };
+        const tabEl = document.getElementById(tabMap[tabName]);
+        if (tabEl) tabEl.style.display = '';
+        // Lazy-load tab data
+        if (tabName === 'performance') this.loadPeriodData();
+        if (tabName === 'balance') this.loadBalanceData();
+        if (tabName === 'tradelist') this.loadTradeList();
+    },
+
+    // ========== BOT CONTROL ==========
+    async botAction(action) {
+        if (!API.connected) { App.showToast('Not connected', 'warning'); return; }
+        try {
+            if (action === 'start') { await API.startBot(); App.showToast('Bot started', 'success'); }
+            else if (action === 'stop') {
+                if (!confirm('Stop the trading bot?')) return;
+                await API.stopBot(); App.showToast('Bot stopped', 'info');
+            }
+            else if (action === 'pause') { await API.pauseBot(); App.showToast('New entries paused', 'info'); }
+            else if (action === 'reload') { await API.reloadConfig(); App.showToast('Config reloaded', 'success'); }
+            else if (action === 'forceclose') {
+                if (!confirm('Force close ALL open trades?')) return;
+                const trades = await API.getOpenTrades().catch(() => []);
+                for (const t of trades) { await API.forceExit(t.trade_id).catch(() => {}); }
+                App.showToast(`Force closed ${trades.length} trades`, 'warning');
+            }
+            setTimeout(() => this.loadData(), 1000);
+        } catch(e) { App.showToast('Action failed: ' + e.message, 'error'); }
+    },
+
+    // ========== PERIOD BREAKDOWN ==========
+    _periodView: 'daily',
+    _periodChart: null,
+    _periodSeries: null,
+
+    async setPeriodView(view) {
+        this._periodView = view;
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        const btn = event?.target; if (btn) btn.classList.add('active');
+        this.loadPeriodData();
+    },
+
+    async loadPeriodData() {
+        if (!API.connected) return;
+        try {
+            let data;
+            if (this._periodView === 'daily') data = await API.getDaily(30);
+            else if (this._periodView === 'weekly') data = await API.getWeekly(12);
+            else data = await API.getMonthly(6);
+
+            const rows = data?.data || [];
+            // Init period chart
+            const chartEl = document.getElementById('dashPeriodChart');
+            if (chartEl && rows.length > 0) {
+                chartEl.innerHTML = '';
+                if (this._periodChart) { try { this._periodChart.remove(); } catch(e){} }
+                this._periodChart = Components.createChart(chartEl, {
+                    rightPriceScale: { visible: true },
+                    timeScale: { visible: true },
+                    crosshair: { mode: 1 },
+                });
+                if (this._periodChart) {
+                    const profitSeries = this._periodChart.addHistogramSeries({
+                        priceLineVisible: false, lastValueVisible: false,
+                    });
+                    profitSeries.setData(rows.map(r => {
+                        const dateStr = r.date || '';
+                        const time = dateStr.substring(0, 10);
+                        const val = r.abs_profit || 0;
+                        return { time, value: val, color: val >= 0 ? 'rgba(45,212,168,0.7)' : 'rgba(231,76,94,0.7)' };
+                    }).filter(d => d.time));
+                    this._periodChart.timeScale().fitContent();
+                }
+            }
+
+            // Period table
+            const tableEl = document.getElementById('dashPeriodTable');
+            if (tableEl && rows.length > 0) {
+                const header = this._periodView === 'daily' ? 'Day' : (this._periodView === 'weekly' ? 'Week' : 'Month');
+                tableEl.innerHTML = `<table class="table table-sm mb-0" style="font-size:11px">
+                    <thead><tr><th>${header}</th><th>Profit</th><th>In USD</th><th>Trades</th><th>Profit%</th></tr></thead>
+                    <tbody>${rows.map(r => {
+                        const profit = r.abs_profit || 0;
+                        const fiat = r.fiat_value || profit;
+                        const cls = profit >= 0 ? 'text-profit' : 'text-loss';
+                        return `<tr><td>${r.date || ''}</td><td class="${cls}">${Components.formatNumber(profit, 3)}</td>
+                            <td class="${cls}">${Components.formatNumber(fiat, 2)}</td><td>${r.trade_count || 0}</td>
+                            <td class="${cls}">${Components.formatNumber((r.rel_profit || 0) * 100, 2)}%</td></tr>`;
+                    }).join('')}</tbody></table>`;
+            }
+        } catch(e) {
+            const tableEl = document.getElementById('dashPeriodTable');
+            if (tableEl) tableEl.innerHTML = `<div class="text-center text-secondary py-3 small">Not available</div>`;
+        }
+    },
+
+    // ========== BALANCE TAB ==========
+    _balanceChart: null,
+
+    async loadBalanceData() {
+        if (!API.connected) return;
+        try {
+            const balance = await API.getBalance();
+            if (!balance || !balance.currencies) {
+                document.getElementById('dashBalanceTable').innerHTML = '<div class="text-center text-secondary py-3 small">No balance data</div>';
+                return;
+            }
+            const currencies = balance.currencies.filter(c => (c.balance || 0) > 0.001);
+            const stakeCurrency = balance.stake || balance.symbol || 'USDT';
+
+            // Donut chart using canvas
+            const chartEl = document.getElementById('dashBalanceChart');
+            if (chartEl && currencies.length > 0) {
+                const total = currencies.reduce((s, c) => s + (c.est_stake || c.balance || 0), 0);
+                const colors = ['#2dd4a8','#4a90d9','#f5a623','#e74c5e','#9b59b6','#00cec9','#fd79a8','#6c5ce7','#00b894','#f1c40f','#e67e22','#636e72'];
+                chartEl.innerHTML = `<canvas id="balanceDonut" width="200" height="200" style="max-width:100%;margin:0 auto;display:block"></canvas>`;
+                const canvas = document.getElementById('balanceDonut');
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    const cx = 100, cy = 100, r = 70, ir = 40;
+                    let startAngle = -Math.PI / 2;
+                    currencies.forEach((c, i) => {
+                        const val = c.est_stake || c.balance || 0;
+                        const angle = (val / total) * 2 * Math.PI;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, r, startAngle, startAngle + angle);
+                        ctx.arc(cx, cy, ir, startAngle + angle, startAngle, true);
+                        ctx.closePath();
+                        ctx.fillStyle = colors[i % colors.length];
+                        ctx.fill();
+                        // Label
+                        const midAngle = startAngle + angle / 2;
+                        const lx = cx + (r + 15) * Math.cos(midAngle);
+                        const ly = cy + (r + 15) * Math.sin(midAngle);
+                        ctx.fillStyle = '#8a8fa8';
+                        ctx.font = '9px Inter, sans-serif';
+                        ctx.textAlign = midAngle > Math.PI/2 && midAngle < 3*Math.PI/2 ? 'right' : 'left';
+                        ctx.fillText(`${c.currency}`, lx, ly);
+                        startAngle += angle;
+                    });
+                    // Center text
+                    ctx.fillStyle = '#e8eaf0';
+                    ctx.font = 'bold 12px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${Components.formatNumber(total, 2)}`, cx, cy + 4);
+                }
+            }
+
+            // Balance table
+            const tableEl = document.getElementById('dashBalanceTable');
+            if (tableEl) {
+                tableEl.innerHTML = `<table class="table table-sm mb-0" style="font-size:11px">
+                    <thead><tr><th>Currency</th><th>Available</th><th>in ${stakeCurrency}</th></tr></thead>
+                    <tbody>${currencies.map(c => {
+                        const bal = c.balance || 0;
+                        const est = c.est_stake || bal;
+                        return `<tr><td class="fw-semibold">${c.currency}</td><td>${Components.formatNumber(bal, 3)}</td><td>${Components.formatNumber(est, 3)}</td></tr>`;
+                    }).join('')}
+                    <tr class="fw-bold border-top"><td>Total</td><td>${Components.formatNumber(balance.total || 0, 3)}%</td><td>${Components.formatNumber(balance.value || balance.total || 0, 3)}</td></tr>
+                    </tbody></table>`;
+            }
+        } catch(e) {
+            document.getElementById('dashBalanceTable').innerHTML = '<div class="text-center text-secondary py-3 small">Balance not available</div>';
+        }
+    },
+
+    // ========== TRADE LIST TAB ==========
+    _allTrades: [],
+
+    async loadTradeList() {
+        if (!API.connected) return;
+        try {
+            const openTrades = await API.getOpenTrades().catch(() => []);
+            const tradeList = Array.isArray(openTrades) ? openTrades : [];
+            this._allTrades = tradeList;
+            this._renderTradeListContent(tradeList);
+        } catch(e) {}
+    },
+
+    _renderTradeListContent(trades) {
+        const el = document.getElementById('dashTradeListContent');
+        if (!el) return;
+        if (!trades || trades.length === 0) {
+            el.innerHTML = '<div class="text-center text-secondary py-3 small">No open trades</div>';
+            return;
+        }
+        el.innerHTML = trades.map(t => {
+            const pair = Components.cleanPairName(t.pair || '');
+            const profit = t.profit_abs || 0;
+            const profitPct = t.profit_ratio ? (t.profit_ratio * 100) : (t.profit_pct || 0);
+            const cls = profit >= 0 ? 'text-profit' : 'text-loss';
+            const bgCls = profit >= 0 ? 'bg-profit' : 'bg-loss';
+            const icon = profit >= 0 ? 'bi-triangle-fill' : 'bi-triangle-fill';
+            const iconStyle = profit < 0 ? 'transform:rotate(180deg);display:inline-block;' : '';
+            return `<div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom trade-list-item" data-pair="${(t.pair||'').toLowerCase()}"
+                style="cursor:pointer;border-color:var(--bc-border) !important" onclick="DashboardPage.changePair('${t.pair}')">
+                <span class="fw-semibold" style="font-size:12px">${pair}</span>
+                <span class="badge ${bgCls} ${cls} px-2" style="font-size:11px">
+                    <i class="bi ${icon} me-1" style="font-size:7px;${iconStyle}"></i>${profitPct >= 0 ? '+' : ''}${Components.formatNumber(profitPct, 2)}% (${Components.formatNumber(profit, 3)})
+                </span>
+            </div>`;
+        }).join('');
+    },
+
+    filterTradeList(query) {
+        const q = query.toLowerCase().trim();
+        document.querySelectorAll('#dashTradeListContent .trade-list-item').forEach(el => {
+            el.style.display = !q || el.dataset.pair.includes(q) ? '' : 'none';
+        });
+    },
+
+    // ========== HEIKIN ASHI ==========
+    toggleHeikinAshi(enabled) {
+        this._heikinAshi = enabled;
+        const cached = this._getCached(this.currentPair, this.currentTimeframe);
+        if (cached) {
+            const candles = enabled ? this._toHeikinAshi(cached.candles) : cached.candles;
+            const volumes = candles.map(c => ({
+                time: c.time, value: c.volume || 0,
+                color: c.close >= c.open ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)'
+            }));
+            this._applyChartData(candles, volumes, cached.signals);
+        }
+    },
+
+    _toHeikinAshi(candles) {
+        if (!candles || candles.length === 0) return [];
+        const ha = [];
+        for (let i = 0; i < candles.length; i++) {
+            const c = candles[i];
+            const prevHa = i > 0 ? ha[i-1] : c;
+            const haClose = (c.open + c.high + c.low + c.close) / 4;
+            const haOpen = (prevHa.open + prevHa.close) / 2;
+            ha.push({
+                time: c.time,
+                open: haOpen,
+                high: Math.max(c.high, haOpen, haClose),
+                low: Math.min(c.low, haOpen, haClose),
+                close: haClose,
+                volume: c.volume
+            });
+        }
+        return ha;
+    },
+
+    // ========== BLACKLIST MODAL ==========
+    async showBlacklistModal() {
+        try {
+            const data = await API.getBlacklist().catch(() => null);
+            const blacklist = data?.blacklist || [];
+            const html = `<div class="modal fade" id="blacklistModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content" style="background:var(--bc-card);border-color:var(--bc-border)">
+                        <div class="modal-header border-secondary">
+                            <h5 class="modal-title">Blacklist</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control form-control-sm" id="blacklistAddInput" placeholder="Add pair (e.g. BTC/USDT)">
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger mb-3" onclick="DashboardPage.addToBlacklist()">Add to Blacklist</button>
+                            <div class="list-group list-group-flush">
+                                ${blacklist.map(p => `<div class="list-group-item d-flex justify-content-between" style="background:transparent;border-color:var(--bc-border)">
+                                    <span>${p}</span>
+                                </div>`).join('')}
+                                ${blacklist.length === 0 ? '<div class="text-center text-secondary py-2 small">No blacklisted pairs</div>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            let existing = document.getElementById('blacklistModal');
+            if (existing) existing.remove();
+            document.body.insertAdjacentHTML('beforeend', html);
+            new bootstrap.Modal(document.getElementById('blacklistModal')).show();
+        } catch(e) { App.showToast('Failed to load blacklist', 'error'); }
+    },
+
+    async addToBlacklist() {
+        const input = document.getElementById('blacklistAddInput');
+        if (!input || !input.value.trim()) return;
+        try {
+            await API.addBlacklist([input.value.trim()]);
+            App.showToast(`${input.value.trim()} blacklisted`, 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('blacklistModal'));
+            if (modal) modal.hide();
+            this.loadData();
+        } catch(e) { App.showToast('Failed: ' + e.message, 'error'); }
     },
 
     async loadBotConfig() {
@@ -332,22 +727,40 @@ const DashboardPage = {
             this.candleSeries.setMarkers([]);
             return;
         }
-        this.candleSeries.setData(candles);
+        // Apply Heikin Ashi if enabled
+        const displayCandles = this._heikinAshi ? this._toHeikinAshi(candles) : candles;
+        this.candleSeries.setData(displayCandles);
         if (this.volumeSeries && volumes) this.volumeSeries.setData(volumes);
+
+        // Count signals and create markers
+        const counts = { enterLong: 0, exitLong: 0, enterShort: 0, exitShort: 0 };
         if (signals && signals.length > 0) {
             const markers = signals.map(s => {
                 const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
+                if (s.type === 'enter_long') counts.enterLong++;
+                else if (s.type === 'exit_long') counts.exitLong++;
+                else if (s.type === 'enter_short') counts.enterShort++;
+                else if (s.type === 'exit_short') counts.exitShort++;
                 return {
                     time: s.time,
                     position: isBuy ? 'belowBar' : 'aboveBar',
-                    color: isBuy ? '#2dd4a8' : '#e74c5e',
-                    shape: 'circle',
+                    color: isBuy ? '#2dd4a8' : '#f5a623',
+                    shape: isBuy ? 'arrowUp' : 'arrowDown',
                     text: isBuy ? 'B' : 'S',
-                    size: 2,
+                    size: 1,
                 };
             }).sort((a, b) => a.time - b.time);
             this.candleSeries.setMarkers(markers);
         }
+        this._signalCounts = counts;
+        this._updateSignalCounts();
+    },
+
+    _updateSignalCounts() {
+        const el = document.getElementById('dashSignalCounts');
+        if (!el) return;
+        const c = this._signalCounts;
+        el.innerHTML = `Long entries: ${c.enterLong}  Long exit: ${c.exitLong}<br>Short entries: ${c.enterShort}`;
     },
 
     // Cached strategy name to avoid repeated getConfig calls
@@ -544,66 +957,7 @@ const DashboardPage = {
         return prices[this.currentPair] || 1.0;
     },
 
-    initEquityChart() {
-        const container = document.getElementById('equityChart');
-        if (!container) return;
-        container.innerHTML = '';
-
-        this.equityChart = Components.createChart(container, {
-            rightPriceScale: { visible: false },
-            timeScale: { visible: false },
-            crosshair: { mode: 1 },
-        });
-        if (!this.equityChart) return;
-
-        this._equityAreaSeries = this.equityChart.addAreaSeries({
-            lineColor: '#2dd4a8',
-            topColor: 'rgba(45, 212, 168, 0.3)',
-            bottomColor: 'rgba(45, 212, 168, 0.02)',
-            lineWidth: 2,
-        });
-
-        // Show placeholder only when not connected; real data loads in loadEquityData()
-        if (!API.connected) {
-            this._equityAreaSeries.setData(Components.generateDemoEquity(30, 10000));
-            this.equityChart.timeScale().fitContent();
-        }
-    },
-
-    async loadEquityData() {
-        if (!this._equityAreaSeries) return;
-        try {
-            if (!API.connected) return;
-            const daily = await API.getDaily(60);
-            if (daily && daily.data && daily.data.length > 0) {
-                let startBalance = 1000;
-                if (this.botConfig) {
-                    startBalance = this.botConfig.dry_run_wallet || this.botConfig.available_capital || 1000;
-                }
-
-                let cumProfit = 0;
-                const equityData = daily.data.map(d => {
-                    cumProfit += (d.abs_profit || 0);
-                    const dateStr = d.date || '';
-                    const parts = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                    let time;
-                    if (parts) {
-                        time = dateStr.substring(0, 10);
-                    } else {
-                        time = Math.floor(new Date(dateStr).getTime() / 1000);
-                    }
-                    return { time, value: startBalance + cumProfit };
-                }).filter(d => d.time && (typeof d.time === 'string' || (!isNaN(d.time) && d.time > 0)));
-
-                if (equityData.length > 1) {
-                    this._equityAreaSeries.setData(equityData);
-                    this.equityChart.timeScale().fitContent();
-                }
-            }
-        } catch (e) {
-            console.log('Equity data error:', e.message);
-        }
-    },
+    // Equity chart removed - period breakdown in left panel replaces it
 
     async refreshAll() {
         await this.loadBotConfig();
@@ -624,127 +978,162 @@ const DashboardPage = {
             const config = await API.getConfig().catch(() => null);
 
             // Try trade endpoints - these fail in backtesting mode
-            const [profit, trades, balance, openTrades, count] = await Promise.all([
+            const [profit, trades, balance, openTrades, count, whitelist, blacklist] = await Promise.all([
                 API.getProfit().catch(() => null),
                 API.getTrades(50).catch(() => ({ trades: [] })),
                 API.getBalance().catch(() => null),
                 API.getOpenTrades().catch(() => []),
                 API.getTradeCount().catch(() => null),
+                API.getWhitelist().catch(() => null),
+                API.getBlacklist().catch(() => null),
             ]);
 
-            // Bot info bar
-            const statusBadge = el('dashBotStatus');
-            if (config) {
-                if (statusBadge) {
-                    const state = config.state || 'running';
-                    if (state === 'running') {
-                        statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Running';
-                        statusBadge.className = 'badge badge-bc badge-completed';
-                    } else if (state === 'stopped') {
-                        statusBadge.innerHTML = '<span class="status-dot disconnected me-1"></span> Stopped';
-                        statusBadge.className = 'badge badge-bc badge-failed';
-                    } else {
-                        statusBadge.innerHTML = `<span class="status-dot me-1" style="background:var(--bc-orange)"></span> ${state}`;
-                        statusBadge.className = 'badge badge-bc';
-                    }
-                }
-                if (el('dashStrategyName')) {
-                    el('dashStrategyName').innerHTML = config.strategy
-                        ? `<i class="bi bi-diagram-3 me-1"></i>${config.strategy}`
-                        : `<i class="bi bi-diagram-3 me-1"></i><span class="text-muted">No strategy</span>`;
-                }
-                if (el('dashExchangeName') && config.exchange) {
-                    el('dashExchangeName').innerHTML = `<i class="bi bi-bank me-1"></i>${config.exchange}`;
-                }
-                if (el('dashTradingMode')) {
-                    const mode = config.trading_mode || 'spot';
-                    const dryRun = config.dry_run;
-                    el('dashTradingMode').innerHTML = `
-                        <span class="badge ${dryRun ? 'bg-warning text-dark' : 'bg-danger'} me-1">${dryRun ? 'Dry Run' : 'Live'}</span>
-                        <span class="badge bg-secondary">${mode}</span>`;
-                }
-            } else if (statusBadge && API.connected) {
-                // Connected but no config (engine/backtesting mode) - still show connected
-                statusBadge.innerHTML = '<span class="status-dot connected me-1"></span> Connected';
-                statusBadge.className = 'badge badge-bc badge-completed';
+            this.botConfig = config;
+
+            // ---- Chart label (strategy, timeframe, exchange info) ----
+            if (config && el('dashChartLabel')) {
+                const tf = config.timeframe || this.currentTimeframe;
+                const strategy = config.strategy || '';
+                el('dashChartLabel').textContent = `${strategy} | ${tf}`;
             }
 
-            // Summary stat cards
+            // ---- WHITELIST TAB ----
+            const whitelistPairs = whitelist?.whitelist || (config?.exchange?.pair_whitelist) || [];
+            const wlMethod = config?.pairlist_config?.[0]?.method || whitelist?.method?.[0] || 'StaticPairList';
+            if (el('dashWhitelistMethod')) {
+                el('dashWhitelistMethod').innerHTML = `<span class="badge bg-secondary bg-opacity-25 px-3 py-1">${wlMethod}</span>`;
+            }
+            if (el('dashWhitelistPairs') && whitelistPairs.length > 0) {
+                el('dashWhitelistPairs').innerHTML = `<div class="d-flex flex-wrap gap-1">
+                    ${whitelistPairs.map(p => `<span class="badge bg-secondary bg-opacity-10 text-light border px-2 py-1" style="font-size:11px;cursor:pointer;border-color:var(--bc-border) !important"
+                        onclick="DashboardPage.changePair('${p}')">${Components.cleanPairName(p)}</span>`).join('')}
+                </div>`;
+            }
+            // Blacklist
+            const blacklistPairs = blacklist?.blacklist || [];
+            if (el('dashBlacklistPairs')) {
+                el('dashBlacklistPairs').innerHTML = blacklistPairs.length > 0
+                    ? `<div class="d-flex flex-wrap gap-1">${blacklistPairs.map(p =>
+                        `<span class="badge bg-danger bg-opacity-10 text-light border border-danger px-2 py-1" style="font-size:11px">${p}</span>`).join('')}</div>`
+                    : '<div class="text-center text-secondary py-2 small">No blacklist entries</div>';
+            }
+
+            // ---- BOT INFO TAB ----
             const openTradesList = Array.isArray(openTrades) ? openTrades : [];
-            if (el('dashOpenTrades')) el('dashOpenTrades').textContent = openTradesList.length;
-
-            if (profit) {
-                const totalTrades = (profit.winning_trades || 0) + (profit.losing_trades || 0);
+            if (config && el('dashBotInfoContent')) {
+                const totalTrades = profit ? (profit.winning_trades || 0) + (profit.losing_trades || 0) : 0;
                 const winRate = totalTrades > 0 ? (profit.winning_trades / totalTrades * 100) : 0;
-                const avgProfit = totalTrades > 0 ? (profit.profit_closed_coin || 0) / totalTrades : 0;
-                const currency = profit.stake_currency || 'USDT';
+                const currency = profit?.stake_currency || 'USDT';
+                const profitAll = profit?.profit_all_coin || 0;
+                const profitAllPct = profit?.profit_all_percent || (profit?.profit_all_ratio_sum || 0) * 100;
+                const avgDuration = profit?.avg_duration || '-';
+                const bestPair = profit?.best_pair || '-';
+                const tradingVolume = profit?.trading_volume || 0;
 
-                // Show total profit (including unrealized from open trades)
-                if (el('dashTotalProfit')) {
-                    const val = profit.profit_all_coin || profit.profit_closed_coin || 0;
-                    el('dashTotalProfit').textContent = `${val >= 0 ? '+' : ''}${Components.formatNumber(val, 2)}`;
-                    el('dashTotalProfit').className = `stat-value ${val >= 0 ? 'text-profit' : 'text-loss'}`;
-                }
-                if (el('dashProfitPct')) {
-                    const pct = profit.profit_all_percent || profit.profit_closed_percent || (profit.profit_all_ratio_sum || profit.profit_closed_ratio_mean || 0) * 100;
-                    el('dashProfitPct').textContent = `${pct >= 0 ? '+' : ''}${Components.formatNumber(pct, 2)}%`;
-                    el('dashProfitPct').className = `stat-value ${pct >= 0 ? 'text-profit' : 'text-loss'}`;
-                }
-                if (el('dashClosedTrades')) el('dashClosedTrades').textContent = totalTrades;
-                if (el('dashWinRate')) {
-                    el('dashWinRate').textContent = `${Components.formatNumber(winRate, 1)}%`;
-                    el('dashWinRate').className = `stat-value ${winRate >= 50 ? 'text-profit' : 'text-loss'}`;
-                }
+                el('dashBotInfoContent').innerHTML = `
+                    <div class="py-2">
+                        <p class="mb-1 small text-center">Running Freqtrade <strong>${config.version || ''}</strong></p>
+                        <p class="mb-1 small text-center">Running with <strong>${config.stake_amount || ''}${config.stake_amount === 'unlimited' ? '' : ' ' + currency}</strong> on <strong>${config.exchange}</strong> in <strong>${config.trading_mode || 'spot'}</strong> markets, with Strategy <strong>${config.strategy || ''}</strong>.</p>
+                        <p class="mb-1 small text-center">Stoploss on exchange is <strong>${config.stoploss_on_exchange ? 'enabled' : 'disabled'}</strong>.</p>
+                        <p class="mb-2 small text-center">Currently <strong>${config.state || 'running'}</strong>, force entry: <strong>${config.force_entry_enable || false}</strong></p>
 
-                // Profit display panel
-                const pd = el('dashProfitDisplay');
-                if (pd) {
-                    pd.innerHTML = Components.profitDisplay(
-                        profit.profit_all_coin || 0,
-                        profit.profit_closed_coin || 0,
-                        winRate, avgProfit, currency
-                    );
-                }
+                        <h6 class="text-center fw-bold border-top pt-2">${config.dry_run ? 'Dry Run' : 'Live'}</h6>
+                        <p class="mb-3 small text-center">
+                            Avg Profit ${Components.formatNumber(profitAllPct / Math.max(totalTrades, 1), 3)}% (Sum ${Components.formatNumber(profitAllPct, 3)}%) in ${totalTrades} Trades, with an average duration of ${avgDuration}. Best pair: ${bestPair}.
+                        </p>
+
+                        <p class="mb-1 small text-center">Bot start date: <strong>${config.bot_start_date || '-'}</strong></p>
+                        <p class="mb-1 small text-center">First trade opened: <strong>${profit?.first_trade_date || '-'}</strong></p>
+                        <p class="mb-2 small text-center">Last trade opened: <strong>${profit?.latest_trade_date || '-'}</strong></p>
+
+                        <p class="mb-1 small text-center">Profit factor: <strong>${profit?.profit_factor ? Components.formatNumber(profit.profit_factor, 2) : '-'}</strong></p>
+                        <p class="mb-3 small text-center">Trading volume: <strong>${Components.formatNumber(tradingVolume, 3)} ${currency}</strong></p>
+
+                        <table class="table table-sm mb-0" style="font-size:11px">
+                            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                            <tbody>
+                                <tr><td>ROI closed trades</td><td>${Components.formatNumber(profit?.profit_closed_coin || 0, 3)} ${currency} (${Components.formatNumber(profit?.profit_closed_percent || 0, 2)}%)</td></tr>
+                                <tr><td>ROI all trades</td><td>${Components.formatNumber(profitAll, 3)} ${currency} (${Components.formatNumber(profitAllPct, 2)}%)</td></tr>
+                                <tr><td>Total Trade count</td><td>${totalTrades}</td></tr>
+                                <tr><td>Bot started</td><td>${config.bot_start_date || '-'}</td></tr>
+                                <tr><td>First Trade opened</td><td>${profit?.first_trade_date || '-'}</td></tr>
+                                <tr><td>Latest Trade opened</td><td>${profit?.latest_trade_date || '-'}</td></tr>
+                                <tr><td>Win / Loss</td><td>${profit?.winning_trades || 0} / ${profit?.losing_trades || 0}</td></tr>
+                                <tr><td>Winrate</td><td>${Components.formatNumber(winRate, 3)}%</td></tr>
+                                <tr><td>Expectancy (ratio)</td><td>${profit?.expectancy ? Components.formatNumber(profit.expectancy, 2) : '-'} (${profit?.expectancy_ratio ? Components.formatNumber(profit.expectancy_ratio, 2) : '-'})</td></tr>
+                                <tr><td>Avg. Duration</td><td>${avgDuration}</td></tr>
+                                <tr><td>Best performing</td><td>${bestPair}: ${Components.formatNumber(profit?.best_pair_profit_ratio ? profit.best_pair_profit_ratio * 100 : 0, 2)}%</td></tr>
+                                <tr><td>Trading volume</td><td>${Components.formatNumber(tradingVolume, 3)} ${currency}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>`;
             }
 
-            // Trade count from API (more accurate)
-            if (count && el('dashClosedTrades') && count.closed !== undefined) {
-                el('dashClosedTrades').textContent = count.closed || 0;
-            }
-            if (count && el('dashOpenTrades') && count.current !== undefined) {
-                el('dashOpenTrades').textContent = count.current || 0;
-            }
-
-            // Trades table - combine open and closed, open trades first
-            const allTrades = [];
-            openTradesList.forEach(t => { t.is_open = true; allTrades.push(t); });
-            if (trades && trades.trades) {
-                trades.trades.forEach(t => { if (!t.is_open) allTrades.push(t); });
-            }
-            const tt = el('dashTradesTable');
-            if (tt) {
-                if (allTrades.length > 0) {
-                    tt.innerHTML = Components.tradesTable(allTrades.slice(0, 20));
+            // ---- OPEN TRADES TABLE ----
+            const openBody = el('dashOpenTradesBody');
+            const openCountBadge = el('dashOpenTradeCount');
+            if (openCountBadge) openCountBadge.textContent = openTradesList.length;
+            if (openBody) {
+                if (openTradesList.length > 0) {
+                    openBody.innerHTML = openTradesList.map(t => {
+                        const profit = t.profit_abs || 0;
+                        const profitPct = t.profit_ratio ? (t.profit_ratio * 100) : (t.profit_pct || 0);
+                        const cls = profit >= 0 ? 'text-profit' : 'text-loss';
+                        const bgCls = profit >= 0 ? 'bg-profit' : 'bg-loss';
+                        const icon = profit >= 0 ? 'bi-triangle-fill' : 'bi-triangle-fill';
+                        const iconStyle = profit < 0 ? 'transform:rotate(180deg);display:inline-block;' : '';
+                        const direction = t.is_short ? 'Short' : 'Long';
+                        const leverage = t.leverage ? `(${t.leverage}x)` : '(1x)';
+                        return `<tr>
+                            <td>${t.trade_id} | ${direction}</td>
+                            <td class="fw-semibold">${Components.cleanPairName(t.pair)}</td>
+                            <td>${Components.formatNumber(t.amount, 2)}</td>
+                            <td>${Components.formatNumber(t.stake_amount, 3)} ${leverage}</td>
+                            <td>${Components.formatNumber(t.open_rate, 4)}</td>
+                            <td>${Components.formatNumber(t.current_rate || t.close_rate || 0, 4)}</td>
+                            <td><span class="${cls}"><i class="bi ${icon} me-1" style="font-size:7px;${iconStyle}"></i></span>
+                                <span class="badge ${bgCls} ${cls} px-2">${Components.formatNumber(profitPct, 2)}% (${Components.formatNumber(profit, 3)})</span></td>
+                            <td>${Components.formatDate(t.open_date)}</td>
+                            <td>
+                                <button class="btn btn-sm btn-link text-danger py-0 px-1" onclick="DashboardPage.forceExitTrade(${t.trade_id})" title="Force Exit"><i class="bi bi-box-arrow-right"></i></button>
+                            </td>
+                        </tr>`;
+                    }).join('');
                 } else {
-                    tt.innerHTML = Components.tradesTable([]);
+                    openBody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary py-3">No open trades</td></tr>';
                 }
             }
 
-            // Balance display
-            if (balance) {
-                const total = balance.total || balance.value || 0;
-                const currency = balance.symbol || balance.stake || balance.stake_currency || 'USDT';
-                if (el('dashBalance')) el('dashBalance').textContent = `${Components.formatNumber(total, 2)} ${currency}`;
-                if (el('dashBalanceDetail')) {
-                    const parts = [];
-                    if (balance.free !== undefined) parts.push(`Free: ${Components.formatNumber(balance.free, 2)}`);
-                    if (balance.used !== undefined && balance.used > 0) parts.push(`In trades: ${Components.formatNumber(balance.used, 2)}`);
-                    el('dashBalanceDetail').textContent = parts.join(' | ');
+            // ---- CLOSED TRADES TABLE ----
+            const closedTrades = (trades && trades.trades) ? trades.trades.filter(t => !t.is_open) : [];
+            const closedBody = el('dashClosedTradesBody');
+            const closedCountBadge = el('dashClosedTradeCount');
+            if (closedCountBadge) closedCountBadge.textContent = closedTrades.length;
+            if (closedBody) {
+                if (closedTrades.length > 0) {
+                    closedBody.innerHTML = closedTrades.slice(0, 50).map(t => {
+                        const profit = t.profit_abs || 0;
+                        const profitPct = t.profit_ratio ? (t.profit_ratio * 100) : (t.profit_pct || 0);
+                        const cls = profit >= 0 ? 'text-profit' : 'text-loss';
+                        const duration = t.trade_duration ? `${Math.round(t.trade_duration)} min` : (t.close_date && t.open_date ? Components.formatDuration(t.trade_duration) : '-');
+                        return `<tr>
+                            <td>${t.trade_id} | ${t.is_short ? 'Short' : 'Long'}</td>
+                            <td class="fw-semibold">${Components.cleanPairName(t.pair)}</td>
+                            <td class="${cls}">${profit >= 0 ? '+' : ''}${Components.formatNumber(profit, 3)} (${Components.formatNumber(profitPct, 2)}%)</td>
+                            <td>${Components.formatNumber(t.open_rate, 4)}</td>
+                            <td>${Components.formatNumber(t.close_rate, 4)}</td>
+                            <td>${t.exit_reason || t.sell_reason || '-'}</td>
+                            <td>${duration}</td>
+                            <td>${Components.formatDate(t.close_date)}</td>
+                        </tr>`;
+                    }).join('');
+                } else {
+                    closedBody.innerHTML = '<tr><td colspan="8" class="text-center text-secondary py-3">No closed trades</td></tr>';
                 }
             }
 
-            // Load equity chart from daily data
-            this.loadEquityData();
+            // Update trade list tab data silently
+            this._allTrades = openTradesList;
 
         } catch (e) {
             console.error('Dashboard load error:', e);
@@ -752,20 +1141,20 @@ const DashboardPage = {
         }
     },
 
-    showDemoData() {
-        const tt = document.getElementById('dashTradesTable');
-        if (tt) {
-            if (API.connected) {
-                // Connected but no trade data (backtesting mode)
-                tt.innerHTML = Components.tradesTable([]);
-            } else {
-                const demoTrades = Components.generateDemoTrades(10);
-                tt.innerHTML = Components.tradesTable(demoTrades);
-            }
-        }
+    async forceExitTrade(tradeId) {
+        if (!confirm(`Force exit trade #${tradeId}?`)) return;
+        try {
+            await API.forceExit(tradeId);
+            App.showToast(`Trade #${tradeId} force closed`, 'success');
+            setTimeout(() => this.loadData(), 1000);
+        } catch(e) { App.showToast('Force exit failed: ' + e.message, 'error'); }
+    },
 
-        const pd = document.getElementById('dashProfitDisplay');
-        if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
+    showDemoData() {
+        const openBody = document.getElementById('dashOpenTradesBody');
+        if (openBody) openBody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary py-3">No open trades</td></tr>';
+        const closedBody = document.getElementById('dashClosedTradesBody');
+        if (closedBody) closedBody.innerHTML = '<tr><td colspan="8" class="text-center text-secondary py-3">No closed trades</td></tr>';
     },
 
     // ========== INDICATORS ==========
@@ -2148,10 +2537,9 @@ const DashboardPage = {
         });
         this._indicators = {};
         if (this.chart) { this.chart.remove(); this.chart = null; }
-        if (this.equityChart) { this.equityChart.remove(); this.equityChart = null; }
+        if (this._periodChart) { try { this._periodChart.remove(); } catch(e){} this._periodChart = null; }
         if (this.refreshTimer) { clearInterval(this.refreshTimer); this.refreshTimer = null; }
         this.candleSeries = null;
         this.volumeSeries = null;
-        this._equityAreaSeries = null;
     }
 };
