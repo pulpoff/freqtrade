@@ -2941,7 +2941,7 @@ ${entryConditions.length > 0 ?
         const content = document.getElementById('sbAnalysisContent');
         if (!content) return;
         const a = this._analyzeStrategy(code);
-        const badge = (text, color) => `<span class="badge bg-${color} bg-opacity-25 text-${color} me-1 mb-1">${text}</span>`;
+        const badge = (text, color) => `<span class="badge bg-${color} text-white me-1 mb-1" style="font-size:11px">${text}</span>`;
         const section = (title, icon, body) => `<div class="sa-section mb-3">
             <div class="sa-section-title d-flex align-items-center gap-2 mb-2">
                 <i class="bi ${icon} text-info"></i><span class="fw-semibold small text-uppercase">${title}</span>
