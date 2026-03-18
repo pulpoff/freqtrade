@@ -642,7 +642,7 @@ const StrategyBuilderPage = {
                 ` : ''}
             </div>
             ${volumeText ? `<div class="node-volume-pill">${volumeText}</div>` : ''}
-            ${paramsText ? `<div class="node-params ${paramsClass}">${paramsText}</div>` : ''}
+            ${paramsText ? `<div class="node-params ${paramsClass}" title="${paramsText.replace(/"/g, '&quot;')}">${paramsText.length > 30 ? paramsText.substring(0, 28) + '...' : paramsText}</div>` : ''}
         </div>`;
     },
 
@@ -1843,7 +1843,7 @@ ${entryConditions.length > 0 ?
         if (canLong && entryLongConds.length > 0) {
             longGroupNode = {
                 id: this.nextId++, type: 'group', x, y: yBase - 80,
-                params: { logic: 'AND', _label: `LONG Entry\n${entryLongConds.map(c => c.label).join(' & ')}` }
+                params: { logic: 'AND', _label: `LONG (${entryLongConds.length} conds)` }
             };
             this.nodes.push(longGroupNode);
             allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: longGroupNode.id, type: 'normal' }));
@@ -1852,7 +1852,7 @@ ${entryConditions.length > 0 ?
         if (canShort && entryShortConds.length > 0) {
             shortGroupNode = {
                 id: this.nextId++, type: 'group', x, y: yBase + 80,
-                params: { logic: 'AND', _label: `SHORT Entry\n${entryShortConds.map(c => c.label).join(' & ')}` }
+                params: { logic: 'AND', _label: `SHORT (${entryShortConds.length} conds)` }
             };
             this.nodes.push(shortGroupNode);
             allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: shortGroupNode.id, type: 'normal' }));
@@ -2237,7 +2237,7 @@ ${entryConditions.length > 0 ?
                 seen.add(name);
                 signals.push({
                     name,
-                    label: `${name}: ${label}`.substring(0, 80),
+                    label: `${name}: ${label}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
                     deps: [...deps],
                     subCondCount: subConds.length
@@ -2259,14 +2259,14 @@ ${entryConditions.length > 0 ?
             if (subConds.length > 0 && !seen.has(name)) {
                 seen.add(name);
                 signals.push({
-                    name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 80),
+                    name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
                     deps: [...deps], subCondCount: subConds.length
                 });
             }
         }
 
-        return signals;
+        return signals.slice(0, 5);
     },
 
     /** Parse entry conditions from populate_entry_trend */
@@ -2319,7 +2319,8 @@ ${entryConditions.length > 0 ?
             }
         }
 
-        return conditions;
+        // Deduplicate and limit to prevent visual clutter
+        return conditions.filter((c, i, arr) => arr.findIndex(x => x.label === c.label) === i).slice(0, 6);
     },
 
     /** Parse custom_exit function for exit conditions */
@@ -2363,7 +2364,7 @@ ${entryConditions.length > 0 ?
         }
 
         // Deduplicate
-        return exits.filter((e, i, arr) => arr.findIndex(x => x.label === e.label) === i).slice(0, 6);
+        return exits.filter((e, i, arr) => arr.findIndex(x => x.label === e.label) === i).slice(0, 4);
     },
 
     /** Parse confirm_trade_entry for additional entry checks */

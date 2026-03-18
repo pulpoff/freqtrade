@@ -890,6 +890,9 @@ select option:checked {
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
     z-index: 5;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     display: flex;
