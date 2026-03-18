@@ -771,75 +771,123 @@ const BacktestingPage = {
         App.showToast(`Backtest completed! ${trades.length} trades`, 'success');
     },
 
-    initResultChart(trades, stratResult) {
+    async initResultChart(trades, stratResult) {
         const container = document.getElementById('btChart');
         if (!container) return;
         container.innerHTML = '';
 
+        const pairs = [...new Set(trades.map(t => t.pair).filter(Boolean))];
+        const pair = pairs[0] || document.getElementById('btPair')?.value || 'BTC/USDT:USDT';
+        const timeframe = stratResult.timeframe || document.getElementById('btTimeframe')?.value || '5m';
+
         const tb = document.getElementById('btChartToolbar');
         if (tb) {
-            const pairs = [...new Set(trades.map(t => t.pair).filter(Boolean))];
             tb.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
-                <small class="text-secondary">Pairs: ${pairs.join(', ') || 'N/A'}</small>
+                <small class="text-secondary">Pair: ${pair}</small>
                 <small class="text-secondary ms-3">Trades: ${trades.length}</small>
             </div>`;
         }
 
-        this.chart = Components.createChart(container);
+        this.chart = Components.createChart(container, {
+            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
+        });
         if (!this.chart) return;
 
-        const lineSeries = this.chart.addLineSeries({
-            color: '#2dd4a8',
-            lineWidth: 2,
-        });
+        // Fetch actual OHLCV candle data for the pair
+        let candleData = [];
+        try {
+            const ohlcv = await API.getPairOhlcv(pair, timeframe, 3000);
+            if (ohlcv && ohlcv.data && ohlcv.data.length > 0) {
+                // Filter to backtest period
+                const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
+                const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
 
-        let cumProfit = 0;
-        const startBalance = stratResult.starting_balance || 1000;
-        const equityData = trades.map(t => {
-            cumProfit += (t.profit_abs || 0);
-            const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
-            return { time: closeTime, value: startBalance + cumProfit };
-        }).filter(d => d.time > 0).sort((a, b) => a.time - b.time);
+                candleData = ohlcv.data
+                    .map(d => ({ time: Math.floor(d[0] / 1000), open: d[1], high: d[2], low: d[3], close: d[4] }))
+                    .filter(d => d.time >= btStart - 3600 && d.time <= btEnd + 3600)
+                    .sort((a, b) => a.time - b.time);
 
-        // Remove duplicates (same timestamp)
-        const uniqueEquity = [];
-        const seenTimes = new Set();
-        equityData.forEach(d => {
-            if (!seenTimes.has(d.time)) {
-                seenTimes.add(d.time);
-                uniqueEquity.push(d);
+                // Deduplicate
+                const seen = new Set();
+                candleData = candleData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
             }
-        });
-
-        if (uniqueEquity.length > 1) {
-            lineSeries.setData(uniqueEquity);
+        } catch (e) {
+            console.log('Could not fetch OHLCV data:', e.message);
         }
 
-        // Add trade markers
-        const markers = trades.map(t => {
-            const time = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
-            if (!time || !seenTimes.has(time)) return null;
-            const isWin = (t.profit_abs || 0) >= 0;
-            return {
-                time,
-                position: isWin ? 'aboveBar' : 'belowBar',
-                color: isWin ? '#2dd4a8' : '#e74c5e',
-                shape: 'circle',
-                text: isWin ? 'W' : 'L',
-            };
-        }).filter(Boolean).sort((a, b) => a.time - b.time);
+        if (candleData.length > 0) {
+            // Candlestick chart with price data
+            const candleSeries = this.chart.addCandlestickSeries({
+                upColor: '#2dd4a8',
+                downColor: '#e74c5e',
+                borderUpColor: '#2dd4a8',
+                borderDownColor: '#e74c5e',
+                wickUpColor: '#2dd4a8',
+                wickDownColor: '#e74c5e',
+            });
+            candleSeries.setData(candleData);
 
-        const uniqueMarkers = [];
-        const markerTimes = new Set();
-        markers.forEach(m => {
-            if (!markerTimes.has(m.time)) {
-                markerTimes.add(m.time);
-                uniqueMarkers.push(m);
+            // Build B (buy) and S (sell) markers from trades
+            const markers = [];
+            trades.forEach(t => {
+                const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
+                const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+
+                // Snap to nearest candle time
+                const snapTo = (ts) => {
+                    if (!ts) return 0;
+                    let best = candleData[0]?.time || 0;
+                    let bestDiff = Math.abs(ts - best);
+                    for (const c of candleData) {
+                        const diff = Math.abs(ts - c.time);
+                        if (diff < bestDiff) { best = c.time; bestDiff = diff; }
+                        if (c.time > ts + 3600) break;
+                    }
+                    return best;
+                };
+
+                if (openTime) {
+                    markers.push({
+                        time: snapTo(openTime),
+                        position: 'belowBar',
+                        color: '#2dd4a8',
+                        shape: 'arrowUp',
+                        text: 'B',
+                    });
+                }
+                if (closeTime) {
+                    const isWin = (t.profit_abs || 0) >= 0;
+                    markers.push({
+                        time: snapTo(closeTime),
+                        position: 'aboveBar',
+                        color: isWin ? '#2dd4a8' : '#e74c5e',
+                        shape: 'arrowDown',
+                        text: 'S',
+                    });
+                }
+            });
+
+            // Sort and deduplicate markers by time (lightweight-charts requirement)
+            markers.sort((a, b) => a.time - b.time);
+            if (markers.length > 0) {
+                candleSeries.setMarkers(markers);
             }
-        });
 
-        if (uniqueMarkers.length > 0) {
-            lineSeries.setMarkers(uniqueMarkers);
+            this._candleSeries = candleSeries;
+        } else {
+            // Fallback: line chart from trade data if no OHLCV available
+            const lineSeries = this.chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
+            const pricePoints = [];
+            trades.forEach(t => {
+                if (t.open_date && t.open_rate) pricePoints.push({ time: Math.floor(new Date(t.open_date).getTime() / 1000), value: t.open_rate });
+                if (t.close_date && t.close_rate) pricePoints.push({ time: Math.floor(new Date(t.close_date).getTime() / 1000), value: t.close_rate });
+            });
+            pricePoints.sort((a, b) => a.time - b.time);
+            const seen = new Set();
+            const unique = pricePoints.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+            if (unique.length > 1) lineSeries.setData(unique);
+            this._candleSeries = lineSeries;
         }
 
         this.chart.timeScale().fitContent();
