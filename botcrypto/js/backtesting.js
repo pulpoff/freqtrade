@@ -842,8 +842,8 @@ const BacktestingPage = {
             });
             candleSeries.setData(candleData);
 
-            // Build B (buy) and S (sell) markers from trades
-            const markers = [];
+            // Build buy/sell marker data from trades
+            const tradeMarkers = [];
             trades.forEach(t => {
                 const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
                 const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
@@ -862,30 +862,64 @@ const BacktestingPage = {
                 };
 
                 if (openTime) {
-                    markers.push({
-                        time: snapTo(openTime),
-                        position: 'belowBar',
-                        color: '#2dd4a8',
-                        shape: 'arrowUp',
-                        text: 'B',
-                    });
+                    const snapped = snapTo(openTime);
+                    const candle = candleData.find(c => c.time === snapped);
+                    tradeMarkers.push({ time: snapped, price: candle ? candle.low : (t.open_rate || 0), type: 'buy' });
                 }
                 if (closeTime) {
-                    markers.push({
-                        time: snapTo(closeTime),
-                        position: 'aboveBar',
-                        color: '#e74c5e',
-                        shape: 'arrowDown',
-                        text: 'S',
-                    });
+                    const snapped = snapTo(closeTime);
+                    const candle = candleData.find(c => c.time === snapped);
+                    tradeMarkers.push({ time: snapped, price: candle ? candle.high : (t.close_rate || 0), type: 'sell' });
                 }
             });
 
-            // Sort and deduplicate markers by time (lightweight-charts requirement)
-            markers.sort((a, b) => a.time - b.time);
-            if (markers.length > 0) {
-                candleSeries.setMarkers(markers);
-            }
+            // Create HTML overlay markers (white letter in colored circle)
+            this._tradeMarkerEls = [];
+            const chartEl = container.querySelector('table') || container;
+            tradeMarkers.forEach(m => {
+                const el = document.createElement('div');
+                const isBuy = m.type === 'buy';
+                el.textContent = isBuy ? 'B' : 'S';
+                Object.assign(el.style, {
+                    position: 'absolute',
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: isBuy ? '#2dd4a8' : '#e74c5e',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: '10',
+                    pointerEvents: 'none',
+                    lineHeight: '1',
+                });
+                container.style.position = 'relative';
+                container.appendChild(el);
+                this._tradeMarkerEls.push({ el, time: m.time, price: m.price, type: m.type });
+            });
+
+            // Position markers on chart and update on scroll/zoom
+            const updateMarkerPositions = () => {
+                const ts = this.chart.timeScale();
+                this._tradeMarkerEls.forEach(({ el, time, price, type }) => {
+                    const x = ts.timeToCoordinate(time);
+                    const y = candleSeries.priceToCoordinate(price);
+                    if (x === null || y === null || x < 0) {
+                        el.style.display = 'none';
+                        return;
+                    }
+                    el.style.display = 'flex';
+                    const offset = type === 'buy' ? 8 : -30;
+                    el.style.left = (x - 11) + 'px';
+                    el.style.top = (y + offset) + 'px';
+                });
+            };
+            updateMarkerPositions();
+            this.chart.timeScale().subscribeVisibleLogicalRangeChange(updateMarkerPositions);
+            candleSeries.subscribeDataChanged && candleSeries.subscribeDataChanged(updateMarkerPositions);
 
             this._candleSeries = candleSeries;
         } else {
