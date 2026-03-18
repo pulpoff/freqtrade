@@ -449,11 +449,11 @@ const RobotsPage = {
                             <div>
                                 <span class="fw-semibold">${bot.name || 'Bot ' + (i + 1)}</span>
                                 <div class="d-flex gap-2 mt-1 flex-wrap">
-                                    <span class="badge bg-secondary bg-opacity-25 text-secondary">${bot.exchange || '-'}</span>
-                                    <span class="badge bg-info bg-opacity-25 text-info">${bot.timeframe || '5m'}</span>
-                                    <span class="badge bg-success bg-opacity-25 text-success">${bot.strategy || '-'}</span>
-                                    <span class="badge bg-warning bg-opacity-25 text-warning">${bot.max_open_trades || 3} trades</span>
-                                    ${bot.pairs ? `<span class="badge bg-primary bg-opacity-25 text-primary">${bot.pairs.split(',').length} pairs</span>` : ''}
+                                    <span class="badge bg-secondary bg-opacity-25 text-white">${bot.exchange || '-'}</span>
+                                    <span class="badge bg-info bg-opacity-25 text-white">${bot.timeframe || '5m'}</span>
+                                    <span class="badge bg-success bg-opacity-25 text-white">${bot.strategy || '-'}</span>
+                                    <span class="badge bg-warning bg-opacity-25 text-white">${bot.max_open_trades || 3} trades</span>
+                                    ${bot.pairs ? `<span class="badge bg-primary bg-opacity-25 text-white">${bot.pairs.split(',').length} pairs</span>` : ''}
                                 </div>
                             </div>
                         </div>
