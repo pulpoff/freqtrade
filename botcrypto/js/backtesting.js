@@ -817,11 +817,11 @@ const BacktestingPage = {
 
                 if (openTime) {
                     const snapped = snapTo(openTime);
-                    tradeMarkers.push({ time: snapped, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B' });
+                    tradeMarkers.push({ time: snapped, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B', size: 2 });
                 }
                 if (closeTime) {
                     const snapped = snapTo(closeTime);
-                    tradeMarkers.push({ time: snapped, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S' });
+                    tradeMarkers.push({ time: snapped, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S', size: 2 });
                 }
             });
 

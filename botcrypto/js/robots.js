@@ -266,7 +266,8 @@ const RobotsPage = {
                         const statusIcon = s.status === 'running' ? 'play-circle' : s.status === 'error' ? 'exclamation-triangle' : s.status === 'starting' ? 'hourglass-split' : 'stop-circle';
                         return `
                         <div class="col-12 mb-2">
-                            <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background:var(--bc-bg);border:1px solid var(--bc-border)">
+                            <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background:var(--bc-bg);border:1px solid var(--bc-border);cursor:pointer"
+                                onclick="RobotsPage.openBotDetail('${s.strategy_id}', '${(s.strategy_name || '').replace(/'/g, "\\'")}', ${JSON.stringify(s.pairs || []).replace(/"/g, '&quot;')}, '${s.exchange}', '${s.trading_mode}', ${s.dry_run})">
                                 <div class="d-flex align-items-center gap-3">
                                     <span class="badge bg-${statusColor}"><i class="bi bi-${statusIcon} me-1"></i>${s.status}</span>
                                     <div>
@@ -280,7 +281,7 @@ const RobotsPage = {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="d-flex gap-1">
+                                <div class="d-flex gap-1" onclick="event.stopPropagation()">
                                     ${s.status === 'running' || s.status === 'starting' ?
                                         `<button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop', '${s.strategy_id}')"><i class="bi bi-stop-fill"></i></button>` :
                                         `<button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start', '${s.strategy_id}')"><i class="bi bi-play-fill"></i></button>`
@@ -765,5 +766,470 @@ const RobotsPage = {
 
     destroy() {
         if (this.refreshTimer) { clearInterval(this.refreshTimer); this.refreshTimer = null; }
+        this._cleanupBotDetail();
+    },
+
+    // ========== BOT DETAIL MODAL ==========
+    _bdChart: null,
+    _bdCandleSeries: null,
+    _bdVolumeSeries: null,
+    _bdIndicators: {},
+    _bdRefreshTimer: null,
+    _bdStrategyId: null,
+    _bdPairs: [],
+    _bdCurrentPair: '',
+    _bdCurrentTf: '5m',
+    _bdStrategyName: '',
+
+    _cleanupBotDetail() {
+        if (this._bdRefreshTimer) { clearInterval(this._bdRefreshTimer); this._bdRefreshTimer = null; }
+        if (this._bdChart) { try { this._bdChart.remove(); } catch(e) {} this._bdChart = null; }
+        this._bdCandleSeries = null;
+        this._bdVolumeSeries = null;
+        this._bdIndicators = {};
+    },
+
+    async openBotDetail(strategyId, strategyName, pairs, exchange, tradingMode, dryRun) {
+        this._bdStrategyId = strategyId;
+        this._bdStrategyName = strategyName;
+        this._bdPairs = pairs || [];
+        this._bdCurrentPair = this._bdPairs[0] || 'BTC/USDT:USDT';
+        this._cleanupBotDetail();
+
+        // Build modal HTML
+        const el = document.createElement('div');
+        el.id = 'botDetailWrapper';
+        el.innerHTML = `
+        <div class="modal fade" id="botDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-fullscreen">
+                <div class="modal-content bg-dark">
+                    <div class="modal-header border-secondary py-2">
+                        <div class="d-flex align-items-center gap-3">
+                            <h6 class="modal-title mb-0"><i class="bi bi-robot me-2"></i>${strategyName}</h6>
+                            <span class="badge bg-success"><i class="bi bi-play-circle me-1"></i>running</span>
+                            <span class="badge" style="background:rgba(255,255,255,0.12);color:#fff">${exchange}</span>
+                            <span class="badge" style="background:rgba(74,144,217,0.3);color:#fff">${tradingMode}</span>
+                            <span class="badge" style="background:${dryRun ? 'rgba(245,166,35,0.3)' : 'rgba(231,76,94,0.3)'};color:#fff">${dryRun ? 'Dry' : 'LIVE'}</span>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-2" style="overflow-y:auto">
+                        <!-- Stats Row -->
+                        <div class="row g-2 mb-2" id="bdStats">
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdProfit">-</div><div class="stat-label">Profit</div>
+                            </div></div></div>
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdProfitPct">-</div><div class="stat-label">Profit %</div>
+                            </div></div></div>
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdTradeCount">0</div><div class="stat-label">Trades</div>
+                            </div></div></div>
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdWinRate">-</div><div class="stat-label">Win Rate</div>
+                            </div></div></div>
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdOpenTrades">0</div><div class="stat-label">Open</div>
+                            </div></div></div>
+                            <div class="col-2"><div class="card"><div class="card-body py-2 text-center">
+                                <div class="stat-value" id="bdAvgProfit">-</div><div class="stat-label">Avg Profit</div>
+                            </div></div></div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="card mb-2">
+                            <div class="card-body p-2">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <select class="form-select form-select-sm" style="width:140px" id="bdPairSelect"
+                                            onchange="RobotsPage._bdChangePair(this.value)">
+                                            ${this._bdPairs.map(p => `<option value="${p}" ${p === this._bdCurrentPair ? 'selected' : ''}>${Components.cleanPairName ? Components.cleanPairName(p) : p}</option>`).join('')}
+                                        </select>
+                                        <span id="bdTfBtns">${Components.timeframeSelector(this._bdCurrentTf, 'RobotsPage._bdChangeTf')}</span>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="RobotsPage._bdShowIndicators()">
+                                            <i class="bi bi-activity me-1"></i> Indicators
+                                        </button>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <small class="text-secondary" id="bdChartInfo"><i class="bi bi-bar-chart"></i> Loading...</small>
+                                        <button class="btn btn-sm btn-link text-secondary" onclick="RobotsPage._bdLoadChart()"><i class="bi bi-arrow-clockwise"></i></button>
+                                    </div>
+                                </div>
+                                <div id="bdChart" style="height:450px"></div>
+                            </div>
+                        </div>
+
+                        <!-- Trades -->
+                        <div class="card">
+                            <div class="card-body p-2">
+                                <h6 class="fw-semibold mb-2"><i class="bi bi-arrow-left-right me-2"></i>Open Trades</h6>
+                                <div id="bdTradesTable"><div class="text-center text-secondary py-3">Loading trades...</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.appendChild(el);
+
+        const modal = new bootstrap.Modal(el.querySelector('.modal'));
+        el.querySelector('.modal').addEventListener('hidden.bs.modal', () => {
+            this._cleanupBotDetail();
+            el.remove();
+        });
+        modal.show();
+
+        // Initialize chart & load data
+        setTimeout(() => {
+            this._bdInitChart();
+            this._bdLoadData();
+            this._bdRefreshTimer = setInterval(() => this._bdLoadData(), 15000);
+        }, 300);
+    },
+
+    _bdInitChart() {
+        const container = document.getElementById('bdChart');
+        if (!container || typeof LightweightCharts === 'undefined') return;
+        container.innerHTML = '';
+
+        this._bdChart = Components.createChart(container, {
+            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
+        });
+        if (!this._bdChart) return;
+
+        // Zoom in only
+        const chart = this._bdChart;
+        container.addEventListener('wheel', (e) => {
+            if (e.deltaY < 0) {
+                e.preventDefault();
+                const ts = chart.timeScale();
+                const range = ts.getVisibleLogicalRange();
+                if (range) {
+                    const center = (range.from + range.to) / 2;
+                    const half = (range.to - range.from) / 2 * 0.85;
+                    ts.setVisibleLogicalRange({ from: center - half, to: center + half });
+                }
+            }
+        }, { passive: false });
+
+        this._bdCandleSeries = this._bdChart.addCandlestickSeries({
+            upColor: '#2dd4a8', downColor: '#e74c5e',
+            borderUpColor: '#2dd4a8', borderDownColor: '#e74c5e',
+            wickUpColor: '#2dd4a8', wickDownColor: '#e74c5e',
+        });
+
+        this._bdVolumeSeries = this._bdChart.addHistogramSeries({
+            color: '#4a90d9', priceFormat: { type: 'volume' }, priceScaleId: '',
+        });
+        this._bdChart.priceScale('').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+        this._bdLoadChart();
+    },
+
+    async _bdLoadChart() {
+        if (!this._bdCandleSeries) return;
+        const pair = this._bdCurrentPair;
+        const tf = this._bdCurrentTf;
+        const info = document.getElementById('bdChartInfo');
+
+        if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair}, ${tf} - <span class="spinner-border spinner-border-sm"></span>`;
+
+        try {
+            let candles = null, signals = [];
+
+            // Try pair_candles first (strategy-analyzed data with signals)
+            try {
+                const data = await API.getPairCandles(pair, tf, 2000);
+                if (data?.columns && data?.data?.length > 0) {
+                    candles = API.parseCandleData(data);
+                    signals = API.parseSignals(data);
+                }
+            } catch(e) {}
+
+            // Fallback to pair_history
+            if (!candles || candles.length === 0) {
+                try {
+                    const now = new Date();
+                    const daysBack = { '1m': 1, '5m': 3, '15m': 7, '1h': 30, '4h': 60, '1d': 180 };
+                    const days = daysBack[tf] || 3;
+                    const start = new Date(now.getTime() - days * 86400000);
+                    const timerange = `${start.toISOString().slice(0,10).replace(/-/g,'')}-${now.toISOString().slice(0,10).replace(/-/g,'')}`;
+                    const data = await API.getPairHistory(pair, tf, timerange, this._bdStrategyName);
+                    if (data?.columns && data?.data?.length > 0) {
+                        candles = API.parseCandleData(data);
+                        signals = API.parseSignals(data);
+                    }
+                } catch(e) {}
+            }
+
+            // Fallback to raw OHLCV
+            if (!candles || candles.length === 0) {
+                try {
+                    const data = await API.getPairOhlcv(pair, tf, 2000);
+                    if (data?.columns && data?.data?.length > 0) {
+                        candles = API.parseCandleData(data);
+                    }
+                } catch(e) {}
+            }
+
+            if (candles && candles.length > 0) {
+                this._bdCandles = candles;
+                this._bdCandleSeries.setData(candles);
+
+                const volumes = candles.map(c => ({
+                    time: c.time, value: c.volume || 0,
+                    color: c.close >= c.open ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)'
+                }));
+                if (this._bdVolumeSeries) this._bdVolumeSeries.setData(volumes);
+
+                // Signal markers (B/S from strategy analysis)
+                if (signals.length > 0) {
+                    const markers = signals.map(s => {
+                        const isBuy = s.type === 'enter_long' || s.type === 'exit_short';
+                        return {
+                            time: s.time,
+                            position: isBuy ? 'belowBar' : 'aboveBar',
+                            color: isBuy ? '#2dd4a8' : '#e74c5e',
+                            shape: 'circle',
+                            text: isBuy ? 'B' : 'S',
+                        };
+                    }).sort((a, b) => a.time - b.time);
+                    this._bdCandleSeries.setMarkers(markers);
+                }
+
+                this._bdChart.timeScale().fitContent();
+
+                // Re-apply active indicators
+                for (const [id, ind] of Object.entries(this._bdIndicators)) {
+                    if (ind.enabled) this._bdToggleIndicator(id, true);
+                }
+
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> ${pair} · ${tf} · ${candles.length} candles`;
+            } else {
+                if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> No data for ${pair}`;
+            }
+        } catch(e) {
+            if (info) info.innerHTML = `<i class="bi bi-bar-chart"></i> Error loading chart`;
+        }
+    },
+
+    _bdChangePair(pair) {
+        this._bdCurrentPair = pair;
+        this._bdCandleSeries?.setData([]);
+        this._bdCandleSeries?.setMarkers([]);
+        this._bdLoadChart();
+    },
+
+    _bdChangeTf(tf) {
+        this._bdCurrentTf = tf;
+        const btns = document.getElementById('bdTfBtns');
+        if (btns) btns.innerHTML = Components.timeframeSelector(tf, 'RobotsPage._bdChangeTf');
+        this._bdCandleSeries?.setData([]);
+        this._bdCandleSeries?.setMarkers([]);
+        this._bdLoadChart();
+    },
+
+    async _bdLoadData() {
+        if (!this._bdStrategyId) return;
+        try {
+            const [tradesData, profitData] = await Promise.all([
+                API.getManagedStrategyTrades(this._bdStrategyId).catch(() => ({ trades: [] })),
+                API.getManagedStrategyProfit(this._bdStrategyId).catch(() => ({})),
+            ]);
+
+            // Update stats
+            const trades = tradesData.trades || [];
+            const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            const profit = profitData.profit_all_coin || profitData.profit_closed_coin || 0;
+            const profitPct = profitData.profit_all_percent || profitData.profit_closed_percent || 0;
+            const tradeCount = profitData.trade_count || profitData.closed_trade_count || 0;
+            const winRate = profitData.winning_trades !== undefined && tradeCount > 0
+                ? ((profitData.winning_trades / tradeCount) * 100).toFixed(1) + '%' : '-';
+            const avgProfit = profitData.avg_profit || 0;
+
+            setEl('bdProfit', `${profit >= 0 ? '+' : ''}${parseFloat(profit).toFixed(2)}`);
+            setEl('bdProfitPct', `${profitPct >= 0 ? '+' : ''}${parseFloat(profitPct).toFixed(2)}%`);
+            setEl('bdTradeCount', tradeCount);
+            setEl('bdWinRate', winRate);
+            setEl('bdOpenTrades', trades.length);
+            setEl('bdAvgProfit', `${avgProfit >= 0 ? '+' : ''}${parseFloat(avgProfit).toFixed(2)}%`);
+
+            // Color profit
+            const profitEl = document.getElementById('bdProfit');
+            if (profitEl) profitEl.style.color = profit >= 0 ? 'var(--bc-green)' : 'var(--bc-red)';
+            const pctEl = document.getElementById('bdProfitPct');
+            if (pctEl) pctEl.style.color = profitPct >= 0 ? 'var(--bc-green)' : 'var(--bc-red)';
+
+            // Trades table
+            const tt = document.getElementById('bdTradesTable');
+            if (tt) {
+                if (trades.length === 0) {
+                    tt.innerHTML = '<div class="text-center text-secondary py-3"><i class="bi bi-inbox me-2"></i>No open trades</div>';
+                } else {
+                    tt.innerHTML = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                        <thead><tr><th>Pair</th><th>Side</th><th>Amount</th><th>Open Rate</th><th>Current</th><th>Profit</th><th>Opened</th></tr></thead>
+                        <tbody>${trades.map(t => {
+                            const pct = ((t.profit_pct || 0) * 100);
+                            const isWin = pct >= 0;
+                            return `<tr>
+                                <td class="fw-semibold">${t.pair}</td>
+                                <td><span class="badge ${t.is_short ? 'bg-danger' : 'bg-success'}">${t.is_short ? 'Short' : 'Long'}</span></td>
+                                <td>${parseFloat(t.amount || 0).toFixed(4)}</td>
+                                <td>${parseFloat(t.open_rate || 0).toFixed(6)}</td>
+                                <td>${parseFloat(t.current_rate || 0).toFixed(6)}</td>
+                                <td class="fw-bold" style="color:${isWin ? 'var(--bc-green)' : 'var(--bc-red)'}">${isWin ? '+' : ''}${pct.toFixed(2)}%</td>
+                                <td class="text-secondary small">${t.open_date ? new Date(t.open_date).toLocaleString() : '-'}</td>
+                            </tr>`;
+                        }).join('')}</tbody></table></div>`;
+                }
+            }
+        } catch(e) {
+            console.error('Bot detail data load error:', e);
+        }
+    },
+
+    // ===== Indicators for bot detail =====
+    _bdShowIndicators() {
+        // Reuse DashboardPage's indicator definitions
+        const defs = DashboardPage._indicatorDefs || [];
+        const categories = {};
+        defs.forEach(d => {
+            if (!categories[d.category]) categories[d.category] = [];
+            categories[d.category].push(d);
+        });
+
+        const el = document.createElement('div');
+        el.innerHTML = `
+        <div class="modal fade" id="bdIndicatorsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content bg-dark border-secondary">
+                    <div class="modal-header border-secondary">
+                        <h6 class="modal-title"><i class="bi bi-activity me-2"></i>Indicators</h6>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        ${Object.entries(categories).map(([cat, items]) => `
+                            <h6 class="fw-semibold text-secondary small text-uppercase mt-3 mb-2">${cat}</h6>
+                            <div class="row g-2">
+                                ${items.map(d => `
+                                    <div class="col-6 col-md-4 col-lg-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="bdInd_${d.id}"
+                                                ${this._bdIndicators[d.id]?.enabled ? 'checked' : ''}
+                                                onchange="RobotsPage._bdToggleIndicator('${d.id}', this.checked)">
+                                            <label class="form-check-label small" for="bdInd_${d.id}">
+                                                <span style="color:${d.color}">●</span> ${d.name}
+                                            </label>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.appendChild(el);
+        const modal = new bootstrap.Modal(el.querySelector('.modal'));
+        el.querySelector('.modal').addEventListener('hidden.bs.modal', () => el.remove());
+        modal.show();
+    },
+
+    _bdToggleIndicator(id, enabled) {
+        const defs = DashboardPage._indicatorDefs || [];
+        const def = defs.find(d => d.id === id);
+        if (!def || !this._bdChart || !this._bdCandles) return;
+
+        // Remove existing series
+        if (this._bdIndicators[id]?.series) {
+            const series = this._bdIndicators[id].series;
+            (Array.isArray(series) ? series : [series]).forEach(s => {
+                try { this._bdChart.removeSeries(s); } catch(e) {}
+            });
+        }
+
+        if (!enabled) {
+            this._bdIndicators[id] = { enabled: false, series: null };
+            return;
+        }
+
+        // Calculate indicator using DashboardPage's helpers
+        const candles = this._bdCandles;
+        const closes = candles.map(c => c.close);
+        const highs = candles.map(c => c.high);
+        const lows = candles.map(c => c.low);
+        const volumes = candles.map(c => c.volume || 0);
+
+        const addLine = (data, opts) => {
+            const s = this._bdChart.addLineSeries(opts);
+            s.setData(data);
+            return s;
+        };
+
+        let series = null;
+        try {
+            // Delegate to DashboardPage's calculation methods
+            if (def.type === 'ema' || def.type === 'sma' || def.type === 'wma' || def.type === 'dema' || def.type === 'tema' || def.type === 'kama' || def.type === 'hma' || def.type === 'vwma') {
+                let vals;
+                if (def.type === 'ema') vals = DashboardPage._calcEMA(closes, def.period);
+                else if (def.type === 'sma') vals = DashboardPage._calcMA(closes, def.period);
+                else if (def.type === 'wma') vals = DashboardPage._calcWMA(closes, def.period);
+                else if (def.type === 'dema') { const ema1 = DashboardPage._calcEMA(closes, def.period); const ema2 = DashboardPage._calcEMA(ema1, def.period); vals = ema1.map((v, i) => v !== null && ema2[i] !== null ? 2 * v - ema2[i] : null); }
+                else if (def.type === 'tema') { const e1 = DashboardPage._calcEMA(closes, def.period); const e2 = DashboardPage._calcEMA(e1, def.period); const e3 = DashboardPage._calcEMA(e2, def.period); vals = e1.map((v, i) => v !== null && e2[i] !== null && e3[i] !== null ? 3 * v - 3 * e2[i] + e3[i] : null); }
+                else vals = DashboardPage._calcMA(closes, def.period);
+
+                if (vals) {
+                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: def.overlay ? undefined : id });
+                }
+            } else if (def.type === 'rsi') {
+                const vals = DashboardPage._calcRSI(closes, def.period);
+                if (vals) {
+                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: id });
+                }
+            } else if (def.type === 'bb') {
+                const bb = DashboardPage._calcBB(closes, def.period);
+                if (bb) {
+                    const upper = bb.upper.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    const lower = bb.lower.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    const mid = bb.mid.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    const s1 = addLine(upper, { color: def.color, lineWidth: 1, lineStyle: 2 });
+                    const s2 = addLine(lower, { color: def.color, lineWidth: 1, lineStyle: 2 });
+                    const s3 = addLine(mid, { color: def.color, lineWidth: 1 });
+                    series = [s1, s2, s3];
+                }
+            } else if (def.type === 'macd') {
+                const macd = DashboardPage._calcMACD ? DashboardPage._calcMACD(closes) : null;
+                if (macd) {
+                    const macdLine = macd.macd.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    const signalLine = macd.signal.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    const s1 = addLine(macdLine, { color: '#4a90d9', lineWidth: 1, priceScaleId: id });
+                    const s2 = addLine(signalLine, { color: '#e74c5e', lineWidth: 1, priceScaleId: id });
+                    const hist = macd.histogram.map((v, i) => v !== null ? { time: candles[i].time, value: v, color: v >= 0 ? 'rgba(45,212,168,0.5)' : 'rgba(231,76,94,0.5)' } : null).filter(Boolean);
+                    const s3 = this._bdChart.addHistogramSeries({ priceScaleId: id });
+                    s3.setData(hist);
+                    series = [s1, s2, s3];
+                }
+            } else if (def.type === 'atr') {
+                const vals = DashboardPage._calcATR ? DashboardPage._calcATR(highs, lows, closes, def.period) : null;
+                if (vals) {
+                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: id });
+                }
+            } else if (def.type === 'psar') {
+                const vals = DashboardPage._calcPSAR ? DashboardPage._calcPSAR(highs, lows, closes) : null;
+                if (vals) {
+                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+                    series = addLine(data, { color: def.color, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 1.5 });
+                }
+            }
+            // For other indicators, use similar pattern as above
+        } catch(e) {
+            console.warn(`Indicator ${id} calc error:`, e);
+        }
+
+        this._bdIndicators[id] = { enabled, series };
     }
 };

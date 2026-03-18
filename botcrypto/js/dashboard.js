@@ -343,6 +343,7 @@ const DashboardPage = {
                     color: isBuy ? '#2dd4a8' : '#e74c5e',
                     shape: 'circle',
                     text: isBuy ? 'B' : 'S',
+                    size: 2,
                 };
             }).sort((a, b) => a.time - b.time);
             this.candleSeries.setMarkers(markers);
