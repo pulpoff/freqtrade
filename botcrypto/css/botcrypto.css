@@ -1566,44 +1566,58 @@ h4.fw-semibold, h5.fw-semibold {
 /* ============================================
    STRATEGY BUILDER - BACKTEST PANEL (botcrypto style)
    ============================================ */
-.sb-backtest-panel,
-.sb-analysis-panel {
+/* Backtest panel - centered modal overlay */
+.sb-backtest-panel {
     position: fixed;
-    top: 0;
-    left: var(--sidebar-width);
-    bottom: 0;
-    width: 340px;
-    max-width: 40vw;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: 720px;
+    max-width: 90vw;
+    max-height: 90vh;
     background: var(--bc-bg-dark);
-    border-right: 1px solid var(--bc-border);
+    border: 1px solid var(--bc-border);
+    border-radius: var(--bc-radius);
     z-index: 1060;
     overflow-y: auto;
     overflow-x: hidden;
-    transform: translateX(calc(-100% - var(--sidebar-width)));
-    transition: transform 0.3s ease, left 0.3s ease;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.6);
 }
-/* When sidebar is collapsed, adjust panel position */
-.sidebar.collapsed ~ .main-wrapper .sb-backtest-panel,
-.sidebar.collapsed ~ .main-wrapper .sb-analysis-panel {
-    left: var(--sidebar-collapsed-width);
-    transform: translateX(calc(-100% - var(--sidebar-collapsed-width)));
+.sb-backtest-panel.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
 }
-.sidebar.collapsed ~ .main-wrapper .sb-backtest-panel.open {
-    transform: translateX(0);
+/* Backdrop */
+.sb-backtest-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1059;
 }
 
+/* Analysis panel - right side slide */
 .sb-analysis-panel {
-    left: auto;
+    position: fixed;
+    top: 0;
+    bottom: 0;
     right: 0;
-    border-right: none;
+    width: 340px;
+    max-width: 40vw;
+    background: var(--bc-bg-dark);
     border-left: 1px solid var(--bc-border);
+    z-index: 1060;
+    overflow-y: auto;
+    overflow-x: hidden;
     transform: translateX(100%);
+    transition: transform 0.3s ease;
     box-shadow: -4px 0 24px rgba(0,0,0,0.4);
 }
-
-.sb-backtest-panel.open {
-    transform: translateX(0);
+.sidebar.collapsed ~ .main-wrapper .sb-analysis-panel {
+    /* no adjustment needed for centered panel */
 }
 .sb-analysis-panel.open {
     transform: translateX(0);
@@ -1724,7 +1738,10 @@ h4.fw-semibold, h5.fw-semibold {
 }
 
 @media (max-width: 768px) {
-    .sb-backtest-panel,
+    .sb-backtest-panel {
+        width: 95vw;
+        max-width: 95vw;
+    }
     .sb-analysis-panel {
         left: 0;
         width: 100vw;
