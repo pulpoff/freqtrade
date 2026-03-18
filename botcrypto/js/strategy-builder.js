@@ -2550,6 +2550,7 @@ ${entryConditions.length > 0 ?
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-clock-history text-success"></i>
                     <span class="fw-semibold">Backtest</span>
+                    <span class="badge bg-success bg-opacity-25 text-white small" id="sbBtStratName" style="display:none"></span>
                 </div>
                 <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.toggleBacktestPanel()">
                     <i class="bi bi-x-lg"></i>
@@ -2727,6 +2728,8 @@ ${entryConditions.length > 0 ?
         if (config) config.classList.remove('d-none');
         if (progress) progress.classList.add('d-none');
         if (results) results.classList.add('d-none');
+        const stratBadge = document.getElementById('sbBtStratName');
+        if (stratBadge) stratBadge.style.display = 'none';
     },
 
     async abortPanelBacktest() {
@@ -3075,6 +3078,14 @@ ${entryConditions.length > 0 ?
         document.getElementById('sbBtProgress')?.classList.add('d-none');
         document.getElementById('sbBtResults')?.classList.remove('d-none');
 
+        // Show strategy name in header
+        const stratName = sr.strategy_name || Object.keys(result.strategy || {})[0] || '';
+        const stratBadge = document.getElementById('sbBtStratName');
+        if (stratBadge) {
+            if (stratName) { stratBadge.textContent = stratName; stratBadge.style.display = ''; }
+            else { stratBadge.style.display = 'none'; }
+        }
+
         const dr = document.getElementById('sbBtDateRange');
         if (dr) dr.textContent = `${sr.backtest_start || ''} \u2192 ${sr.backtest_end || ''}`;
 
@@ -3139,13 +3150,28 @@ ${entryConditions.length > 0 ?
                 rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
                 timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
                 crosshair: { mode: 0 },
+                handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+                handleScale: { mouseWheel: false, axisPressedMouseMove: false, pinch: false },
             };
             const chart = LightweightCharts.createChart(chartEl, chartOpts);
+            // Allow zoom in only (block zoom out) via wheel
+            chartEl.addEventListener('wheel', (e) => {
+                if (e.deltaY < 0) {
+                    e.preventDefault();
+                    const ts = chart.timeScale();
+                    const range = ts.getVisibleLogicalRange();
+                    if (range) {
+                        const center = (range.from + range.to) / 2;
+                        const half = (range.to - range.from) / 2 * 0.85;
+                        ts.setVisibleLogicalRange({ from: center - half, to: center + half });
+                    }
+                }
+            }, { passive: false });
 
             // Fetch OHLCV candle data
             let candles = [];
             try {
-                const limit = 1000;
+                const limit = 3000;
                 const raw = await API.getPairOhlcv(pair, timeframe, limit);
                 candles = API.parseCandleData(raw);
                 // Filter to date range if set
@@ -3213,7 +3239,22 @@ ${entryConditions.length > 0 ?
                 rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
                 timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
                 crosshair: { mode: 0 },
+                handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+                handleScale: { mouseWheel: false, axisPressedMouseMove: false, pinch: false },
             });
+            // Allow zoom in only
+            eqEl.addEventListener('wheel', (e) => {
+                if (e.deltaY < 0) {
+                    e.preventDefault();
+                    const ts = chart2.timeScale();
+                    const range = ts.getVisibleLogicalRange();
+                    if (range) {
+                        const center = (range.from + range.to) / 2;
+                        const half = (range.to - range.from) / 2 * 0.85;
+                        ts.setVisibleLogicalRange({ from: center - half, to: center + half });
+                    }
+                }
+            }, { passive: false });
             const areaSeries = chart2.addAreaSeries({
                 topColor: 'rgba(45, 212, 168, 0.4)',
                 bottomColor: 'rgba(45, 212, 168, 0.02)',

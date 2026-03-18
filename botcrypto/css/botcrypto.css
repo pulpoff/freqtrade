@@ -280,27 +280,77 @@ body {
     color: #111;
 }
 
+/* All outline buttons → filled with color */
 .btn-outline-success {
-    border-color: var(--bc-primary);
-    color: var(--bc-primary);
-}
-
-.btn-outline-success:hover,
-.btn-outline-success.active {
     background: var(--bc-primary);
     border-color: var(--bc-primary);
-    color: #111;
+    color: #fff;
+}
+.btn-outline-success:hover,
+.btn-outline-success.active {
+    background: var(--bc-primary-hover);
+    border-color: var(--bc-primary-hover);
+    color: #fff;
+}
+
+.btn-outline-primary {
+    background: var(--bc-blue);
+    border-color: var(--bc-blue);
+    color: #fff;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary.active {
+    background: #3a7bc8;
+    border-color: #3a7bc8;
+    color: #fff;
 }
 
 .btn-outline-secondary {
+    background: rgba(255,255,255,0.1);
     border-color: var(--bc-border);
-    color: var(--bc-text-secondary);
+    color: var(--bc-text);
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary.active {
+    background: rgba(255,255,255,0.18);
+    border-color: rgba(255,255,255,0.2);
+    color: #fff;
 }
 
-.btn-outline-secondary:hover {
-    background: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.12);
-    color: var(--bc-text);
+.btn-outline-danger {
+    background: var(--bc-red);
+    border-color: var(--bc-red);
+    color: #fff;
+}
+.btn-outline-danger:hover,
+.btn-outline-danger.active {
+    background: #d03a4c;
+    border-color: #d03a4c;
+    color: #fff;
+}
+
+.btn-outline-warning {
+    background: var(--bc-orange);
+    border-color: var(--bc-orange);
+    color: #fff;
+}
+.btn-outline-warning:hover,
+.btn-outline-warning.active {
+    background: #e09520;
+    border-color: #e09520;
+    color: #fff;
+}
+
+.btn-outline-info {
+    background: var(--bc-blue);
+    border-color: var(--bc-blue);
+    color: #fff;
+}
+.btn-outline-info:hover,
+.btn-outline-info.active {
+    background: #3a7bc8;
+    border-color: #3a7bc8;
+    color: #fff;
 }
 
 .btn-warning {

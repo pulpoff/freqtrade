@@ -748,6 +748,20 @@ const BacktestingPage = {
             handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
         });
         if (!this.chart) return;
+        // Allow zoom in only (block zoom out) via wheel
+        const _chart = this.chart;
+        container.addEventListener('wheel', (e) => {
+            if (e.deltaY < 0) {
+                e.preventDefault();
+                const ts = _chart.timeScale();
+                const range = ts.getVisibleLogicalRange();
+                if (range) {
+                    const center = (range.from + range.to) / 2;
+                    const half = (range.to - range.from) / 2 * 0.85;
+                    ts.setVisibleLogicalRange({ from: center - half, to: center + half });
+                }
+            }
+        }, { passive: false });
 
         // Fetch actual OHLCV candle data for the pair
         let candleData = [];
@@ -842,8 +856,22 @@ const BacktestingPage = {
         const chart = Components.createChart(container, {
             rightPriceScale: { visible: false },
             timeScale: { visible: false },
+            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
         });
         if (!chart) return;
+        container.addEventListener('wheel', (e) => {
+            if (e.deltaY < 0) {
+                e.preventDefault();
+                const ts = chart.timeScale();
+                const range = ts.getVisibleLogicalRange();
+                if (range) {
+                    const center = (range.from + range.to) / 2;
+                    const half = (range.to - range.from) / 2 * 0.85;
+                    ts.setVisibleLogicalRange({ from: center - half, to: center + half });
+                }
+            }
+        }, { passive: false });
 
         const areaSeries = chart.addAreaSeries({
             lineColor: '#2dd4a8',
