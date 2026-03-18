@@ -3134,49 +3134,23 @@ ${entryConditions.length > 0 ?
                 });
                 candleSeries.setData(candles);
 
-                // Add buy/sell circle markers with white letter inside
-                const tradeMarkerData = [];
+                // Add buy/sell markers using native lightweight-charts API
+                const markers = [];
                 trades.forEach(t => {
                     if (t.open_date) {
                         const ts = Math.floor(new Date(t.open_date).getTime() / 1000);
-                        const candle = candles.find(c => c.time === ts) || candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
-                        tradeMarkerData.push({ time: ts, price: candle ? candle.low : (t.open_rate || 0), type: 'buy' });
+                        // Snap to nearest candle time
+                        const candle = candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
+                        markers.push({ time: candle ? candle.time : ts, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B' });
                     }
                     if (t.close_date) {
                         const ts = Math.floor(new Date(t.close_date).getTime() / 1000);
-                        const candle = candles.find(c => c.time === ts) || candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
-                        tradeMarkerData.push({ time: ts, price: candle ? candle.high : (t.close_rate || 0), type: 'sell' });
+                        const candle = candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
+                        markers.push({ time: candle ? candle.time : ts, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S' });
                     }
                 });
-                chartEl.style.position = 'relative';
-                const markerEls = [];
-                tradeMarkerData.forEach(m => {
-                    const el = document.createElement('div');
-                    const isBuy = m.type === 'buy';
-                    el.textContent = isBuy ? 'B' : 'S';
-                    Object.assign(el.style, {
-                        position: 'absolute', width: '20px', height: '20px', borderRadius: '50%',
-                        background: isBuy ? '#2dd4a8' : '#e74c5e', color: '#fff',
-                        fontSize: '10px', fontWeight: '700', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        zIndex: '10', pointerEvents: 'none', lineHeight: '1',
-                    });
-                    chartEl.appendChild(el);
-                    markerEls.push({ el, time: m.time, price: m.price, type: m.type });
-                });
-                const updatePositions = () => {
-                    const ts = chart.timeScale();
-                    markerEls.forEach(({ el, time, price, type }) => {
-                        const x = ts.timeToCoordinate(time);
-                        const y = candleSeries.priceToCoordinate(price);
-                        if (x === null || y === null || x < 0) { el.style.display = 'none'; return; }
-                        el.style.display = 'flex';
-                        el.style.left = (x - 10) + 'px';
-                        el.style.top = (y + (type === 'buy' ? 6 : -26)) + 'px';
-                    });
-                };
-                updatePositions();
-                chart.timeScale().subscribeVisibleLogicalRangeChange(updatePositions);
+                markers.sort((a, b) => a.time - b.time);
+                candleSeries.setMarkers(markers);
             } else {
                 // Fallback: line chart from trade close prices
                 const lineSeries = chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });

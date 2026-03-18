@@ -785,82 +785,35 @@ const BacktestingPage = {
 
             // Build buy/sell marker data from trades
             const tradeMarkers = [];
+            const snapTo = (ts) => {
+                if (!ts || !candleData.length) return 0;
+                let best = candleData[0]?.time || 0;
+                let bestDiff = Math.abs(ts - best);
+                for (const c of candleData) {
+                    const diff = Math.abs(ts - c.time);
+                    if (diff < bestDiff) { best = c.time; bestDiff = diff; }
+                    if (c.time > ts + 3600) break;
+                }
+                return best;
+            };
+
             trades.forEach(t => {
                 const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
                 const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
 
-                // Snap to nearest candle time
-                const snapTo = (ts) => {
-                    if (!ts) return 0;
-                    let best = candleData[0]?.time || 0;
-                    let bestDiff = Math.abs(ts - best);
-                    for (const c of candleData) {
-                        const diff = Math.abs(ts - c.time);
-                        if (diff < bestDiff) { best = c.time; bestDiff = diff; }
-                        if (c.time > ts + 3600) break;
-                    }
-                    return best;
-                };
-
                 if (openTime) {
                     const snapped = snapTo(openTime);
-                    const candle = candleData.find(c => c.time === snapped);
-                    tradeMarkers.push({ time: snapped, price: candle ? candle.low : (t.open_rate || 0), type: 'buy' });
+                    tradeMarkers.push({ time: snapped, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B' });
                 }
                 if (closeTime) {
                     const snapped = snapTo(closeTime);
-                    const candle = candleData.find(c => c.time === snapped);
-                    tradeMarkers.push({ time: snapped, price: candle ? candle.high : (t.close_rate || 0), type: 'sell' });
+                    tradeMarkers.push({ time: snapped, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S' });
                 }
             });
 
-            // Create HTML overlay markers (white letter in colored circle)
-            this._tradeMarkerEls = [];
-            const chartEl = container.querySelector('table') || container;
-            tradeMarkers.forEach(m => {
-                const el = document.createElement('div');
-                const isBuy = m.type === 'buy';
-                el.textContent = isBuy ? 'B' : 'S';
-                Object.assign(el.style, {
-                    position: 'absolute',
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '50%',
-                    background: isBuy ? '#2dd4a8' : '#e74c5e',
-                    color: '#fff',
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: '10',
-                    pointerEvents: 'none',
-                    lineHeight: '1',
-                });
-                container.style.position = 'relative';
-                container.appendChild(el);
-                this._tradeMarkerEls.push({ el, time: m.time, price: m.price, type: m.type });
-            });
-
-            // Position markers on chart and update on scroll/zoom
-            const updateMarkerPositions = () => {
-                const ts = this.chart.timeScale();
-                this._tradeMarkerEls.forEach(({ el, time, price, type }) => {
-                    const x = ts.timeToCoordinate(time);
-                    const y = candleSeries.priceToCoordinate(price);
-                    if (x === null || y === null || x < 0) {
-                        el.style.display = 'none';
-                        return;
-                    }
-                    el.style.display = 'flex';
-                    const offset = type === 'buy' ? 8 : -30;
-                    el.style.left = (x - 11) + 'px';
-                    el.style.top = (y + offset) + 'px';
-                });
-            };
-            updateMarkerPositions();
-            this.chart.timeScale().subscribeVisibleLogicalRangeChange(updateMarkerPositions);
-            candleSeries.subscribeDataChanged && candleSeries.subscribeDataChanged(updateMarkerPositions);
+            // Use native lightweight-charts markers (properly positioned on chart)
+            tradeMarkers.sort((a, b) => a.time - b.time);
+            candleSeries.setMarkers(tradeMarkers);
 
             this._candleSeries = candleSeries;
         } else {
