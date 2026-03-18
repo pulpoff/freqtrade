@@ -2194,13 +2194,18 @@ ${entryConditions.length > 0 ?
             /\.rolling\(\d+\)\.(?:mean|std|min|max)/gi,
             /\.shift\(\d+\)/gi, /\.pct_change/gi,
         ];
-        // Known column names that are standard
+        // Known column names that are standard (including common underscore/naming variants)
         const standardCols = new Set([
             'close', 'open', 'high', 'low', 'volume', 'date',
-            'ema', 'sma', 'rsi', 'macd', 'macdsignal', 'macdhist',
+            'ema', 'sma', 'rsi',
+            'macd', 'macdsignal', 'macdhist', 'macd_signal', 'macd_hist',
+            'macdfix', 'macd_line', 'macd_cross',
             'bb_upper', 'bb_lower', 'bb_middle', 'bbands',
+            'bb_upperband', 'bb_lowerband', 'bb_middleband', 'bb_width', 'bb_percent',
             'adx', 'atr', 'cci', 'mfi', 'obv', 'willr',
             'stoch', 'slowk', 'slowd', 'fastk', 'fastd',
+            'plus_di', 'minus_di', 'plus_dm', 'minus_dm',
+            'upperband', 'lowerband', 'middleband',
         ]);
 
         // Find all dataframe['col'] = ... assignments that look like custom logic
@@ -2223,6 +2228,17 @@ ${entryConditions.length > 0 ?
                 if (knownTypes.has(colName)) continue;
                 // Skip simple ta.XXX calls that were already parsed
                 if (knownPatterns.some(p => { p.lastIndex = 0; return p.test(line); })) continue;
+                // Skip lines extracting sub-components from known indicator results
+                // e.g. dataframe['macd_hist'] = macd['macdhist'], bollinger['upper'], stoch['slowk']
+                const rhsSide = line.split('=').slice(1).join('=').trim();
+                if (/^\w+\s*\[/.test(rhsSide)) {
+                    const varName = rhsSide.match(/^(\w+)\s*\[/)[1].toLowerCase();
+                    if (['macd', 'bollinger', 'bb', 'bbands', 'stoch', 'stochastic', 'aroon'].includes(varName)
+                        || knownTypes.has(varName) || standardCols.has(varName)) continue;
+                }
+                // Skip if the column name is a variant of a known indicator (with _N suffix like ema_20, rsi_14)
+                const colBase = colName.replace(/_?\d+$/, '');
+                if (standardCols.has(colBase) || knownTypes.has(colBase)) continue;
 
                 // This is unrecognized logic - collect it
                 logicNum++;

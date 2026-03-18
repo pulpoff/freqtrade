@@ -249,6 +249,54 @@ const RobotsPage = {
         }
 
         try {
+            // Try engine status first (for managed strategies)
+            const engineStatus = await API.getEngineStatus().catch(() => null);
+
+            if (engineStatus && engineStatus.engine_mode) {
+                // Engine mode - show managed strategies
+                const strategies = engineStatus.strategies || [];
+                if (strategies.length === 0) {
+                    el.innerHTML = `<div class="col-12 text-center text-secondary py-3">
+                        <i class="bi bi-robot fs-4 d-block mb-1"></i>
+                        <small>No strategies deployed. Create a bot config and click Deploy to start trading.</small>
+                    </div>`;
+                } else {
+                    el.innerHTML = strategies.map(s => {
+                        const statusColor = s.status === 'running' ? 'success' : s.status === 'error' ? 'danger' : s.status === 'starting' ? 'warning' : 'secondary';
+                        const statusIcon = s.status === 'running' ? 'play-circle' : s.status === 'error' ? 'exclamation-triangle' : s.status === 'starting' ? 'hourglass-split' : 'stop-circle';
+                        return `
+                        <div class="col-12 mb-2">
+                            <div class="d-flex align-items-center justify-content-between p-2 rounded" style="background:var(--bc-bg);border:1px solid var(--bc-border)">
+                                <div class="d-flex align-items-center gap-3">
+                                    <span class="badge bg-${statusColor}"><i class="bi bi-${statusIcon} me-1"></i>${s.status}</span>
+                                    <div>
+                                        <span class="fw-semibold">${s.strategy_name}</span>
+                                        <div class="d-flex gap-1 mt-1">
+                                            <span class="badge bg-secondary" style="font-size:10px">${s.exchange}</span>
+                                            <span class="badge bg-info" style="font-size:10px">${s.trading_mode}</span>
+                                            <span class="badge ${s.dry_run ? 'bg-warning text-dark' : 'bg-danger'}" style="font-size:10px">${s.dry_run ? 'Dry' : 'LIVE'}</span>
+                                            ${(s.pairs || []).slice(0, 2).map(p => `<span class="badge bg-primary" style="font-size:10px">${p.split('/')[0]}</span>`).join('')}
+                                            ${(s.pairs || []).length > 2 ? `<span class="badge bg-secondary" style="font-size:10px">+${s.pairs.length - 2}</span>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-1">
+                                    ${s.status === 'running' || s.status === 'starting' ?
+                                        `<button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop', '${s.strategy_id}')"><i class="bi bi-stop-fill"></i></button>` :
+                                        `<button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start', '${s.strategy_id}')"><i class="bi bi-play-fill"></i></button>`
+                                    }
+                                    ${s.status === 'stopped' || s.status === 'error' ?
+                                        `<button class="btn btn-outline-danger btn-sm" onclick="RobotsPage.removeManagedStrategy('${s.strategy_id}')"><i class="bi bi-trash"></i></button>` : ''}
+                                </div>
+                            </div>
+                            ${s.error ? `<div class="text-danger small mt-1 ps-2" style="max-height:60px;overflow:auto"><pre class="mb-0 small">${s.error.substring(0, 200)}</pre></div>` : ''}
+                        </div>`;
+                    }).join('');
+                }
+                return;
+            }
+
+            // Legacy trade mode
             const [config, profit, openTrades, count, balance] = await Promise.all([
                 API.getConfig().catch(() => null),
                 API.getProfit().catch(() => null),
@@ -310,54 +358,53 @@ const RobotsPage = {
         }
     },
 
-    async controlBot(action) {
+    async removeManagedStrategy(strategyId) {
+        if (!confirm('Remove this strategy?')) return;
+        try {
+            await API.removeManagedStrategy(strategyId);
+            App.showToast('Strategy removed', 'info');
+            this.loadActiveBotInfo();
+        } catch (e) {
+            App.showToast(`Failed: ${e.message}`, 'error');
+        }
+    },
+
+    async controlBot(action, strategyId) {
         if (!API.connected) {
             App.showToast('Not connected to Freqtrade', 'warning');
             return;
         }
         try {
-            if (action === 'start') {
-                let started = false;
-                // First attempt
-                try {
-                    await API.startBot();
-                    started = true;
-                } catch (e) {
-                    if (e.message && e.message.includes('not in the correct state')) {
-                        // Bot may need reload or is still initializing - retry with backoff
-                        App.showToast('Bot initializing... reloading config and retrying', 'info');
-                        await API.request('/reload_config', { method: 'POST' }).catch(() => {});
-                        // Retry up to 4 times with increasing delays (3s, 5s, 8s, 12s)
-                        const delays = [3000, 5000, 8000, 12000];
-                        for (let i = 0; i < delays.length && !started; i++) {
-                            await new Promise(r => setTimeout(r, delays[i]));
-                            try {
-                                await API.startBot();
-                                started = true;
-                            } catch (retryErr) {
-                                if (!retryErr.message?.includes('not in the correct state')) throw retryErr;
-                                App.showToast(`Still initializing... retry ${i + 2}/5`, 'info');
-                            }
+            if (strategyId) {
+                // Engine mode: use StrategyManager API
+                if (action === 'start') {
+                    await API.startManagedStrategy(strategyId);
+                } else if (action === 'stop') {
+                    await API.stopManagedStrategy(strategyId);
+                }
+                App.showToast(`Strategy ${action} command sent`, 'success');
+            } else {
+                // Legacy trade mode: use standard RPC
+                if (action === 'start') {
+                    try {
+                        await API.startBot();
+                    } catch (e) {
+                        if (e.message?.includes('not in the correct state')) {
+                            App.showToast('Bot is in webserver mode. Use Deploy to start a strategy.', 'warning');
+                            return;
                         }
-                        if (!started) throw new Error('Bot is not in the correct state after multiple retries. It may still be loading strategies/models.');
-                    } else {
                         throw e;
                     }
+                } else if (action === 'stop') {
+                    await API.stopBot();
+                } else if (action === 'pause') {
+                    await API.pauseBot();
                 }
-            } else if (action === 'stop') {
-                await API.stopBot();
-            } else if (action === 'pause') {
-                await API.pauseBot();
+                App.showToast(`Bot ${action} command sent`, 'success');
             }
-            App.showToast(`Bot ${action} command sent`, 'success');
-            setTimeout(() => this.loadActiveBotInfo(), 1000);
+            setTimeout(() => this.loadActiveBotInfo(), 1500);
         } catch (e) {
-            const msg = e.message || '';
-            if (msg.includes('not in the correct state')) {
-                App.showToast('Bot is still loading (strategies/ML models). Please wait and try again.', 'warning');
-            } else {
-                App.showToast(`Failed: ${msg}`, 'error');
-            }
+            App.showToast(`Failed: ${e.message || 'Unknown error'}`, 'error');
         }
     },
 
@@ -483,9 +530,53 @@ const RobotsPage = {
         const bot = bots[index];
         if (!bot) return;
         if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
-        if (!confirm(`Deploy "${bot.name}" config to Freqtrade? This will reload the configuration.`)) return;
-        // For now, show what would be deployed
-        App.showToast(`Bot "${bot.name}" config ready. Use Configuration page to apply settings.`, 'info');
+        if (!bot.strategy) { App.showToast('Select a strategy first', 'warning'); return; }
+        if (!confirm(`Deploy and start "${bot.name}" with strategy ${bot.strategy}?`)) return;
+
+        const strategyId = `${bot.name || 'bot'}-${Date.now()}`.replace(/\s+/g, '-').toLowerCase();
+        const pairs = (bot.pairs || 'BTC/USDT:USDT').split(',').map(p => p.trim()).filter(Boolean);
+
+        try {
+            // Register strategy with StrategyManager
+            const config = {
+                strategy_id: strategyId,
+                strategy: bot.strategy,
+                exchange: {
+                    name: bot.exchange || 'bybit',
+                    pair_whitelist: pairs,
+                },
+                stake_currency: 'USDT',
+                stake_amount: bot.stake_amount === 'unlimited' ? 'unlimited' : parseFloat(bot.stake_amount) || 'unlimited',
+                max_open_trades: bot.max_open_trades || 3,
+                dry_run: true,
+                dry_run_wallet: bot.dry_run_wallet || 1000,
+                trading_mode: bot.trading_mode || 'futures',
+                timeframe: bot.timeframe || '5m',
+                extra_config: {},
+            };
+
+            if (bot.freqaimodel) {
+                config.extra_config.freqai = { enabled: true, model: bot.freqaimodel };
+            }
+
+            App.showToast('Registering strategy...', 'info');
+            await API.addManagedStrategy(config);
+
+            // Start it
+            App.showToast('Starting strategy...', 'info');
+            await API.startManagedStrategy(strategyId);
+
+            // Save strategy_id back to bot config
+            bots[index].strategy_id = strategyId;
+            bots[index].deployed = true;
+            this._saveBots(bots);
+
+            App.showToast(`"${bot.name}" deployed and starting!`, 'success');
+            setTimeout(() => this.loadActiveBotInfo(), 2000);
+            this.refresh();
+        } catch (e) {
+            App.showToast(`Deploy failed: ${e.message}`, 'error');
+        }
     },
 
     _showBotModal(bot, index) {

@@ -216,12 +216,34 @@ const API = {
     async getMonthly(months = 6) { return this.request(`/monthly?timescale=${months}`); },
     async getPerformance() { return this.request('/performance'); },
 
-    // ========== BOT CONTROL ==========
+    // ========== BOT CONTROL (legacy RPC - for trade mode) ==========
     async startBot() { return this.request('/start', { method: 'POST' }); },
     async stopBot() { return this.request('/stop', { method: 'POST' }); },
     /** Pause = stop new entries only */
     async pauseBot() { return this.request('/stopentry', { method: 'POST' }); },
     async reloadConfig() { return this.request('/reload_config', { method: 'POST' }); },
+
+    // ========== STRATEGY MANAGER (engine mode) ==========
+    async getEngineStatus() { return this.request('/engine/status'); },
+    async getManagedStrategies() { return this.request('/strategies'); },
+    async addManagedStrategy(config) {
+        return this.request('/strategies', {
+            method: 'POST',
+            body: JSON.stringify(config)
+        });
+    },
+    async startManagedStrategy(id) {
+        return this.request(`/strategies/${encodeURIComponent(id)}/start`, { method: 'POST' });
+    },
+    async stopManagedStrategy(id) {
+        return this.request(`/strategies/${encodeURIComponent(id)}/stop`, { method: 'POST' });
+    },
+    async removeManagedStrategy(id) {
+        return this.request(`/strategies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    async getManagedStrategyTrades(id) {
+        return this.request(`/strategies/${encodeURIComponent(id)}/trades`);
+    },
 
     // ========== FORCE TRADE ==========
     async forceEntry(pair, side = 'long', options = {}) {
