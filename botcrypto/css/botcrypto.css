@@ -1641,6 +1641,66 @@ h4.fw-semibold, h5.fw-semibold {
     font-weight: 600;
 }
 
+/* Dashboard page: reduce padding for full-bleed layout */
+#dashboardPage {
+    margin: -1.25rem -1.5rem;
+}
+@media (max-width: 991px) {
+    #dashboardPage { margin: -1rem; }
+}
+@media (max-width: 767.98px) {
+    #dashboardPage { margin: -0.75rem; }
+}
+@media (max-width: 480px) {
+    #dashboardPage { margin: -0.5rem; }
+}
+
+/* Dashboard Left Panel Tabs */
+.dash-tab-btn {
+    color: var(--bc-text-secondary);
+    padding: 6px 10px;
+    border-radius: 0;
+    font-size: 16px;
+    border-bottom: 2px solid transparent;
+    text-decoration: none;
+}
+.dash-tab-btn:hover { color: var(--bc-text); }
+.dash-tab-btn.active {
+    color: var(--bc-primary);
+    border-bottom-color: var(--bc-primary);
+}
+
+/* Dashboard left panel */
+#dashLeftPanel .card-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bc-border) transparent;
+}
+#dashLeftPanel .table {
+    font-size: 11px;
+}
+#dashLeftPanel .table td,
+#dashLeftPanel .table th {
+    padding: 4px 8px;
+}
+
+/* Dashboard open trades table */
+#dashOpenTradesTable th,
+#dashClosedTradesTable th {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--bc-text-secondary);
+    padding: 6px 8px;
+    white-space: nowrap;
+}
+#dashOpenTradesTable td,
+#dashClosedTradesTable td {
+    padding: 5px 8px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
 /* Strategy Store filter controls */
 .store-search-input {
     width: 280px;
@@ -2163,6 +2223,34 @@ h4.fw-semibold, h5.fw-semibold {
 @media (max-width: 767.98px) {
     .offcanvas-end {
         width: 100% !important;
+    }
+}
+
+/* --- Dashboard left panel: collapse on mobile --- */
+@media (max-width: 991.98px) {
+    #dashLeftPanel {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    #dashLeftPanel .card-body {
+        max-height: 250px !important;
+    }
+}
+@media (max-width: 767.98px) {
+    #dashLeftPanel {
+        max-height: 250px;
+    }
+    #dashLeftPanel .card-body {
+        max-height: 200px !important;
+    }
+    /* Chart height on mobile */
+    #mainChart {
+        height: 300px !important;
+    }
+    /* Open trades table horizontal scroll */
+    #dashOpenTradesTable,
+    #dashClosedTradesTable {
+        min-width: 700px;
     }
 }
 
