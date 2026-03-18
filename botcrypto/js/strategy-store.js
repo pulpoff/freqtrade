@@ -722,8 +722,8 @@ const StrategyStorePage = {
         }, 300);
     },
 
-    deleteUserStrategy(index) {
-        if (!confirm('Delete this strategy?')) return;
+    async deleteUserStrategy(index) {
+        if (!await App.confirm('Delete this strategy?', { title: 'Delete Strategy', confirmText: 'Delete' })) return;
         const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         saved.splice(index, 1);
         localStorage.setItem('bc_strategies', JSON.stringify(saved));
@@ -1004,8 +1004,8 @@ class NewStrategy(IStrategy):
     },
 
     /** Delete an imported strategy */
-    deleteImported(name) {
-        if (!confirm(`Delete imported strategy "${name}"?`)) return;
+    async deleteImported(name) {
+        if (!await App.confirm(`Delete imported strategy "<b>${name}</b>"?`, { title: 'Delete Strategy', confirmText: 'Delete' })) return;
         const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
         delete imported[name];
         localStorage.setItem('bc_imported_strategies', JSON.stringify(imported));

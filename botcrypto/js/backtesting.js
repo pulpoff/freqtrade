@@ -1042,7 +1042,7 @@ const BacktestingPage = {
 
     async deleteHistoryEntry(filename) {
         if (!filename) return;
-        if (!confirm('Delete this backtest result?')) return;
+        if (!await App.confirm('Delete this backtest result?', { title: 'Delete Backtest', confirmText: 'Delete' })) return;
         try {
             await API.deleteBacktestHistory(filename);
             App.showToast('Backtest result deleted', 'success');

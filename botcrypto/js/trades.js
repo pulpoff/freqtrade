@@ -564,7 +564,7 @@ const TradesPage = {
     },
 
     async forceExit(tradeId) {
-        if (!confirm(`Force sell trade #${tradeId}?`)) return;
+        if (!await App.confirm(`Force sell trade <b>#${tradeId}</b>?`, { title: 'Force Exit', confirmText: 'Force Exit', confirmClass: 'btn-warning', icon: 'bi-exclamation-triangle-fill text-warning' })) return;
         try {
             await API.forceExit(tradeId);
             App.showToast(`Force exit: trade #${tradeId}`, 'success');
@@ -573,7 +573,7 @@ const TradesPage = {
     },
 
     async deleteTrade(tradeId) {
-        if (!confirm(`Delete trade #${tradeId}? This cannot be undone.`)) return;
+        if (!await App.confirm(`Delete trade <b>#${tradeId}</b>? This cannot be undone.`, { title: 'Delete Trade', confirmText: 'Delete' })) return;
         try {
             await API.deleteTrade(tradeId);
             App.showToast(`Trade #${tradeId} deleted`, 'info');

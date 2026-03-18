@@ -334,6 +334,28 @@ class StrategyManager:
         data_dir = config.get("user_data_dir", "user_data")
         os.makedirs(f"{data_dir}/strategies/{strategy_id}", exist_ok=True)
 
+        # Ensure FreqAI config has required sub-keys if enabled
+        freqai = config.get("freqai")
+        if freqai and freqai.get("enabled"):
+            if "feature_parameters" not in freqai:
+                freqai["feature_parameters"] = {
+                    "include_timeframes": [config.get("timeframe", "5m")],
+                    "include_corr_pairlist": [],
+                    "label_period_candles": 20,
+                    "include_shifted_candles": 2,
+                    "DI_threshold": 0,
+                    "weight_factor": 0,
+                    "indicator_periods_candles": [10, 20],
+                }
+                logger.info(f"Strategy '{strategy_id}': Added default feature_parameters")
+            if "data_split_parameters" not in freqai:
+                freqai["data_split_parameters"] = {
+                    "test_size": 0.33,
+                    "random_state": 1,
+                    "shuffle": False,
+                }
+                logger.info(f"Strategy '{strategy_id}': Added default data_split_parameters")
+
         # Set internals
         config.setdefault("internals", {})
         config["internals"].setdefault("process_throttle_secs", PROCESS_THROTTLE_SECS)

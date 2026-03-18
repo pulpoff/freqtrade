@@ -183,8 +183,8 @@ const WebhooksPage = {
         }
     },
 
-    deleteWebhook(index) {
-        if (!confirm('Delete this webhook?')) return;
+    async deleteWebhook(index) {
+        if (!await App.confirm('Delete this webhook?', { title: 'Delete Webhook', confirmText: 'Delete' })) return;
         const webhooks = JSON.parse(localStorage.getItem('bc_webhooks') || '[]');
         webhooks.splice(index, 1);
         localStorage.setItem('bc_webhooks', JSON.stringify(webhooks));

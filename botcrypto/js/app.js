@@ -314,6 +314,52 @@ const App = {
         this.reconnect();
     },
 
+    /**
+     * Themed confirm dialog (replaces browser confirm()).
+     * Returns a Promise that resolves to true/false.
+     * @param {string} message - The confirmation message
+     * @param {object} opts - Options: { title, confirmText, confirmClass, icon }
+     */
+    confirm(message, opts = {}) {
+        return new Promise(resolve => {
+            const {
+                title = 'Confirm',
+                confirmText = 'Confirm',
+                confirmClass = 'btn-danger',
+                icon = 'bi-exclamation-triangle-fill text-warning'
+            } = opts;
+            const id = 'appConfirmModal_' + Date.now();
+            const el = document.createElement('div');
+            el.innerHTML = `
+            <div class="modal fade" id="${id}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content bg-dark border-secondary">
+                        <div class="modal-header border-secondary">
+                            <h6 class="modal-title"><i class="bi ${icon} me-2"></i>${title}</h6>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">${message}</div>
+                        <div class="modal-footer border-secondary">
+                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-sm ${confirmClass}" id="${id}_ok">${confirmText}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            document.body.appendChild(el);
+            const modal = new bootstrap.Modal(el.querySelector('.modal'));
+            let answered = false;
+            el.querySelector(`#${id}_ok`).addEventListener('click', () => {
+                answered = true; modal.hide(); resolve(true);
+            });
+            el.querySelector('.modal').addEventListener('hidden.bs.modal', () => {
+                if (!answered) resolve(false);
+                el.remove();
+            });
+            modal.show();
+        });
+    },
+
     showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
         const icons = {
