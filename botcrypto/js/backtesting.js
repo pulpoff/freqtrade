@@ -82,8 +82,8 @@ const BacktestingPage = {
                                 <label class="form-check-label small" for="btProtections">Protections</label>
                             </div>
                         </div>
-                        <div class="col d-flex align-items-end">
-                            <button class="btn btn-success btn-sm w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
+                        <div class="col-auto d-flex align-items-end ms-auto">
+                            <button class="btn btn-success btn-sm fw-semibold px-4" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
                                 <i class="bi bi-play-fill me-1"></i> Run Backtest
                             </button>
                         </div>
