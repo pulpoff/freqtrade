@@ -475,16 +475,16 @@ const StrategyBuilderPage = {
             svg.style.height = maxY + 'px';
         }
 
-        // SVG defs for arrowhead markers (use hardcoded colors - CSS vars don't work in SVG innerHTML)
+        // SVG defs for arrowhead markers
         const defs = `<defs>
-            <marker id="arrowNormal" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
+            <marker id="arrowNormal" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#f5a623"/>
             </marker>
-            <marker id="arrowTrue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#f5a623"/>
+            <marker id="arrowTrue" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#f5a623"/>
             </marker>
-            <marker id="arrowFalse" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,4 L0,8 L2,4 Z" fill="#e74c5e"/>
+            <marker id="arrowFalse" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,1 L7,4 L0,7 Z" fill="#e74c5e"/>
             </marker>
         </defs>`;
 
@@ -516,19 +516,35 @@ const StrategyBuilderPage = {
             const markerRef = conn.type === 'false' ? 'arrowFalse' : conn.type === 'true' ? 'arrowTrue' : 'arrowNormal';
 
             const connIdx = this.connections.indexOf(conn);
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2;
             const isSelected = this._selectedConnection === connIdx;
-            const selStroke = isSelected ? ' stroke-opacity="1" stroke-width="4"' : '';
             // Invisible wider hit-area path for easier clicking
             const hitArea = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer" onclick="StrategyBuilderPage.selectConnection(${connIdx})"/>`;
-            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+            const visPath = `<path d="M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}" fill="none" stroke="${strokeColor}" stroke-width="${isSelected ? 4 : 2.5}"${dashArray} marker-mid="url(#${markerRef})" marker-end="url(#${markerRef})" style="pointer-events:none"/>`;
+
+            // Mid-path direction arrow: compute point at t=0.5 on cubic bezier and tangent
+            const t = 0.5;
+            const mt = 1 - t;
+            const mx = mt*mt*mt*x1 + 3*mt*mt*t*cx1 + 3*mt*t*t*cx2 + t*t*t*x2;
+            const my = mt*mt*mt*y1 + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y2;
+            // Tangent at t=0.5
+            const tx = 3*mt*mt*(cx1-x1) + 6*mt*t*(cx2-cx1) + 3*t*t*(x2-cx2);
+            const ty = 3*mt*mt*(y1-y1) + 6*mt*t*(y2-y1) + 3*t*t*(y2-y2);
+            const angle = Math.atan2(ty, tx);
+            const arrowSize = 6;
+            const ax1 = mx + arrowSize * Math.cos(angle);
+            const ay1 = my + arrowSize * Math.sin(angle);
+            const ax2 = mx - arrowSize * Math.cos(angle - Math.PI / 3);
+            const ay2 = my - arrowSize * Math.sin(angle - Math.PI / 3);
+            const ax3 = mx - arrowSize * Math.cos(angle + Math.PI / 3);
+            const ay3 = my - arrowSize * Math.sin(angle + Math.PI / 3);
+            const midArrow = `<polygon points="${ax1},${ay1} ${ax2},${ay2} ${ax3},${ay3}" fill="${strokeColor}" style="pointer-events:none"/>`;
+
             // Delete button shown when selected
             const delBtn = isSelected ? `<g onclick="StrategyBuilderPage.deleteConnection(${connIdx})" style="cursor:pointer">
-                <circle cx="${midX}" cy="${midY}" r="12" fill="#e74c5e" stroke="#fff" stroke-width="1.5"/>
-                <text x="${midX}" y="${midY + 4}" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">×</text>
+                <circle cx="${mx}" cy="${my}" r="12" fill="#e74c5e" stroke="#fff" stroke-width="1.5"/>
+                <text x="${mx}" y="${my + 4}" text-anchor="middle" fill="white" font-size="14" font-family="sans-serif">×</text>
             </g>` : '';
-            return hitArea + visPath + delBtn;
+            return hitArea + visPath + (isSelected ? '' : midArrow) + delBtn;
         }).join('');
 
         svg.innerHTML = defs + paths;
@@ -2349,30 +2365,33 @@ ${entryConditions.length > 0 ?
                 <div class="d-flex align-items-center gap-2 mb-2 small text-secondary">
                     <i class="bi bi-calendar3"></i><span id="sbBtDateRange"></span>
                 </div>
-                <div class="sb-bt-chart-wrap mb-2"><div id="sbBtChart" style="height:200px;width:100%"></div></div>
-                <div class="d-flex align-items-center gap-2 mb-3 py-2 px-2 rounded" style="background:var(--bc-bg)">
+                <div class="sb-bt-chart-wrap mb-2">
+                    <div class="px-2 pt-2 d-flex align-items-center gap-2">
+                        <span class="small fw-semibold text-secondary" id="sbBtChartPair"></span>
+                    </div>
+                    <div id="sbBtChart" style="height:260px;width:100%"></div>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-2 py-2 px-2 rounded" style="background:var(--bc-bg)">
                     <i class="bi bi-gem text-warning"></i><span class="fw-semibold" id="sbBtBalance">0 USDT</span>
                 </div>
-                <div class="mb-3"><div id="sbBtEquity" style="height:120px;width:100%"></div></div>
-                <div class="row g-2 mb-2">
-                    <div class="col-6"><div class="small text-secondary">Unrealized profits</div><div class="fw-bold" id="sbBtUnrealized" style="color:var(--bc-text)">0 USDT</div><div class="small text-secondary">Open orders pending</div></div>
-                    <div class="col-6"><div class="small text-secondary">Realized profits</div><div class="fw-bold" id="sbBtRealized" style="color:var(--bc-green)">0 USDT</div><div class="small text-secondary">Closed orders profits</div></div>
+                <div class="sb-bt-chart-wrap mb-3">
+                    <div id="sbBtEquity" style="height:140px;width:100%"></div>
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6"><div class="fw-bold fs-5" id="sbBtWinRate" style="color:var(--bc-green)">0 %</div><div class="small text-secondary">Win rate</div></div>
-                    <div class="col-6"><div class="fw-bold fs-5" id="sbBtAvgProfit" style="color:var(--bc-green)">0 USDT</div><div class="small text-secondary">Average profit</div></div>
+                    <div class="col-3"><div class="small text-secondary">Unrealized</div><div class="fw-bold" id="sbBtUnrealized" style="color:var(--bc-text)">0 USDT</div></div>
+                    <div class="col-3"><div class="small text-secondary">Realized</div><div class="fw-bold" id="sbBtRealized" style="color:var(--bc-green)">0 USDT</div></div>
+                    <div class="col-3"><div class="fw-bold fs-5" id="sbBtWinRate" style="color:var(--bc-green)">0 %</div><div class="small text-secondary">Win rate</div></div>
+                    <div class="col-3"><div class="fw-bold fs-5" id="sbBtAvgProfit" style="color:var(--bc-green)">0 USDT</div><div class="small text-secondary">Avg profit</div></div>
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6"><div class="small text-secondary">Total trades</div><div class="fw-semibold" id="sbBtTotalTrades">0</div></div>
-                    <div class="col-6"><div class="small text-secondary">Max Drawdown</div><div class="fw-semibold text-danger" id="sbBtDrawdown">0%</div></div>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col-6"><div class="small text-secondary">Avg Duration</div><div class="fw-semibold" id="sbBtAvgDuration">-</div></div>
-                    <div class="col-6"><div class="small text-secondary">Profit Factor</div><div class="fw-semibold" id="sbBtProfitFactor">-</div></div>
+                    <div class="col-3"><div class="small text-secondary">Total trades</div><div class="fw-semibold" id="sbBtTotalTrades">0</div></div>
+                    <div class="col-3"><div class="small text-secondary">Max Drawdown</div><div class="fw-semibold text-danger" id="sbBtDrawdown">0%</div></div>
+                    <div class="col-3"><div class="small text-secondary">Avg Duration</div><div class="fw-semibold" id="sbBtAvgDuration">-</div></div>
+                    <div class="col-3"><div class="small text-secondary">Profit Factor</div><div class="fw-semibold" id="sbBtProfitFactor">-</div></div>
                 </div>
                 <div class="sb-bt-trades">
                     <h6 class="small fw-semibold text-secondary text-uppercase mb-2">Recent Trades</h6>
-                    <div id="sbBtTradesList" style="max-height:200px;overflow-y:auto"></div>
+                    <div id="sbBtTradesList" style="max-height:180px;overflow-y:auto"></div>
                 </div>
                 <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.resetBacktestPanel()">
                     <i class="bi bi-arrow-counterclockwise me-1"></i> New Backtest
@@ -2386,13 +2405,17 @@ ${entryConditions.length > 0 ?
         if (existing) {
             // Close: remove from DOM entirely
             existing.remove();
+            const backdrop = document.getElementById('sbBacktestBackdrop');
+            if (backdrop) backdrop.remove();
             if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
             return;
         }
-        // Open: inject into DOM (must be inside .main-wrapper for sidebar CSS selectors)
+        // Open: inject centered modal + backdrop
         this.hideAnalysis();
-        const container = document.querySelector('.main-wrapper') || document.body;
-        container.insertAdjacentHTML('beforeend', this._backtestPanelHTML());
+        const container = document.body;
+        container.insertAdjacentHTML('beforeend',
+            `<div class="sb-backtest-backdrop" id="sbBacktestBackdrop" onclick="StrategyBuilderPage.toggleBacktestPanel()"></div>`
+            + this._backtestPanelHTML());
         this._loadPanelPairs();
     },
 
@@ -2809,63 +2832,139 @@ ${entryConditions.length > 0 ?
         App.showToast(`Backtest done! ${totalTrades} trades, ${profitPct >= 0 ? '+' : ''}${profitPct.toFixed(2)}%`, totalProfit >= 0 ? 'success' : 'warning');
     },
 
-    _renderPanelCharts(trades, sr) {
+    async _renderPanelCharts(trades, sr) {
         const chartEl = document.getElementById('sbBtChart');
-        if (chartEl && typeof LightweightCharts !== 'undefined') {
-            chartEl.innerHTML = '';
-            try {
-                const chart = LightweightCharts.createChart(chartEl, {
-                    width: chartEl.clientWidth, height: 200,
-                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
-                    grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
-                    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
-                    timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
-                    crosshair: { mode: 0 },
-                });
-                const lineSeries = chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
-                let cum = 0;
-                const startBal = sr.starting_balance || 1000;
-                const data = trades.filter(t => t.close_date).map(t => {
-                    cum += (t.profit_abs || 0);
-                    return { time: Math.floor(new Date(t.close_date).getTime() / 1000), value: startBal + cum };
-                });
-                if (data.length > 0) {
-                    const seen = new Set();
-                    const unique = data.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
-                    lineSeries.setData(unique);
-                    chart.timeScale().fitContent();
-                }
-                this._btChart = chart;
-            } catch(e) { console.warn('Panel chart error:', e); }
-        }
+        const pairLabel = document.getElementById('sbBtChartPair');
+        if (!chartEl || typeof LightweightCharts === 'undefined') return;
 
-        const eqEl = document.getElementById('sbBtEquity');
-        if (eqEl && typeof LightweightCharts !== 'undefined') {
-            eqEl.innerHTML = '';
+        // Determine pair and timeframe from backtest config
+        const pair = document.getElementById('sbBtPair')?.value || 'BTC/USDT:USDT';
+        const timeframe = document.getElementById('sbBtTimeframe')?.value || '5m';
+        const startDate = document.getElementById('sbBtStart')?.value || '';
+        const endDate = document.getElementById('sbBtEnd')?.value || '';
+        if (pairLabel) pairLabel.textContent = `${pair} · ${timeframe}`;
+
+        // ===== TOP CHART: Candlestick with Buy/Sell markers =====
+        chartEl.innerHTML = '';
+        try {
+            const chartOpts = {
+                width: chartEl.clientWidth, height: 260,
+                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
+                grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+                rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+                timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+                crosshair: { mode: 0 },
+            };
+            const chart = LightweightCharts.createChart(chartEl, chartOpts);
+
+            // Fetch OHLCV candle data
+            let candles = [];
             try {
-                const chart2 = LightweightCharts.createChart(eqEl, {
-                    width: eqEl.clientWidth, height: 120,
-                    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
-                    grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
-                    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
-                    timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
-                    crosshair: { mode: 0 },
-                });
-                const histSeries = chart2.addHistogramSeries({});
-                const histData = trades.filter(t => t.close_date).map(t => ({
-                    time: Math.floor(new Date(t.close_date).getTime() / 1000),
-                    value: t.profit_abs || 0,
-                    color: (t.profit_abs || 0) >= 0 ? 'rgba(45,212,168,0.7)' : 'rgba(231,76,94,0.7)',
-                }));
-                if (histData.length > 0) {
-                    const seen = new Set();
-                    const unique = histData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
-                    histSeries.setData(unique);
-                    chart2.timeScale().fitContent();
+                const limit = 1000;
+                const raw = await API.getPairOhlcv(pair, timeframe, limit);
+                candles = API.parseCandleData(raw);
+                // Filter to date range if set
+                if (startDate) {
+                    const startTs = Math.floor(new Date(startDate).getTime() / 1000);
+                    candles = candles.filter(c => c.time >= startTs);
                 }
-                this._btEquityChart = chart2;
-            } catch(e) { console.warn('Equity chart error:', e); }
-        }
+                if (endDate) {
+                    const endTs = Math.floor(new Date(endDate + 'T23:59:59').getTime() / 1000);
+                    candles = candles.filter(c => c.time <= endTs);
+                }
+            } catch (e) {
+                console.warn('Could not fetch OHLCV for panel chart:', e);
+            }
+
+            if (candles.length > 0) {
+                const candleSeries = chart.addCandlestickSeries({
+                    upColor: '#2dd4a8', downColor: '#e74c5e',
+                    borderUpColor: '#2dd4a8', borderDownColor: '#e74c5e',
+                    wickUpColor: '#2dd4a8', wickDownColor: '#e74c5e',
+                });
+                candleSeries.setData(candles);
+
+                // Add buy/sell markers from trades
+                const markers = [];
+                trades.forEach(t => {
+                    if (t.open_date) {
+                        markers.push({
+                            time: Math.floor(new Date(t.open_date).getTime() / 1000),
+                            position: 'belowBar',
+                            color: '#2dd4a8',
+                            shape: 'circle',
+                            text: 'B',
+                        });
+                    }
+                    if (t.close_date) {
+                        const isWin = (t.profit_abs || 0) >= 0;
+                        markers.push({
+                            time: Math.floor(new Date(t.close_date).getTime() / 1000),
+                            position: 'aboveBar',
+                            color: isWin ? '#2dd4a8' : '#e74c5e',
+                            shape: 'circle',
+                            text: 'S',
+                        });
+                    }
+                });
+                markers.sort((a, b) => a.time - b.time);
+                // Deduplicate timestamps
+                const seen = new Set();
+                const uniqueMarkers = markers.filter(m => {
+                    const key = `${m.time}_${m.text}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                if (uniqueMarkers.length > 0) candleSeries.setMarkers(uniqueMarkers);
+            } else {
+                // Fallback: line chart from trade close prices
+                const lineSeries = chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
+                const lineData = trades.filter(t => t.close_date && t.close_rate).map(t => ({
+                    time: Math.floor(new Date(t.close_date).getTime() / 1000),
+                    value: t.close_rate,
+                }));
+                const seenTimes = new Set();
+                const unique = lineData.filter(d => { if (seenTimes.has(d.time)) return false; seenTimes.add(d.time); return true; });
+                if (unique.length > 0) lineSeries.setData(unique);
+            }
+            chart.timeScale().fitContent();
+            this._btChart = chart;
+        } catch (e) { console.warn('Panel chart error:', e); }
+
+        // ===== BOTTOM CHART: Balance area chart (green fill) =====
+        const eqEl = document.getElementById('sbBtEquity');
+        if (!eqEl) return;
+        eqEl.innerHTML = '';
+        try {
+            const chart2 = LightweightCharts.createChart(eqEl, {
+                width: eqEl.clientWidth, height: 140,
+                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#999' },
+                grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+                rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+                timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+                crosshair: { mode: 0 },
+            });
+            const areaSeries = chart2.addAreaSeries({
+                topColor: 'rgba(45, 212, 168, 0.4)',
+                bottomColor: 'rgba(45, 212, 168, 0.02)',
+                lineColor: '#2dd4a8',
+                lineWidth: 2,
+            });
+            let cum = 0;
+            const startBal = sr.starting_balance || 1000;
+            const balData = trades.filter(t => t.close_date).map(t => {
+                cum += (t.profit_abs || 0);
+                return { time: Math.floor(new Date(t.close_date).getTime() / 1000), value: startBal + cum };
+            });
+            if (balData.length > 0) {
+                const seen2 = new Set();
+                const unique2 = balData.filter(d => { if (seen2.has(d.time)) return false; seen2.add(d.time); return true; });
+                areaSeries.setData(unique2);
+                chart2.timeScale().fitContent();
+            }
+            this._btEquityChart = chart2;
+        } catch (e) { console.warn('Equity chart error:', e); }
     },
 
     // ========== STRATEGY ANALYSIS PANEL ==========
@@ -2874,6 +2973,8 @@ ${entryConditions.length > 0 ?
         if (!panel) return;
         const btPanel = document.getElementById('sbBacktestPanel');
         if (btPanel) btPanel.remove();
+        const btBackdrop = document.getElementById('sbBacktestBackdrop');
+        if (btBackdrop) btBackdrop.remove();
         panel.classList.add('open');
         if (this._importedStrategyCode) {
             this._renderAnalysis(this._importedStrategyCode);

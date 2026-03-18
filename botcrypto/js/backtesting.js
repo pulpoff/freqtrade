@@ -47,6 +47,9 @@ const BacktestingPage = {
                         <div class="col"><label class="form-label small text-secondary mb-0">Coin Pair</label>
                             <select class="form-select form-select-sm" id="btPair"></select>
                         </div>
+                    </div>
+
+                    <div class="row g-2 align-items-end mt-1">
                         <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Timeframe</label>
                             <select class="form-select form-select-sm" id="btTimeframe">
                                 <option value="" selected>Default</option>
@@ -61,9 +64,6 @@ const BacktestingPage = {
                         <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">End Date</label>
                             <input type="date" class="form-control form-control-sm" id="btEndDate" value="${this._defaultEndDate()}">
                         </div>
-                    </div>
-
-                    <div class="row g-2 align-items-end mt-1">
                         <div class="col-auto" style="width:140px"><label class="form-label small text-secondary mb-0">Wallet</label>
                             <div class="input-group input-group-sm">
                                 <input type="number" class="form-control form-control-sm" id="btWallet" value="1000">
@@ -73,19 +73,20 @@ const BacktestingPage = {
                         <div class="col-auto" style="width:120px"><label class="form-label small text-secondary mb-0">Stake</label>
                             <input type="text" class="form-control form-control-sm" id="btStakeAmount" value="unlimited">
                         </div>
-                        <div class="col-auto" style="width:80px"><label class="form-label small text-secondary mb-0">Max Trades</label>
+                        <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Max Trades</label>
                             <input type="number" class="form-control form-control-sm" id="btMaxTrades" value="3">
                         </div>
-                        <div class="col-auto d-flex align-items-center pt-3">
-                            <div class="form-check form-switch mb-0">
-                                <input type="checkbox" class="form-check-input" id="btProtections">
-                                <label class="form-check-label small" for="btProtections">Protections</label>
-                            </div>
-                        </div>
-                        <div class="col d-flex align-items-end">
-                            <button class="btn btn-success btn-sm w-100 fw-semibold" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()">
-                                <i class="bi bi-play-fill me-1"></i> Run Backtest
+                    </div>
+
+                    <div class="d-flex align-items-center mt-2">
+                        <div class="mx-auto">
+                            <button class="btn btn-success btn-sm fw-semibold px-5" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()" style="min-width:280px">
+                                Run Backtest
                             </button>
+                        </div>
+                        <div class="form-check form-switch mb-0 ms-3">
+                            <input type="checkbox" class="form-check-input" id="btProtections">
+                            <label class="form-check-label small" for="btProtections">Protections</label>
                         </div>
                     </div>
                 </div>
