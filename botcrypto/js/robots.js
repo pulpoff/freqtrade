@@ -233,8 +233,86 @@ const RobotsPage = {
     },
 
     async init() {
+        await this.syncBotStatus();
         await this.loadActiveBotInfo();
-        this.refreshTimer = setInterval(() => this.loadActiveBotInfo(), 15000);
+        this.refreshTimer = setInterval(() => {
+            this.syncBotStatus();
+            this.loadActiveBotInfo();
+        }, 15000);
+    },
+
+    /**
+     * Sync saved bot configs with the Freqtrade engine status.
+     * - Updates each saved bot's live status (running/stopped/not_found)
+     * - Offers to redeploy bots that were previously deployed but disappeared from engine
+     */
+    async syncBotStatus() {
+        if (!API.connected) return;
+        const bots = this._getSavedBots();
+        if (bots.length === 0) return;
+
+        let engineStrategies = [];
+        try {
+            const engineStatus = await API.getEngineStatus();
+            engineStrategies = engineStatus?.strategies || [];
+        } catch { return; }
+
+        const engineMap = new Map(engineStrategies.map(s => [s.strategy_id, s]));
+        let changed = false;
+
+        for (const bot of bots) {
+            if (!bot.strategy_id) {
+                // Never deployed
+                if (bot._liveStatus !== 'not_deployed') {
+                    bot._liveStatus = 'not_deployed';
+                    changed = true;
+                }
+                continue;
+            }
+
+            const engineEntry = engineMap.get(bot.strategy_id);
+            if (engineEntry) {
+                // Still registered in engine
+                const newStatus = engineEntry.status || 'unknown';
+                if (bot._liveStatus !== newStatus) {
+                    bot._liveStatus = newStatus;
+                    bot.deployed = true;
+                    changed = true;
+                }
+            } else if (bot.deployed) {
+                // Was deployed but no longer in engine — mark as lost
+                bot._liveStatus = 'not_found';
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            this._saveBots(bots);
+            // Re-render bot cards if on the page
+            const container = document.getElementById('savedBotCards');
+            if (container) container.innerHTML = this._renderSavedBotCards();
+        }
+    },
+
+    /**
+     * Auto-redeploy a bot that was previously deployed but is no longer in the engine.
+     */
+    async redeployBot(index) {
+        const bots = this._getSavedBots();
+        const bot = bots[index];
+        if (!bot || !bot.strategy) return;
+
+        if (!API.connected) {
+            App.showToast('Not connected to Freqtrade', 'warning');
+            return;
+        }
+
+        // Clear old strategy_id and redeploy
+        bot.strategy_id = null;
+        bot.deployed = false;
+        bot._liveStatus = 'not_deployed';
+        this._saveBots(bots);
+        await this.deployBot(index);
     },
 
     async loadActiveBotInfo() {
@@ -363,8 +441,18 @@ const RobotsPage = {
         if (!await App.confirm('Remove this managed strategy?', { title: 'Remove Strategy', confirmText: 'Remove' })) return;
         try {
             await API.removeManagedStrategy(strategyId);
+            // Update saved bot config if it references this strategy_id
+            const bots = this._getSavedBots();
+            const bot = bots.find(b => b.strategy_id === strategyId);
+            if (bot) {
+                bot.deployed = false;
+                bot._liveStatus = 'not_deployed';
+                bot.strategy_id = null;
+                this._saveBots(bots);
+            }
             App.showToast('Strategy removed', 'info');
             this.loadActiveBotInfo();
+            this.refresh();
         } catch (e) {
             App.showToast(`Failed: ${e.message}`, 'error');
         }
@@ -440,7 +528,44 @@ const RobotsPage = {
         </div>`;
 
         // Saved bot configs
+        html += `<div id="savedBotCards">${this._renderSavedBotCards()}</div>`;
+
+        return html;
+    },
+
+    _renderSavedBotCards() {
+        const bots = this._getSavedBots();
+        let html = '';
         bots.forEach((bot, i) => {
+            const status = bot._liveStatus || (bot.deployed ? 'unknown' : 'not_deployed');
+            const statusBadge = status === 'running'
+                ? '<span class="badge bg-success ms-2"><i class="bi bi-play-circle me-1"></i>Running</span>'
+                : status === 'stopped'
+                ? '<span class="badge bg-secondary ms-2"><i class="bi bi-stop-circle me-1"></i>Stopped</span>'
+                : status === 'starting'
+                ? '<span class="badge bg-warning text-dark ms-2"><i class="bi bi-hourglass-split me-1"></i>Starting</span>'
+                : status === 'error'
+                ? '<span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle me-1"></i>Error</span>'
+                : status === 'not_found'
+                ? '<span class="badge bg-warning text-dark ms-2"><i class="bi bi-exclamation-circle me-1"></i>Lost</span>'
+                : '';
+
+            const deployBtn = status === 'not_found'
+                ? `<button class="btn btn-warning btn-sm" onclick="RobotsPage.redeployBot(${i})" title="Redeploy (was running but lost)">
+                    <i class="bi bi-arrow-repeat me-1"></i>Redeploy
+                  </button>`
+                : status === 'running' || status === 'starting'
+                ? `<button class="btn btn-outline-danger btn-sm" onclick="RobotsPage.controlBot('stop', '${bot.strategy_id}')" title="Stop">
+                    <i class="bi bi-stop-fill"></i>
+                  </button>`
+                : status === 'stopped'
+                ? `<button class="btn btn-outline-success btn-sm" onclick="RobotsPage.controlBot('start', '${bot.strategy_id}')" title="Start">
+                    <i class="bi bi-play-fill"></i>
+                  </button>`
+                : `<button class="btn btn-outline-success btn-sm" onclick="RobotsPage.deployBot(${i})" title="Deploy to Freqtrade">
+                    <i class="bi bi-cloud-upload me-1"></i>Deploy
+                  </button>`;
+
             html += `
             <div class="card mb-2">
                 <div class="card-body py-2">
@@ -448,7 +573,7 @@ const RobotsPage = {
                         <div class="d-flex align-items-center gap-3">
                             <i class="bi bi-robot text-info"></i>
                             <div>
-                                <span class="fw-semibold">${bot.name || 'Bot ' + (i + 1)}</span>
+                                <span class="fw-semibold">${bot.name || 'Bot ' + (i + 1)}</span>${statusBadge}
                                 <div class="d-flex gap-2 mt-1 flex-wrap">
                                     <span class="badge" style="background:rgba(255,255,255,0.12);color:#fff">${bot.exchange || '-'}</span>
                                     <span class="badge" style="background:rgba(74,144,217,0.3);color:#fff">${bot.timeframe || '5m'}</span>
@@ -459,9 +584,7 @@ const RobotsPage = {
                             </div>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.deployBot(${i})" title="Deploy to Freqtrade">
-                                <i class="bi bi-cloud-upload me-1"></i>Deploy
-                            </button>
+                            ${deployBtn}
                             <button class="btn btn-outline-info btn-sm" onclick="RobotsPage.editBot(${i})" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
@@ -567,9 +690,10 @@ const RobotsPage = {
             App.showToast('Starting strategy...', 'info');
             await API.startManagedStrategy(strategyId);
 
-            // Save strategy_id back to bot config
+            // Save strategy_id and status back to bot config
             bots[index].strategy_id = strategyId;
             bots[index].deployed = true;
+            bots[index]._liveStatus = 'starting';
             this._saveBots(bots);
 
             App.showToast(`"${bot.name}" deployed and starting!`, 'success');

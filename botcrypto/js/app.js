@@ -301,6 +301,10 @@ const App = {
             text.textContent = 'Connected';
             text.className = 'small text-success status-text';
             API.connected = true;
+            // Sync saved bot configs with engine on reconnect
+            if (typeof RobotsPage !== 'undefined' && RobotsPage.syncBotStatus) {
+                RobotsPage.syncBotStatus().catch(() => {});
+            }
         } else {
             dot.className = 'status-dot disconnected me-2';
             text.textContent = 'Disconnected';
