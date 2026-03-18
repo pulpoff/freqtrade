@@ -101,193 +101,7 @@ const StrategyBuilderPage = {
                 </div>
             </div>
 
-            <!-- Backtest Panel (left overlay, botcrypto style) -->
-            <div class="sb-backtest-panel" id="sbBacktestPanel">
-                <div class="sb-bt-header">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-clock-history text-success"></i>
-                        <span class="fw-semibold">Backtest</span>
-                    </div>
-                    <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.toggleBacktestPanel()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- Config Section -->
-                <div class="sb-bt-section" id="sbBtConfig">
-                    <div class="mb-2">
-                        <label class="form-label small text-secondary mb-1">Select Coin</label>
-                        <select class="form-select form-select-sm" id="sbBtPair" style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)" required>
-                            <option value="" disabled selected>Choose a pair...</option>
-                        </select>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">Start</label>
-                            <input type="date" class="form-control form-control-sm" id="sbBtStart"
-                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">End</label>
-                            <input type="date" class="form-control form-control-sm" id="sbBtEnd"
-                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">Wallet</label>
-                            <div class="input-group input-group-sm">
-                                <input type="number" class="form-control" id="sbBtWallet" value="1000"
-                                    style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                                <span class="input-group-text" style="background:var(--bc-card);border-color:var(--bc-border);color:var(--bc-text-secondary)">USDT</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">Max Trades</label>
-                            <input type="number" class="form-control form-control-sm" id="sbBtMaxTrades" value="3"
-                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">Stake Amount</label>
-                            <input type="text" class="form-control form-control-sm" id="sbBtStake" value="unlimited"
-                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary mb-1">Timeframe</label>
-                            <select class="form-select form-select-sm" id="sbBtTimeframe"
-                                style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                                <option value="">Strategy default</option>
-                                <option value="1m">1m</option><option value="5m">5m</option>
-                                <option value="15m">15m</option><option value="1h">1h</option>
-                                <option value="4h">4h</option><option value="1d">1d</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small text-secondary mb-1">FreqAI Model</label>
-                        <select class="form-select form-select-sm" id="sbBtFreqaiModel"
-                            style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)">
-                            <option value="">None (no FreqAI)</option>
-                            <option value="LightGBMRegressor">LightGBMRegressor</option>
-                            <option value="LightGBMClassifier">LightGBMClassifier</option>
-                            <option value="LightGBMRegressorMultiTarget">LightGBMRegressorMultiTarget</option>
-                            <option value="LightGBMClassifierMultiTarget">LightGBMClassifierMultiTarget</option>
-                            <option value="XGBoostRegressor">XGBoostRegressor</option>
-                            <option value="XGBoostClassifier">XGBoostClassifier</option>
-                            <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
-                            <option value="XGBoostRFClassifier">XGBoostRFClassifier</option>
-                            <option value="XGBoostRegressorMultiTarget">XGBoostRegressorMultiTarget</option>
-                            <option value="SKLearnRandomForestClassifier">SKLearnRandomForestClassifier</option>
-                            <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
-                            <option value="PyTorchMLPClassifier">PyTorchMLPClassifier</option>
-                            <option value="PyTorchTransformerRegressor">PyTorchTransformerRegressor</option>
-                            <option value="ReinforcementLearner">ReinforcementLearner</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-success w-100 fw-semibold mt-2" id="sbBtRunBtn" onclick="StrategyBuilderPage.runBacktestInPanel()">
-                        <i class="bi bi-play-fill me-1"></i> LAUNCH THE BACKTEST
-                    </button>
-                </div>
-
-                <!-- Progress -->
-                <div class="sb-bt-section d-none" id="sbBtProgress">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <div class="spinner-border spinner-border-sm text-success"></div>
-                        <span class="small" id="sbBtProgressLabel">Preparing...</span>
-                    </div>
-                    <div class="progress mb-1" style="height:6px">
-                        <div class="progress-bar bg-success" id="sbBtProgressBar" style="width:0%"></div>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <small class="text-secondary" id="sbBtProgressDetail">Initializing...</small>
-                        <small class="text-secondary" id="sbBtProgressPct">0%</small>
-                    </div>
-                    <button class="btn btn-outline-danger btn-sm w-100 mt-2" onclick="StrategyBuilderPage.abortPanelBacktest()">
-                        <i class="bi bi-x-circle me-1"></i> Abort
-                    </button>
-                </div>
-
-                <!-- Results -->
-                <div class="sb-bt-section d-none" id="sbBtResults">
-                    <!-- Date range -->
-                    <div class="d-flex align-items-center gap-2 mb-2 small text-secondary">
-                        <i class="bi bi-calendar3"></i>
-                        <span id="sbBtDateRange"></span>
-                    </div>
-
-                    <!-- Chart -->
-                    <div class="sb-bt-chart-wrap mb-2">
-                        <div id="sbBtChart" style="height:200px;width:100%"></div>
-                    </div>
-
-                    <!-- Balance -->
-                    <div class="d-flex align-items-center gap-2 mb-3 py-2 px-2 rounded" style="background:var(--bc-bg)">
-                        <i class="bi bi-gem text-warning"></i>
-                        <span class="fw-semibold" id="sbBtBalance">0 USDT</span>
-                    </div>
-
-                    <!-- Equity Curve -->
-                    <div class="mb-3">
-                        <div id="sbBtEquity" style="height:120px;width:100%"></div>
-                    </div>
-
-                    <!-- Metrics Grid -->
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <div class="small text-secondary">Unrealized profits</div>
-                            <div class="fw-bold" id="sbBtUnrealized" style="color:var(--bc-text)">0 USDT</div>
-                            <div class="small text-secondary">Open orders pending</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="small text-secondary">Realized profits</div>
-                            <div class="fw-bold" id="sbBtRealized" style="color:var(--bc-green)">0 USDT</div>
-                            <div class="small text-secondary">Closed orders profits</div>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <div class="fw-bold fs-5" id="sbBtWinRate" style="color:var(--bc-green)">0 %</div>
-                            <div class="small text-secondary">Win rate</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="fw-bold fs-5" id="sbBtAvgProfit" style="color:var(--bc-green)">0 USDT</div>
-                            <div class="small text-secondary">Average profit</div>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <div class="small text-secondary">Total trades</div>
-                            <div class="fw-semibold" id="sbBtTotalTrades">0</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="small text-secondary">Max Drawdown</div>
-                            <div class="fw-semibold text-danger" id="sbBtDrawdown">0%</div>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <div class="small text-secondary">Avg Duration</div>
-                            <div class="fw-semibold" id="sbBtAvgDuration">-</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="small text-secondary">Profit Factor</div>
-                            <div class="fw-semibold" id="sbBtProfitFactor">-</div>
-                        </div>
-                    </div>
-
-                    <!-- Trades table -->
-                    <div class="sb-bt-trades">
-                        <h6 class="small fw-semibold text-secondary text-uppercase mb-2">Recent Trades</h6>
-                        <div id="sbBtTradesList" style="max-height:200px;overflow-y:auto"></div>
-                    </div>
-
-                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.resetBacktestPanel()">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i> New Backtest
-                    </button>
-                </div>
-            </div>
+            <!-- Backtest Panel injected dynamically by toggleBacktestPanel() -->
 
             <!-- Strategy Analysis Panel (right overlay) -->
             <div class="sb-analysis-panel" id="sbAnalysisPanel">
@@ -2442,29 +2256,144 @@ ${entryConditions.length > 0 ?
     },
 
     // ========== BACKTEST PANEL ==========
-    toggleBacktestPanel() {
-        const panel = document.getElementById('sbBacktestPanel');
-        if (!panel) return;
-        const isOpen = panel.classList.contains('open');
-        if (isOpen) {
-            panel.classList.remove('open');
-            if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
-        } else {
-            this.hideAnalysis();
-            panel.classList.add('open');
-            this._initBacktestPanel();
-        }
-    },
-
-    _initBacktestPanel() {
+    _backtestPanelHTML() {
         const end = new Date();
         const start = new Date();
         start.setDate(start.getDate() - 30);
         const fmt = d => d.toISOString().split('T')[0];
-        const startEl = document.getElementById('sbBtStart');
-        const endEl = document.getElementById('sbBtEnd');
-        if (startEl && !startEl.value) startEl.value = fmt(start);
-        if (endEl && !endEl.value) endEl.value = fmt(end);
+        const inp = 'style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)"';
+        return `<div class="sb-backtest-panel open" id="sbBacktestPanel">
+            <div class="sb-bt-header">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-clock-history text-success"></i>
+                    <span class="fw-semibold">Backtest</span>
+                </div>
+                <button class="btn btn-sm btn-link text-secondary p-0" onclick="StrategyBuilderPage.toggleBacktestPanel()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="sb-bt-section" id="sbBtConfig">
+                <div class="mb-2">
+                    <label class="form-label small text-secondary mb-1">Select Coin</label>
+                    <select class="form-select form-select-sm" id="sbBtPair" ${inp} required>
+                        <option value="" disabled selected>Choose a pair...</option>
+                    </select>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">Start</label>
+                        <input type="date" class="form-control form-control-sm" id="sbBtStart" value="${fmt(start)}" ${inp}></div>
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">End</label>
+                        <input type="date" class="form-control form-control-sm" id="sbBtEnd" value="${fmt(end)}" ${inp}></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">Wallet</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="sbBtWallet" value="1000" ${inp}>
+                            <span class="input-group-text" style="background:var(--bc-card);border-color:var(--bc-border);color:var(--bc-text-secondary)">USDT</span>
+                        </div></div>
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">Max Trades</label>
+                        <input type="number" class="form-control form-control-sm" id="sbBtMaxTrades" value="3" ${inp}></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">Stake Amount</label>
+                        <input type="text" class="form-control form-control-sm" id="sbBtStake" value="unlimited" ${inp}></div>
+                    <div class="col-6"><label class="form-label small text-secondary mb-1">Timeframe</label>
+                        <select class="form-select form-select-sm" id="sbBtTimeframe" ${inp}>
+                            <option value="">Strategy default</option>
+                            <option value="1m">1m</option><option value="5m">5m</option>
+                            <option value="15m">15m</option><option value="1h">1h</option>
+                            <option value="4h">4h</option><option value="1d">1d</option>
+                        </select></div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-secondary mb-1">FreqAI Model</label>
+                    <select class="form-select form-select-sm" id="sbBtFreqaiModel" ${inp}>
+                        <option value="">None (no FreqAI)</option>
+                        <option value="LightGBMRegressor">LightGBMRegressor</option>
+                        <option value="LightGBMClassifier">LightGBMClassifier</option>
+                        <option value="LightGBMRegressorMultiTarget">LightGBMRegressorMultiTarget</option>
+                        <option value="LightGBMClassifierMultiTarget">LightGBMClassifierMultiTarget</option>
+                        <option value="XGBoostRegressor">XGBoostRegressor</option>
+                        <option value="XGBoostClassifier">XGBoostClassifier</option>
+                        <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
+                        <option value="XGBoostRFClassifier">XGBoostRFClassifier</option>
+                        <option value="XGBoostRegressorMultiTarget">XGBoostRegressorMultiTarget</option>
+                        <option value="SKLearnRandomForestClassifier">SKLearnRandomForestClassifier</option>
+                        <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
+                        <option value="PyTorchMLPClassifier">PyTorchMLPClassifier</option>
+                        <option value="PyTorchTransformerRegressor">PyTorchTransformerRegressor</option>
+                        <option value="ReinforcementLearner">ReinforcementLearner</option>
+                    </select>
+                </div>
+                <button class="btn btn-success w-100 fw-semibold mt-2" id="sbBtRunBtn" onclick="StrategyBuilderPage.runBacktestInPanel()">
+                    <i class="bi bi-play-fill me-1"></i> LAUNCH THE BACKTEST
+                </button>
+            </div>
+            <div class="sb-bt-section d-none" id="sbBtProgress">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="spinner-border spinner-border-sm text-success"></div>
+                    <span class="small" id="sbBtProgressLabel">Preparing...</span>
+                </div>
+                <div class="progress mb-1" style="height:6px">
+                    <div class="progress-bar bg-success" id="sbBtProgressBar" style="width:0%"></div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-secondary" id="sbBtProgressDetail">Initializing...</small>
+                    <small class="text-secondary" id="sbBtProgressPct">0%</small>
+                </div>
+                <button class="btn btn-outline-danger btn-sm w-100 mt-2" onclick="StrategyBuilderPage.abortPanelBacktest()">
+                    <i class="bi bi-x-circle me-1"></i> Abort
+                </button>
+            </div>
+            <div class="sb-bt-section d-none" id="sbBtResults">
+                <div class="d-flex align-items-center gap-2 mb-2 small text-secondary">
+                    <i class="bi bi-calendar3"></i><span id="sbBtDateRange"></span>
+                </div>
+                <div class="sb-bt-chart-wrap mb-2"><div id="sbBtChart" style="height:200px;width:100%"></div></div>
+                <div class="d-flex align-items-center gap-2 mb-3 py-2 px-2 rounded" style="background:var(--bc-bg)">
+                    <i class="bi bi-gem text-warning"></i><span class="fw-semibold" id="sbBtBalance">0 USDT</span>
+                </div>
+                <div class="mb-3"><div id="sbBtEquity" style="height:120px;width:100%"></div></div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><div class="small text-secondary">Unrealized profits</div><div class="fw-bold" id="sbBtUnrealized" style="color:var(--bc-text)">0 USDT</div><div class="small text-secondary">Open orders pending</div></div>
+                    <div class="col-6"><div class="small text-secondary">Realized profits</div><div class="fw-bold" id="sbBtRealized" style="color:var(--bc-green)">0 USDT</div><div class="small text-secondary">Closed orders profits</div></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><div class="fw-bold fs-5" id="sbBtWinRate" style="color:var(--bc-green)">0 %</div><div class="small text-secondary">Win rate</div></div>
+                    <div class="col-6"><div class="fw-bold fs-5" id="sbBtAvgProfit" style="color:var(--bc-green)">0 USDT</div><div class="small text-secondary">Average profit</div></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><div class="small text-secondary">Total trades</div><div class="fw-semibold" id="sbBtTotalTrades">0</div></div>
+                    <div class="col-6"><div class="small text-secondary">Max Drawdown</div><div class="fw-semibold text-danger" id="sbBtDrawdown">0%</div></div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><div class="small text-secondary">Avg Duration</div><div class="fw-semibold" id="sbBtAvgDuration">-</div></div>
+                    <div class="col-6"><div class="small text-secondary">Profit Factor</div><div class="fw-semibold" id="sbBtProfitFactor">-</div></div>
+                </div>
+                <div class="sb-bt-trades">
+                    <h6 class="small fw-semibold text-secondary text-uppercase mb-2">Recent Trades</h6>
+                    <div id="sbBtTradesList" style="max-height:200px;overflow-y:auto"></div>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="StrategyBuilderPage.resetBacktestPanel()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> New Backtest
+                </button>
+            </div>
+        </div>`;
+    },
+
+    toggleBacktestPanel() {
+        const existing = document.getElementById('sbBacktestPanel');
+        if (existing) {
+            // Close: remove from DOM entirely
+            existing.remove();
+            if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+            return;
+        }
+        // Open: inject into DOM
+        this.hideAnalysis();
+        const container = document.getElementById('strategyBuilderView');
+        if (!container) return;
+        container.insertAdjacentHTML('beforeend', this._backtestPanelHTML());
         this._loadPanelPairs();
     },
 
@@ -2598,20 +2527,23 @@ ${entryConditions.length > 0 ?
             this._updatePanelProgress(5, 'Resetting...', 'Clearing previous backtest');
             await API.resetBacktest().catch(() => {});
 
-            // Pre-download data for selected pair and common informative timeframes
-            this._updatePanelProgress(8, 'Downloading data...', `${selectedPair} (multiple timeframes)`);
+            // Check available data and only download missing timeframes
+            this._updatePanelProgress(8, 'Checking data...', `${selectedPair}`);
             const dlTimeframes = [timeframe || '5m'];
             for (const tf of ['1h', '4h', '1d']) {
                 if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
             }
             try {
-                const dlResult = await API.downloadData({
+                const dlResult = await API.downloadMissingData({
                     pairs: [selectedPair],
                     timeframes: dlTimeframes,
                     timerange: `${startDate}-${endDate}`,
                 });
                 if (dlResult && dlResult.job_id) {
+                    this._updatePanelProgress(10, 'Downloading missing data...', selectedPair);
                     await this._waitForDownload(dlResult.job_id);
+                } else {
+                    this._updatePanelProgress(18, 'Data ready', 'Using cached data');
                 }
             } catch(dlErr) {
                 console.log('Pre-download skipped:', dlErr.message);
@@ -2750,8 +2682,8 @@ ${entryConditions.length > 0 ?
             for (const tf of ['1h', '4h', '1d']) {
                 if (!timeframes.includes(tf)) timeframes.push(tf);
             }
-            this._updatePanelProgress(5, `Downloading data for ${pairs.length} pair(s)...`, pairs.join(', '));
-            const result = await API.downloadData({ pairs, timeframes, timerange });
+            this._updatePanelProgress(5, 'Checking data...', pairs.join(', '));
+            const result = await API.downloadMissingData({ pairs, timeframes, timerange });
             if (result && result.job_id) {
                 this._btDownloadJobId = result.job_id;
                 this._pollDownloadForPanel();
@@ -2942,7 +2874,7 @@ ${entryConditions.length > 0 ?
         const panel = document.getElementById('sbAnalysisPanel');
         if (!panel) return;
         const btPanel = document.getElementById('sbBacktestPanel');
-        if (btPanel) btPanel.classList.remove('open');
+        if (btPanel) btPanel.remove();
         panel.classList.add('open');
         if (this._importedStrategyCode) {
             this._renderAnalysis(this._importedStrategyCode);

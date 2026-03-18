@@ -323,6 +323,34 @@ const API = {
         });
     },
 
+    /**
+     * Check available data and only download missing pair/timeframe combinations.
+     * Returns the job_id if a download was started, or null if all data exists.
+     */
+    async downloadMissingData({ pairs, timeframes, timerange }) {
+        try {
+            const available = await this.getAvailablePairs();
+            // Build set of existing pair+timeframe combos
+            const existingSet = new Set();
+            for (const pi of (available.pair_interval || [])) {
+                existingSet.add(`${pi[0]}__${pi[1]}`);
+            }
+            // Filter to only missing timeframes per pair
+            const missingTimeframes = timeframes.filter(tf =>
+                pairs.some(p => !existingSet.has(`${p}__${tf}`))
+            );
+            if (missingTimeframes.length === 0) {
+                console.log('All data already available, skipping download');
+                return null;
+            }
+            console.log(`Downloading missing timeframes: ${missingTimeframes.join(', ')} (have: ${timeframes.filter(tf => !missingTimeframes.includes(tf)).join(', ') || 'none'})`);
+            return this.downloadData({ pairs, timeframes: missingTimeframes, timerange });
+        } catch (e) {
+            console.log('Could not check available data, downloading all:', e.message);
+            return this.downloadData({ pairs, timeframes, timerange });
+        }
+    },
+
     // ========== HELPER: Parse candle data ==========
     /** Convert Freqtrade pair_candles response to OHLCV array */
     parseCandleData(data) {

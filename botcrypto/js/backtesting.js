@@ -414,15 +414,18 @@ const BacktestingPage = {
             for (const tf of ['1h', '4h', '1d']) {
                 if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
             }
-            this.updateProgress(8, `Downloading data for ${dlPairs.length} pair(s)...`);
+            this.updateProgress(8, 'Checking available data...');
             try {
-                const dlResult = await API.downloadData({
+                const dlResult = await API.downloadMissingData({
                     pairs: dlPairs,
                     timeframes: dlTimeframes,
                     timerange: timerange,
                 });
                 if (dlResult && dlResult.job_id) {
+                    this.updateProgress(10, 'Downloading missing data...');
                     await this._waitForDownload(dlResult.job_id);
+                } else {
+                    this.updateProgress(18, 'Data already available');
                 }
             } catch(dlErr) {
                 console.log('Pre-download skipped:', dlErr.message);
@@ -528,11 +531,11 @@ const BacktestingPage = {
                 if (!timeframes.includes(tf)) timeframes.push(tf);
             }
 
-            this.updateProgress(5, `Downloading data for ${pairs.length} pair(s)...`);
+            this.updateProgress(5, 'Checking available data...');
             const detail = document.getElementById('btProgressDetail');
-            if (detail) detail.textContent = `Pairs: ${pairs.join(', ')} | Timeframes: ${timeframes.join(', ')}`;
+            if (detail) detail.textContent = `${pairs.join(', ')} | ${timeframes.join(', ')}`;
 
-            const result = await API.downloadData({
+            const result = await API.downloadMissingData({
                 pairs: pairs,
                 timeframes: timeframes,
                 timerange: timerange,
