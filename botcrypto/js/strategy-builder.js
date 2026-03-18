@@ -351,6 +351,12 @@ const StrategyBuilderPage = {
             }
         };
         document.addEventListener('keydown', this._keyHandler);
+
+        // If returning from another page while backtest was running, reopen panel
+        if (this._reopenBacktestAfterNav) {
+            this._reopenBacktestAfterNav = false;
+            setTimeout(() => this._reopenBacktestPanel(), 200);
+        }
     },
 
     createDefaultNodes() {
@@ -2596,17 +2602,24 @@ ${entryConditions.length > 0 ?
 
     async _pollPanelBacktest() {
         if (!this._btRunning) return;
+        const panelVisible = !!document.getElementById('sbBtProgressBar');
         try {
             const status = await API.getBacktestStatus();
             if (status.running) {
                 const pct = 15 + (status.progress || 0) * 80;
                 const step = status.step || status.status_msg || 'Processing...';
                 this._updatePanelProgress(pct, step, status.trade_count ? `${status.trade_count} trades found` : 'Running...');
+                this._updateNotification(pct, `Backtest: ${Math.round(pct)}%`, step);
                 this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 1500);
             } else if (status.status === 'ended' || (status.backtest_result && !status.running)) {
                 this._updatePanelProgress(95, 'Processing results...', '');
                 this._btRunning = false;
-                setTimeout(() => this._displayPanelResults(status.backtest_result || status), 300);
+                this._btLastResult = status.backtest_result || status;
+                if (panelVisible) {
+                    setTimeout(() => this._displayPanelResults(this._btLastResult), 300);
+                }
+                this._showNotificationComplete(true);
+                App.showToast('Backtest complete!', 'success');
             } else if (status.status === 'error') {
                 const errMsg = status.status_msg || 'Unknown error';
                 const isDataError = errMsg.includes('No data found') || errMsg.includes('No data')
@@ -2614,25 +2627,36 @@ ${entryConditions.length > 0 ?
                 if (isDataError && !this._btAutoDownloaded) {
                     this._btAutoDownloaded = true;
                     this._updatePanelProgress(0, 'No data - downloading...', 'Auto-downloading market data');
+                    this._updateNotification(0, 'Downloading data...', 'Auto-downloading market data');
                     this._autoDownloadForPanel();
                     return;
                 }
                 this._btRunning = false;
                 this.resetBacktestPanel();
-                // Show modal for FreqAI or detailed errors
-                if (errMsg.includes('freqai') || errMsg.includes('FreqAI') || errMsg.includes('freqaimodel')) {
-                    this._showErrorModal('FreqAI Model Required',
-                        'This strategy requires a FreqAI model to run. Please select a FreqAI model from the dropdown before launching the backtest.',
-                        errMsg);
+                this._showNotificationComplete(false);
+                if (panelVisible) {
+                    if (errMsg.includes('freqai') || errMsg.includes('FreqAI') || errMsg.includes('freqaimodel')) {
+                        this._showErrorModal('FreqAI Model Required',
+                            'This strategy requires a FreqAI model to run. Please select a FreqAI model from the dropdown before launching the backtest.',
+                            errMsg);
+                    } else {
+                        this._showErrorModal('Backtest Error', 'The backtest failed with an error.', errMsg);
+                    }
                 } else {
-                    this._showErrorModal('Backtest Error', 'The backtest failed with an error.', errMsg);
+                    App.showToast(`Backtest error: ${errMsg}`, 'error');
                 }
             } else {
                 this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 2000);
             }
         } catch(e) {
+            // Network errors while in background - keep retrying
+            if (!panelVisible && this._btRunning) {
+                this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 3000);
+                return;
+            }
             this._btRunning = false;
             this.resetBacktestPanel();
+            this._showNotificationComplete(false);
             App.showToast(`Poll error: ${e.message}`, 'error');
         }
     },
@@ -3118,9 +3142,111 @@ ${entryConditions.length > 0 ?
             document.removeEventListener('wheel', this._wheelHandler);
             this._wheelHandler = null;
         }
-        if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+        // If backtest is running, keep polling and show persistent notification
+        if (this._btRunning) {
+            // Remove the modal panel but keep polling
+            const panel = document.getElementById('sbBacktestPanel');
+            if (panel) panel.remove();
+            const backdrop = document.getElementById('sbBacktestBackdrop');
+            if (backdrop) backdrop.remove();
+            this._showBacktestNotification();
+        } else {
+            if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
+        }
         if (this._btChart) { try { this._btChart.remove(); } catch(e) {} this._btChart = null; }
         if (this._btEquityChart) { try { this._btEquityChart.remove(); } catch(e) {} this._btEquityChart = null; }
         document.querySelectorAll('.node-context-menu').forEach(m => m.remove());
-    }
+    },
+
+    // ========== PERSISTENT BACKTEST NOTIFICATION ==========
+
+    /** Show floating notification in bottom-right when backtest runs in background */
+    _showBacktestNotification() {
+        if (document.getElementById('btPersistentNotif')) return;
+        const html = `<div id="btPersistentNotif" class="bt-persistent-notif" onclick="StrategyBuilderPage._openBacktestFromNotif()">
+            <div class="d-flex align-items-center gap-2">
+                <div class="spinner-border spinner-border-sm text-success" id="btNotifSpinner"></div>
+                <div>
+                    <div class="fw-semibold small" id="btNotifTitle">Backtest running...</div>
+                    <div class="text-secondary" style="font-size:11px" id="btNotifDetail">Click to view progress</div>
+                </div>
+            </div>
+            <div class="progress mt-2" style="height:4px">
+                <div class="progress-bar bg-success" id="btNotifProgress" style="width:50%"></div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+    },
+
+    /** Update the persistent notification with progress */
+    _updateNotification(pct, title, detail) {
+        const notif = document.getElementById('btPersistentNotif');
+        if (!notif) return;
+        const titleEl = document.getElementById('btNotifTitle');
+        const detailEl = document.getElementById('btNotifDetail');
+        const bar = document.getElementById('btNotifProgress');
+        if (titleEl) titleEl.textContent = title;
+        if (detailEl) detailEl.textContent = detail || 'Click to view';
+        if (bar) bar.style.width = pct + '%';
+    },
+
+    /** Mark notification as complete */
+    _showNotificationComplete(success) {
+        const notif = document.getElementById('btPersistentNotif');
+        if (!notif) return;
+        const spinner = document.getElementById('btNotifSpinner');
+        if (spinner) spinner.outerHTML = `<i class="bi ${success ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'}" style="font-size:1.2rem"></i>`;
+        const titleEl = document.getElementById('btNotifTitle');
+        if (titleEl) titleEl.textContent = success ? 'Backtest complete!' : 'Backtest failed';
+        const detailEl = document.getElementById('btNotifDetail');
+        if (detailEl) detailEl.textContent = 'Click to view results';
+        const bar = document.getElementById('btNotifProgress');
+        if (bar) bar.style.width = '100%';
+        // Auto-dismiss after 30s if not clicked
+        setTimeout(() => { const n = document.getElementById('btPersistentNotif'); if (n) n.remove(); }, 30000);
+    },
+
+    /** Remove the notification */
+    _removeNotification() {
+        const notif = document.getElementById('btPersistentNotif');
+        if (notif) notif.remove();
+    },
+
+    /** Clicking notification opens backtest modal with current state */
+    _openBacktestFromNotif() {
+        this._removeNotification();
+        // If we're not on strategy-builder page, navigate there first
+        const currentPage = location.hash.substring(1);
+        if (currentPage !== 'strategy-builder') {
+            // Navigate to strategy builder, then open backtest panel after init
+            this._reopenBacktestAfterNav = true;
+            location.hash = 'strategy-builder';
+            return;
+        }
+        // Already on strategy builder - just open the panel
+        this._reopenBacktestPanel();
+    },
+
+    /** Re-open the backtest panel showing current progress or results */
+    _reopenBacktestPanel() {
+        const existing = document.getElementById('sbBacktestPanel');
+        if (existing) return; // already open
+
+        const container = document.body;
+        container.insertAdjacentHTML('beforeend',
+            `<div class="sb-backtest-backdrop" id="sbBacktestBackdrop" onclick="StrategyBuilderPage.toggleBacktestPanel()"></div>`
+            + this._backtestPanelHTML());
+        this._loadPanelPairs();
+
+        if (this._btRunning) {
+            // Show progress state
+            const config = document.getElementById('sbBtConfig');
+            const progress = document.getElementById('sbBtProgress');
+            if (config) config.classList.add('d-none');
+            if (progress) progress.classList.remove('d-none');
+        } else if (this._btLastResult) {
+            // Show stored results
+            this._displayPanelResults(this._btLastResult);
+        }
+    },
 };
