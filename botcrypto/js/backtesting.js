@@ -59,18 +59,19 @@ const BacktestingPage = {
                 <!-- Results Header -->
                 <div class="card mb-3" id="btResultsHeader"></div>
 
-                <!-- Top: Chart + Key Metrics (botcrypto layout) -->
+                <!-- Top: Chart + Key Metrics -->
                 <div class="row g-3 mb-3">
-                    <!-- Left: Market Chart with buy/sell markers -->
+                    <!-- Left: Market Chart with buy/sell markers + volume -->
                     <div class="col-lg-8">
                         <div class="card h-100">
                             <div class="card-body">
                                 <div id="btChartToolbar"></div>
                                 <div id="btChart" class="chart-container" style="height:400px"></div>
+                                <div id="btSignalCounts" class="d-flex gap-3 mt-1 small text-secondary"></div>
                             </div>
                         </div>
                     </div>
-                    <!-- Right: Key Metrics (large typography like botcrypto) -->
+                    <!-- Right: Key Metrics -->
                     <div class="col-lg-4">
                         <div class="card h-100">
                             <div class="card-body d-flex flex-column">
@@ -85,12 +86,52 @@ const BacktestingPage = {
                     </div>
                 </div>
 
-                <!-- Bottom: Equity Chart + Trade Log -->
-                <div class="row g-3">
+                <!-- Profit Graph: Cumulative Profit + Drawdown + Parallelism -->
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Cumulative Profit</h6>
+                                <div id="btProfitChart" style="height:200px"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-graph-down-arrow me-2 text-danger"></i>Drawdown</h6>
+                                <div id="btDrawdownChart" style="height:200px"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-Pair Results + Exit Reason Summary -->
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart-steps me-2 text-info"></i>Results per Pair</h6>
+                                <div id="btPairResults" class="table-responsive" style="max-height:300px;overflow:auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-tag me-2 text-warning"></i>Exit Reason Summary</h6>
+                                <div id="btExitReasons" class="table-responsive" style="max-height:300px;overflow:auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Equity Curve + Trade Log -->
+                <div class="row g-3 mb-3">
                     <div class="col-lg-4">
                         <div class="card h-100">
                             <div class="card-body">
-                                <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Equity Curve</h6>
+                                <h6 class="fw-semibold mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>Equity Curve</h6>
                                 <div id="btEquityChart" style="height:180px"></div>
                                 <div id="btProfitDisplay" class="mt-2"></div>
                             </div>
@@ -731,14 +772,318 @@ const BacktestingPage = {
             }
         }
 
+        // Per-pair results table
+        this._renderPairResults(stratResult, stakeCurrency);
+
+        // Exit reason summary table
+        this._renderExitReasons(stratResult, stakeCurrency);
+
+        // CLI-style text report
+        this._renderTextReport(stratResult, result);
+
         // Charts
         setTimeout(() => {
             this.initResultChart(trades, stratResult);
             this.initEquityChart(trades, stratResult);
+            this.initProfitChart(trades, stratResult);
+            this.initDrawdownChart(trades, stratResult);
         }, 100);
 
         document.getElementById('btResults').classList.remove('d-none');
         App.showToast(`Backtest completed! ${trades.length} trades`, 'success');
+    },
+
+    /** Render per-pair results breakdown table */
+    _renderPairResults(stratResult, currency) {
+        const el = document.getElementById('btPairResults');
+        if (!el) return;
+        const rpp = stratResult.results_per_pair || [];
+        if (rpp.length === 0) {
+            // Compute from trades
+            const trades = stratResult.trades || [];
+            const pairMap = {};
+            trades.forEach(t => {
+                const p = t.pair || '-';
+                if (!pairMap[p]) pairMap[p] = { pair: p, trades: 0, profitAbs: 0, profitPct: 0, wins: 0, losses: 0 };
+                pairMap[p].trades++;
+                pairMap[p].profitAbs += (t.profit_abs || 0);
+                pairMap[p].profitPct += ((t.profit_ratio || 0) * 100);
+                if ((t.profit_ratio || 0) >= 0) pairMap[p].wins++; else pairMap[p].losses++;
+            });
+            const pairs = Object.values(pairMap).sort((a, b) => b.profitAbs - a.profitAbs);
+            el.innerHTML = this._pairResultsTable(pairs, currency, true);
+            return;
+        }
+        el.innerHTML = `
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Pair</th><th>Trades</th><th>Avg Profit%</th><th>Tot Profit%</th><th>Tot Profit</th><th>Won</th><th>Lost</th></tr></thead>
+            <tbody>
+                ${rpp.map(r => {
+                    const profitClass = (r.profit_total_abs || r.profit_abs || 0) >= 0 ? 'text-profit' : 'text-loss';
+                    return `<tr>
+                        <td class="fw-semibold small">${Components.cleanPairName(r.key || r.pair || '-')}</td>
+                        <td>${r.trades || 0}</td>
+                        <td class="${profitClass}">${Components.formatPercent((r.profit_mean || 0) * 100)}</td>
+                        <td class="${profitClass}">${Components.formatPercent((r.profit_total || 0) * 100)}</td>
+                        <td class="${profitClass} fw-semibold">${Components.formatNumber(r.profit_total_abs || r.profit_abs || 0, 2)} ${currency}</td>
+                        <td class="text-profit">${r.wins || 0}</td>
+                        <td class="text-loss">${r.losses || 0}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    },
+
+    _pairResultsTable(pairs, currency, computed) {
+        return `
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Pair</th><th>Trades</th><th>Profit</th><th>Won</th><th>Lost</th></tr></thead>
+            <tbody>
+                ${pairs.map(r => {
+                    const profitClass = r.profitAbs >= 0 ? 'text-profit' : 'text-loss';
+                    return `<tr>
+                        <td class="fw-semibold small">${Components.cleanPairName(r.pair)}</td>
+                        <td>${r.trades}</td>
+                        <td class="${profitClass} fw-semibold">${r.profitAbs >= 0 ? '+' : ''}${Components.formatNumber(r.profitAbs, 2)} ${currency}</td>
+                        <td class="text-profit">${r.wins}</td>
+                        <td class="text-loss">${r.losses}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    },
+
+    /** Render exit reason summary table */
+    _renderExitReasons(stratResult, currency) {
+        const el = document.getElementById('btExitReasons');
+        if (!el) return;
+        const ers = stratResult.exit_reason_summary || stratResult.sell_reason_summary || [];
+        if (ers.length === 0) {
+            // Compute from trades
+            const trades = stratResult.trades || [];
+            const reasonMap = {};
+            trades.forEach(t => {
+                const r = t.exit_reason || t.sell_reason || 'unknown';
+                if (!reasonMap[r]) reasonMap[r] = { reason: r, trades: 0, profitAbs: 0, wins: 0, losses: 0 };
+                reasonMap[r].trades++;
+                reasonMap[r].profitAbs += (t.profit_abs || 0);
+                if ((t.profit_ratio || 0) >= 0) reasonMap[r].wins++; else reasonMap[r].losses++;
+            });
+            const reasons = Object.values(reasonMap).sort((a, b) => b.trades - a.trades);
+            el.innerHTML = `
+            <table class="table table-sm table-hover mb-0">
+                <thead><tr><th>Exit Reason</th><th>Trades</th><th>Profit</th><th>Won</th><th>Lost</th></tr></thead>
+                <tbody>
+                    ${reasons.map(r => {
+                        const profitClass = r.profitAbs >= 0 ? 'text-profit' : 'text-loss';
+                        return `<tr>
+                            <td class="fw-semibold small">${r.reason}</td>
+                            <td>${r.trades}</td>
+                            <td class="${profitClass} fw-semibold">${r.profitAbs >= 0 ? '+' : ''}${Components.formatNumber(r.profitAbs, 2)} ${currency}</td>
+                            <td class="text-profit">${r.wins}</td>
+                            <td class="text-loss">${r.losses}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+            return;
+        }
+        el.innerHTML = `
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th>Exit Reason</th><th>Trades</th><th>Avg Profit%</th><th>Tot Profit</th><th>Won</th><th>Lost</th></tr></thead>
+            <tbody>
+                ${ers.map(r => {
+                    const profitClass = (r.profit_total_abs || 0) >= 0 ? 'text-profit' : 'text-loss';
+                    return `<tr>
+                        <td class="fw-semibold small">${r.exit_reason || r.sell_reason || '-'}</td>
+                        <td>${r.trades || 0}</td>
+                        <td class="${profitClass}">${Components.formatPercent((r.profit_mean || 0) * 100)}</td>
+                        <td class="${profitClass} fw-semibold">${Components.formatNumber(r.profit_total_abs || 0, 2)} ${currency}</td>
+                        <td class="text-profit">${r.wins || 0}</td>
+                        <td class="text-loss">${r.losses || 0}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    },
+
+    /** Render CLI-style text report (save + display) */
+    _renderTextReport(stratResult, fullResult) {
+        const trades = stratResult.trades || [];
+        const currency = stratResult.stake_currency || 'USDT';
+        const stratName = stratResult.strategy_name || 'Strategy';
+        const startBal = stratResult.starting_balance || 1000;
+        const finalBal = stratResult.final_balance || startBal;
+        const totalProfit = stratResult.profit_total_abs || 0;
+        const profitPct = ((stratResult.profit_total || 0) * 100).toFixed(2);
+        const wins = stratResult.wins || 0;
+        const losses = stratResult.losses || 0;
+        const draws = stratResult.draws || 0;
+        const maxDD = ((stratResult.max_drawdown_account || stratResult.max_drawdown || 0) * 100).toFixed(2);
+        const avgDuration = stratResult.holding_avg || stratResult.duration_avg || '-';
+        const timeframe = stratResult.timeframe || '-';
+        const timerange = `${stratResult.backtest_start || ''} - ${stratResult.backtest_end || ''}`;
+
+        // Build per-pair summary
+        let pairLines = '';
+        const pairMap = {};
+        trades.forEach(t => {
+            const p = t.pair || '-';
+            if (!pairMap[p]) pairMap[p] = { trades: 0, profitAbs: 0, avgProfit: 0, wins: 0, losses: 0 };
+            pairMap[p].trades++;
+            pairMap[p].profitAbs += (t.profit_abs || 0);
+            pairMap[p].avgProfit += ((t.profit_ratio || 0) * 100);
+            if ((t.profit_ratio || 0) >= 0) pairMap[p].wins++; else pairMap[p].losses++;
+        });
+        for (const [pair, d] of Object.entries(pairMap)) {
+            const avg = d.trades > 0 ? (d.avgProfit / d.trades).toFixed(2) : '0.00';
+            pairLines += `| ${pair.padEnd(20)} | ${String(d.trades).padStart(6)} | ${(avg + '%').padStart(10)} | ${d.profitAbs.toFixed(2).padStart(12)} ${currency} | ${String(d.wins).padStart(4)} | ${String(d.losses).padStart(5)} |\n`;
+        }
+
+        // Build exit reason summary
+        let exitLines = '';
+        const exitMap = {};
+        trades.forEach(t => {
+            const r = t.exit_reason || t.sell_reason || 'unknown';
+            if (!exitMap[r]) exitMap[r] = { trades: 0, profitAbs: 0, wins: 0, losses: 0 };
+            exitMap[r].trades++;
+            exitMap[r].profitAbs += (t.profit_abs || 0);
+            if ((t.profit_ratio || 0) >= 0) exitMap[r].wins++; else exitMap[r].losses++;
+        });
+        for (const [reason, d] of Object.entries(exitMap)) {
+            exitLines += `| ${reason.padEnd(20)} | ${String(d.trades).padStart(6)} | ${d.profitAbs.toFixed(2).padStart(12)} ${currency} | ${String(d.wins).padStart(4)} | ${String(d.losses).padStart(5)} |\n`;
+        }
+
+        const sep = '=' .repeat(80);
+        const report = `${sep}
+BACKTEST REPORT - ${stratName}
+${sep}
+Timeframe: ${timeframe}
+Timerange: ${timerange}
+Starting balance: ${startBal} ${currency}
+
+RESULTS PER PAIR
+${'─'.repeat(80)}
+| ${'Pair'.padEnd(20)} | ${'Trades'.padStart(6)} | ${'Avg Profit'.padStart(10)} | ${'Tot Profit'.padStart(12)}      | ${'Won'.padStart(4)} | ${'Lost'.padStart(5)} |
+${'─'.repeat(80)}
+${pairLines}${'─'.repeat(80)}
+
+EXIT REASON STATS
+${'─'.repeat(80)}
+| ${'Exit Reason'.padEnd(20)} | ${'Trades'.padStart(6)} | ${'Tot Profit'.padStart(12)}      | ${'Won'.padStart(4)} | ${'Lost'.padStart(5)} |
+${'─'.repeat(80)}
+${exitLines}${'─'.repeat(80)}
+
+SUMMARY METRICS
+${'─'.repeat(80)}
+Total trades:       ${trades.length}
+Wins / Losses:      ${wins} / ${losses}${draws ? ' / ' + draws + ' draws' : ''}
+Win rate:           ${trades.length > 0 ? (wins / trades.length * 100).toFixed(1) : 0}%
+Profit factor:      ${stratResult.profit_factor || '-'}
+Expectancy:         ${stratResult.expectancy ? stratResult.expectancy.toFixed(4) : '-'}
+Sharpe:             ${stratResult.sharpe ? stratResult.sharpe.toFixed(4) : '-'}
+Sortino:            ${stratResult.sortino ? stratResult.sortino.toFixed(4) : '-'}
+Calmar:             ${stratResult.calmar ? stratResult.calmar.toFixed(4) : '-'}
+
+Total profit:       ${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)} ${currency} (${profitPct}%)
+Max drawdown:       ${maxDD}%
+${stratResult.max_drawdown_abs ? 'Max DD (abs):       ' + stratResult.max_drawdown_abs.toFixed(2) + ' ' + currency : ''}
+Avg trade duration: ${avgDuration}
+Final balance:      ${finalBal.toFixed(2)} ${currency}
+${sep}`;
+
+        // Save to localStorage
+        const key = `bt_report_${stratName}_${Date.now()}`;
+        const savedReports = JSON.parse(localStorage.getItem('bc_bt_reports') || '[]');
+        savedReports.unshift({ key, strategy: stratName, date: new Date().toISOString(), report });
+        if (savedReports.length > 20) savedReports.length = 20;
+        localStorage.setItem('bc_bt_reports', JSON.stringify(savedReports));
+        this._lastReport = report;
+
+        // Render in UI - add report section if not present
+        let reportContainer = document.getElementById('btTextReport');
+        if (!reportContainer) {
+            const resultsEl = document.getElementById('btResults');
+            if (resultsEl) {
+                const card = document.createElement('div');
+                card.className = 'row g-3 mb-3';
+                card.innerHTML = `<div class="col-12"><div class="card"><div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="fw-semibold mb-0"><i class="bi bi-terminal me-2 text-info"></i>CLI Report</h6>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage.copyReport()"><i class="bi bi-clipboard me-1"></i>Copy</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage.downloadReport()"><i class="bi bi-download me-1"></i>Download</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage.showSavedReports()"><i class="bi bi-clock-history me-1"></i>Saved</button>
+                        </div>
+                    </div>
+                    <pre id="btTextReport" class="bg-dark rounded p-3 mb-0 small" style="max-height:300px;overflow:auto;white-space:pre;font-family:monospace;color:#c8ccd4;font-size:0.75rem"></pre>
+                </div></div></div>`;
+                // Insert before equity/trades row
+                const equityRow = resultsEl.querySelector('.row.g-3.mb-3:last-of-type');
+                if (equityRow) resultsEl.insertBefore(card, equityRow);
+                else resultsEl.appendChild(card);
+                reportContainer = document.getElementById('btTextReport');
+            }
+        }
+        if (reportContainer) reportContainer.textContent = report;
+    },
+
+    /** Copy CLI report to clipboard */
+    copyReport() {
+        if (this._lastReport) {
+            navigator.clipboard.writeText(this._lastReport).then(() => App.showToast('Report copied to clipboard', 'success'));
+        }
+    },
+
+    /** Download CLI report as text file */
+    downloadReport() {
+        if (!this._lastReport) return;
+        const blob = new Blob([this._lastReport], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backtest-report-${new Date().toISOString().slice(0, 10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
+
+    /** Show saved reports modal */
+    showSavedReports() {
+        const reports = JSON.parse(localStorage.getItem('bc_bt_reports') || '[]');
+        let existing = document.getElementById('btReportsModal');
+        if (existing) existing.remove();
+        const html = `<div class="modal fade" id="btReportsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Saved Backtest Reports</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+                        ${reports.length === 0 ? '<p class="text-secondary text-center">No saved reports</p>' :
+                            reports.map((r, i) => `
+                            <div class="border-bottom border-secondary py-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-semibold small">${r.strategy} - ${new Date(r.date).toLocaleString()}</span>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage._viewSavedReport(${i})">View</button>
+                                </div>
+                            </div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        new bootstrap.Modal(document.getElementById('btReportsModal')).show();
+    },
+
+    _viewSavedReport(idx) {
+        const reports = JSON.parse(localStorage.getItem('bc_bt_reports') || '[]');
+        if (reports[idx]) {
+            this._lastReport = reports[idx].report;
+            const el = document.getElementById('btTextReport');
+            if (el) el.textContent = reports[idx].report;
+            bootstrap.Modal.getInstance(document.getElementById('btReportsModal'))?.hide();
+        }
     },
 
     async initResultChart(trades, stratResult) {
@@ -749,17 +1094,28 @@ const BacktestingPage = {
         const pairs = [...new Set(trades.map(t => t.pair).filter(Boolean))];
         const pair = pairs[0] || document.getElementById('btPair')?.value || 'BTC/USDT:USDT';
         const timeframe = stratResult.timeframe || document.getElementById('btTimeframe')?.value || '5m';
+        const stratName = stratResult.strategy_name || Object.keys((this.currentResult || {}).strategy || {})[0] || '';
+        const timerange = stratResult.backtest_start && stratResult.backtest_end
+            ? `${stratResult.backtest_start.replace(/[-T:]/g, '').slice(0, 8)}-${stratResult.backtest_end.replace(/[-T:]/g, '').slice(0, 8)}`
+            : '';
 
         // Store candle data reference for indicator calculations
         this._btCandleData = [];
         this._btIndicators = {};
 
+        // Toolbar with pair selector for multi-pair results
         const tb = document.getElementById('btChartToolbar');
         if (tb) {
+            const pairOpts = pairs.length > 1 ? pairs.map(p =>
+                `<option value="${p}" ${p === pair ? 'selected' : ''}>${Components.cleanPairName(p)}</option>`
+            ).join('') : '';
             tb.innerHTML = `<div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2">
-                    <small class="text-secondary">Pair: ${pair}</small>
-                    <small class="text-secondary ms-3">Trades: ${trades.length}</small>
+                    ${pairs.length > 1 ? `<select class="form-select form-select-sm" style="width:auto;background:rgba(255,255,255,0.08);border-color:var(--bc-border)"
+                        onchange="BacktestingPage._switchChartPair(this.value)">${pairOpts}</select>` :
+                        `<small class="text-secondary fw-semibold">${Components.cleanPairName(pair)}</small>`}
+                    <small class="text-secondary">Trades: ${trades.length}</small>
+                    <small class="text-secondary">${timeframe}</small>
                 </div>
                 <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage.showBtIndicatorsModal()">
                     <i class="bi bi-activity me-1"></i> Indicators <span class="badge bg-success ms-1" id="btActiveIndCount">0</span>
@@ -772,7 +1128,6 @@ const BacktestingPage = {
             handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
         });
         if (!this.chart) return;
-        // Allow zoom in only (block zoom out) via wheel
         const _chart = this.chart;
         container.addEventListener('wheel', (e) => {
             if (e.deltaY < 0) {
@@ -787,41 +1142,119 @@ const BacktestingPage = {
             }
         }, { passive: false });
 
-        // Fetch actual OHLCV candle data for the pair
+        // Try pair_history first (has strategy-analyzed data with signals + indicators)
         let candleData = [];
+        let volumeData = [];
+        let pairHistoryData = null;
+        let signalCounts = { enterLong: 0, exitLong: 0, enterShort: 0, exitShort: 0 };
+
         try {
-            const ohlcv = await API.getPairOhlcv(pair, timeframe, 3000);
-            if (ohlcv && ohlcv.data && ohlcv.data.length > 0) {
-                // Filter to backtest period
-                const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
-                const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
-
-                candleData = ohlcv.data
-                    .map(d => ({ time: Math.floor(d[0] / 1000), open: d[1], high: d[2], low: d[3], close: d[4] }))
-                    .filter(d => d.time >= btStart - 3600 && d.time <= btEnd + 3600)
-                    .sort((a, b) => a.time - b.time);
-
-                // Deduplicate
-                const seen = new Set();
-                candleData = candleData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+            if (stratName && timerange) {
+                pairHistoryData = await API.getPairHistory(pair, timeframe, timerange, stratName);
             }
         } catch (e) {
-            console.log('Could not fetch OHLCV data:', e.message);
+            console.log('pair_history not available:', e.message);
+        }
+
+        const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
+        const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
+
+        if (pairHistoryData && pairHistoryData.columns && pairHistoryData.data && pairHistoryData.data.length > 0) {
+            // Use pair_history data (includes signals and indicator columns)
+            const cols = pairHistoryData.columns;
+            const colIdx = {};
+            cols.forEach((c, i) => colIdx[c] = i);
+
+            const timeCol = colIdx['__date_ts'] !== undefined ? '__date_ts' : 'date';
+
+            pairHistoryData.data.forEach(row => {
+                const ts = timeCol === '__date_ts'
+                    ? Math.floor(row[colIdx[timeCol]] / 1000)
+                    : Math.floor(new Date(row[colIdx[timeCol]]).getTime() / 1000);
+                if (ts < btStart - 3600 || ts > btEnd + 3600) return;
+
+                const o = row[colIdx['open']], h = row[colIdx['high']], l = row[colIdx['low']], c = row[colIdx['close']];
+                if (o == null || h == null) return;
+                candleData.push({ time: ts, open: o, high: h, low: l, close: c });
+
+                if (colIdx['volume'] !== undefined && row[colIdx['volume']] != null) {
+                    volumeData.push({ time: ts, value: row[colIdx['volume']], color: c >= o ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)' });
+                }
+
+                // Count signals
+                if (colIdx['enter_long'] !== undefined && row[colIdx['enter_long']]) signalCounts.enterLong++;
+                if (colIdx['exit_long'] !== undefined && row[colIdx['exit_long']]) signalCounts.exitLong++;
+                if (colIdx['enter_short'] !== undefined && row[colIdx['enter_short']]) signalCounts.enterShort++;
+                if (colIdx['exit_short'] !== undefined && row[colIdx['exit_short']]) signalCounts.exitShort++;
+            });
+
+            // Deduplicate and sort
+            const seen = new Set();
+            candleData = candleData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+            candleData.sort((a, b) => a.time - b.time);
+            const seen2 = new Set();
+            volumeData = volumeData.filter(d => { if (seen2.has(d.time)) return false; seen2.add(d.time); return true; });
+            volumeData.sort((a, b) => a.time - b.time);
+        }
+
+        // Fallback to OHLCV if pair_history didn't work
+        if (candleData.length === 0) {
+            try {
+                const ohlcv = await API.getPairOhlcv(pair, timeframe, 3000);
+                if (ohlcv && ohlcv.data && ohlcv.data.length > 0) {
+                    ohlcv.data.forEach(d => {
+                        const ts = Math.floor(d[0] / 1000);
+                        if (ts < btStart - 3600 || ts > btEnd + 3600) return;
+                        candleData.push({ time: ts, open: d[1], high: d[2], low: d[3], close: d[4] });
+                        if (d[5] != null) volumeData.push({ time: ts, value: d[5], color: d[4] >= d[1] ? 'rgba(45,212,168,0.3)' : 'rgba(231,76,94,0.3)' });
+                    });
+                    const seen = new Set();
+                    candleData = candleData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+                    candleData.sort((a, b) => a.time - b.time);
+                    const seen2 = new Set();
+                    volumeData = volumeData.filter(d => { if (seen2.has(d.time)) return false; seen2.add(d.time); return true; });
+                    volumeData.sort((a, b) => a.time - b.time);
+                }
+            } catch (e) {
+                console.log('Could not fetch OHLCV data:', e.message);
+            }
+        }
+
+        // Update signal counts display
+        const sigEl = document.getElementById('btSignalCounts');
+        if (sigEl) {
+            sigEl.innerHTML = `
+                <span><i class="bi bi-triangle-fill text-success" style="font-size:8px"></i> Long entries: ${signalCounts.enterLong}</span>
+                <span><i class="bi bi-triangle-fill text-danger" style="font-size:8px;transform:rotate(180deg);display:inline-block"></i> Long exits: ${signalCounts.exitLong}</span>
+                <span><i class="bi bi-triangle-fill text-info" style="font-size:8px;transform:rotate(180deg);display:inline-block"></i> Short entries: ${signalCounts.enterShort}</span>
+                <span><i class="bi bi-triangle-fill text-warning" style="font-size:8px"></i> Short exits: ${signalCounts.exitShort}</span>`;
         }
 
         if (candleData.length > 0) {
-            // Candlestick chart with price data
+            // Candlestick series
             const candleSeries = this.chart.addCandlestickSeries({
-                upColor: '#2dd4a8',
-                downColor: '#e74c5e',
-                borderUpColor: '#2dd4a8',
-                borderDownColor: '#e74c5e',
-                wickUpColor: '#2dd4a8',
-                wickDownColor: '#e74c5e',
+                upColor: '#2dd4a8', downColor: '#e74c5e',
+                borderUpColor: '#2dd4a8', borderDownColor: '#e74c5e',
+                wickUpColor: '#2dd4a8', wickDownColor: '#e74c5e',
             });
             candleSeries.setData(candleData);
 
-            // Build buy/sell marker data from trades
+            // Volume bars
+            if (volumeData.length > 0) {
+                const volSeries = this.chart.addHistogramSeries({
+                    priceFormat: { type: 'volume' },
+                    priceScaleId: 'vol',
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+                volSeries.setData(volumeData);
+                this.chart.priceScale('vol').applyOptions({
+                    scaleMargins: { top: 0.85, bottom: 0 },
+                    borderVisible: false,
+                });
+            }
+
+            // Build trade markers - use arrows like original Freqtrade
             const tradeMarkers = [];
             const snapTo = (ts) => {
                 if (!ts || !candleData.length) return 0;
@@ -838,28 +1271,44 @@ const BacktestingPage = {
             trades.forEach(t => {
                 const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
                 const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+                const isShort = t.is_short;
+                const isWin = (t.profit_ratio || 0) >= 0;
+                const profitPct = ((t.profit_ratio || 0) * 100).toFixed(1);
 
                 if (openTime) {
                     const snapped = snapTo(openTime);
-                    tradeMarkers.push({ time: snapped, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B', size: 2 });
+                    tradeMarkers.push({
+                        time: snapped,
+                        position: isShort ? 'aboveBar' : 'belowBar',
+                        color: isShort ? '#00b4d8' : '#2dd4a8',
+                        shape: isShort ? 'arrowDown' : 'arrowUp',
+                        text: isShort ? 'S' : 'B',
+                        size: 2
+                    });
                 }
                 if (closeTime) {
                     const snapped = snapTo(closeTime);
-                    tradeMarkers.push({ time: snapped, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S', size: 2 });
+                    tradeMarkers.push({
+                        time: snapped,
+                        position: isWin ? 'aboveBar' : 'belowBar',
+                        color: isWin ? '#2dd4a8' : '#e74c5e',
+                        shape: isWin ? 'arrowDown' : 'arrowDown',
+                        text: `${profitPct}%`,
+                        size: 2
+                    });
                 }
             });
 
-            // Use native lightweight-charts markers (properly positioned on chart)
             tradeMarkers.sort((a, b) => a.time - b.time);
             candleSeries.setMarkers(tradeMarkers);
 
             this._candleSeries = candleSeries;
             this._btCandleData = candleData;
 
-            // Auto-load indicators from strategy
-            this._autoLoadStrategyIndicators(stratResult);
+            // Load indicators: first try plot_config, then pair_history columns, then local fallback
+            this._loadPlotConfigIndicators(stratResult, pairHistoryData);
         } else {
-            // Fallback: line chart from trade data if no OHLCV available
+            // Fallback: line chart from trade data
             const lineSeries = this.chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
             const pricePoints = [];
             trades.forEach(t => {
@@ -874,6 +1323,259 @@ const BacktestingPage = {
         }
 
         this.chart.timeScale().fitContent();
+
+        // Store for pair switching
+        this._btTrades = trades;
+        this._btStratResult = stratResult;
+    },
+
+    /** Switch chart to a different pair from the backtest results */
+    async _switchChartPair(newPair) {
+        if (!this._btTrades || !this._btStratResult) return;
+        const pairTrades = this._btTrades.filter(t => t.pair === newPair);
+        // Temporarily override default pair
+        const origPairs = [...new Set(this._btTrades.map(t => t.pair))];
+        const fakeStratResult = { ...this._btStratResult, _forcePair: newPair };
+        // Clean up
+        if (this.chart) { this.chart.remove(); this.chart = null; }
+        this._btIndicators = {};
+        await this.initResultChart(pairTrades.length > 0 ? pairTrades : this._btTrades, fakeStratResult);
+    },
+
+    /** Load indicators from strategy's plot_config endpoint */
+    async _loadPlotConfigIndicators(stratResult, pairHistoryData) {
+        if (!this.chart || !this._btCandleData || this._btCandleData.length === 0) return;
+        const stratName = stratResult.strategy_name || '';
+
+        // Try plot_config first
+        let plotConfig = null;
+        try {
+            plotConfig = await API.getPlotConfig(stratName);
+        } catch (e) {
+            console.log('plot_config not available:', e.message);
+        }
+
+        if (plotConfig && pairHistoryData && pairHistoryData.columns && pairHistoryData.data) {
+            // Use plot_config to determine which columns to display and how
+            let loadedCount = 0;
+            const cols = pairHistoryData.columns;
+            const colIdx = {};
+            cols.forEach((c, i) => colIdx[c] = i);
+            const timeCol = colIdx['__date_ts'] !== undefined ? '__date_ts' : 'date';
+            const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
+            const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
+
+            const extractCol = (colName) => {
+                if (colIdx[colName] === undefined) return [];
+                return pairHistoryData.data
+                    .map(row => {
+                        const ts = timeCol === '__date_ts'
+                            ? Math.floor(row[colIdx[timeCol]] / 1000)
+                            : Math.floor(new Date(row[colIdx[timeCol]]).getTime() / 1000);
+                        return { time: ts, value: row[colIdx[colName]] };
+                    })
+                    .filter(d => d.value != null && !isNaN(d.value) && d.time >= btStart && d.time <= btEnd)
+                    .sort((a, b) => a.time - b.time)
+                    .filter((d, i, arr) => i === 0 || d.time !== arr[i - 1].time);
+            };
+
+            // Main plot indicators (overlays on price chart)
+            if (plotConfig.main_plot) {
+                for (const [name, config] of Object.entries(plotConfig.main_plot)) {
+                    if (loadedCount >= 10) break;
+                    const data = extractCol(name);
+                    if (data.length < 5) continue;
+                    const color = config.color || '#f5a623';
+                    try {
+                        const s = this.chart.addLineSeries({
+                            color, lineWidth: 1, priceLineVisible: false,
+                            lastValueVisible: false, crosshairMarkerVisible: false, title: name,
+                        });
+                        s.setData(data);
+                        this._btIndicators[name] = { series: s, color, isOverlay: true };
+                        loadedCount++;
+                    } catch (e) { console.log(`Skip indicator ${name}:`, e.message); }
+                }
+            }
+
+            // Subplot indicators (separate scales)
+            if (plotConfig.subplots) {
+                const oscColors = ['#f5a623', '#e74c5e', '#4a90d9', '#2ecc71', '#9b59b6', '#00b894'];
+                let oscIdx = 0;
+                for (const [groupName, indicators] of Object.entries(plotConfig.subplots)) {
+                    if (loadedCount >= 12) break;
+                    const scaleId = `bt_sub_${groupName.replace(/\s+/g, '_')}`;
+                    for (const [name, config] of Object.entries(indicators)) {
+                        if (loadedCount >= 12) break;
+                        const data = extractCol(name);
+                        if (data.length < 5) continue;
+                        const color = config.color || oscColors[oscIdx++ % oscColors.length];
+                        try {
+                            const s = this.chart.addLineSeries({
+                                color, lineWidth: 1, priceLineVisible: false,
+                                lastValueVisible: false, crosshairMarkerVisible: false,
+                                title: name, priceScaleId: scaleId,
+                            });
+                            s.setData(data);
+                            this.chart.priceScale(scaleId).applyOptions({
+                                scaleMargins: { top: 0.82 + (oscIdx * 0.02), bottom: 0 },
+                                borderVisible: false,
+                            });
+                            this._btIndicators[name] = { series: s, color, isOverlay: false };
+                            loadedCount++;
+                        } catch (e) { console.log(`Skip subplot ${name}:`, e.message); }
+                    }
+                }
+            }
+
+            const badge = document.getElementById('btActiveIndCount');
+            if (badge) badge.textContent = loadedCount;
+            if (loadedCount > 0) {
+                App.showToast(`Loaded ${loadedCount} strategy indicators from plot_config`, 'info');
+                return;
+            }
+        }
+
+        // Fallback to auto-detect from pair_history columns or compute locally
+        this._autoLoadStrategyIndicators(stratResult);
+    },
+
+    /** Cumulative profit chart */
+    initProfitChart(trades, stratResult) {
+        const container = document.getElementById('btProfitChart');
+        if (!container) return;
+        container.innerHTML = '';
+        if (trades.length === 0) { container.innerHTML = '<div class="text-center text-secondary py-3 small">No trades</div>'; return; }
+
+        const chart = Components.createChart(container, {
+            rightPriceScale: { borderColor: '#2e3348' },
+            timeScale: { borderColor: '#2e3348', timeVisible: true },
+        });
+        if (!chart) return;
+        this._profitChart = chart;
+
+        const startBalance = stratResult.starting_balance || 1000;
+        const currency = stratResult.stake_currency || 'USDT';
+
+        // Cumulative profit area
+        const areaSeries = chart.addAreaSeries({
+            lineColor: '#2dd4a8', topColor: 'rgba(45,212,168,0.3)', bottomColor: 'rgba(45,212,168,0.02)', lineWidth: 2,
+        });
+        let cumProfit = 0;
+        const profitData = [];
+        const sortedTrades = [...trades].sort((a, b) => new Date(a.close_date) - new Date(b.close_date));
+        sortedTrades.forEach(t => {
+            cumProfit += (t.profit_abs || 0);
+            const time = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+            if (time > 0) profitData.push({ time, value: cumProfit });
+        });
+        const seen = new Set();
+        const unique = profitData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+        if (unique.length > 1) areaSeries.setData(unique);
+
+        // Per-pair profit lines (like original Freqtrade)
+        const pairMap = {};
+        sortedTrades.forEach(t => {
+            const p = t.pair || '-';
+            if (!pairMap[p]) pairMap[p] = { cumProfit: 0, data: [] };
+            pairMap[p].cumProfit += (t.profit_abs || 0);
+            const time = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+            if (time > 0) pairMap[p].data.push({ time, value: pairMap[p].cumProfit });
+        });
+        const pairColors = ['#f5a623', '#4a90d9', '#9b59b6', '#e74c5e', '#00cec9', '#fd79a8', '#6c5ce7', '#00b894'];
+        let ci = 0;
+        for (const [pairName, d] of Object.entries(pairMap)) {
+            if (d.data.length < 2) continue;
+            const s2 = new Set();
+            const uq = d.data.filter(x => { if (s2.has(x.time)) return false; s2.add(x.time); return true; });
+            try {
+                const ls = chart.addLineSeries({
+                    color: pairColors[ci++ % pairColors.length], lineWidth: 1,
+                    priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+                    title: Components.cleanPairName(pairName),
+                });
+                ls.setData(uq);
+            } catch (e) {}
+        }
+
+        chart.timeScale().fitContent();
+    },
+
+    /** Drawdown chart (underwater plot) */
+    initDrawdownChart(trades, stratResult) {
+        const container = document.getElementById('btDrawdownChart');
+        if (!container) return;
+        container.innerHTML = '';
+        if (trades.length === 0) { container.innerHTML = '<div class="text-center text-secondary py-3 small">No trades</div>'; return; }
+
+        const chart = Components.createChart(container, {
+            rightPriceScale: { borderColor: '#2e3348' },
+            timeScale: { borderColor: '#2e3348', timeVisible: true },
+        });
+        if (!chart) return;
+        this._drawdownChart = chart;
+
+        const startBalance = stratResult.starting_balance || 1000;
+        const sortedTrades = [...trades].sort((a, b) => new Date(a.close_date) - new Date(b.close_date));
+
+        // Calculate drawdown series
+        let cumProfit = 0;
+        let peak = 0;
+        const ddData = [];
+        sortedTrades.forEach(t => {
+            cumProfit += (t.profit_abs || 0);
+            if (cumProfit > peak) peak = cumProfit;
+            const dd = peak > 0 ? ((peak - cumProfit) / (startBalance + peak)) * -100 : 0;
+            const time = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+            if (time > 0) ddData.push({ time, value: dd });
+        });
+        const seen = new Set();
+        const unique = ddData.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+
+        if (unique.length > 1) {
+            const areaSeries = chart.addAreaSeries({
+                lineColor: '#e74c5e', topColor: 'rgba(231,76,94,0.02)', bottomColor: 'rgba(231,76,94,0.4)',
+                lineWidth: 2, invertFilledArea: true,
+            });
+            areaSeries.setData(unique);
+        }
+
+        // Parallelism (concurrent open trades) on second scale
+        const parallelData = [];
+        const events = [];
+        sortedTrades.forEach(t => {
+            const openTs = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
+            const closeTs = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
+            if (openTs > 0) events.push({ time: openTs, delta: 1 });
+            if (closeTs > 0) events.push({ time: closeTs, delta: -1 });
+        });
+        events.sort((a, b) => a.time - b.time);
+        let openCount = 0;
+        const seen2 = new Set();
+        events.forEach(e => {
+            openCount += e.delta;
+            if (!seen2.has(e.time)) {
+                seen2.add(e.time);
+                parallelData.push({ time: e.time, value: Math.max(0, openCount) });
+            }
+        });
+        if (parallelData.length > 1) {
+            try {
+                const hs = chart.addHistogramSeries({
+                    priceScaleId: 'parallel',
+                    priceLineVisible: false, lastValueVisible: false,
+                    color: 'rgba(74, 144, 217, 0.4)',
+                    title: 'Open trades',
+                });
+                hs.setData(parallelData);
+                chart.priceScale('parallel').applyOptions({
+                    scaleMargins: { top: 0, bottom: 0.6 },
+                    borderVisible: false,
+                });
+            } catch (e) {}
+        }
+
+        chart.timeScale().fitContent();
     },
 
     // ========== BACKTEST CHART INDICATORS ==========
@@ -1579,6 +2281,8 @@ const BacktestingPage = {
 
     destroy() {
         if (this.chart) { this.chart.remove(); this.chart = null; }
+        if (this._profitChart) { this._profitChart.remove(); this._profitChart = null; }
+        if (this._drawdownChart) { this._drawdownChart.remove(); this._drawdownChart = null; }
         if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
         this.isRunning = false;
     }
