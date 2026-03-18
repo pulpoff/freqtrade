@@ -2389,10 +2389,9 @@ ${entryConditions.length > 0 ?
             if (this._btPollTimer) { clearTimeout(this._btPollTimer); this._btPollTimer = null; }
             return;
         }
-        // Open: inject into DOM
+        // Open: inject into DOM (must be inside .main-wrapper for sidebar CSS selectors)
         this.hideAnalysis();
-        const container = document.getElementById('strategyBuilderView');
-        if (!container) return;
+        const container = document.querySelector('.main-wrapper') || document.body;
         container.insertAdjacentHTML('beforeend', this._backtestPanelHTML());
         this._loadPanelPairs();
     },
