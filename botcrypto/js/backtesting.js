@@ -15,81 +15,21 @@ const BacktestingPage = {
     render() {
         return `
         <div id="backtestingPage">
-            <!-- Config Section -->
-            <div class="card mb-3">
-                <div class="card-body py-2 px-3">
-                    <div class="d-flex align-items-center mb-2">
-                        <h6 class="fw-semibold mb-0"><i class="bi bi-clock-history me-2 text-success"></i>Run Backtest</h6>
-                    </div>
-
-                    <div class="row g-2 align-items-end">
-                        <div class="col"><label class="form-label small text-secondary mb-0">Strategy</label>
-                            <div class="input-group input-group-sm">
-                                <select class="form-select form-select-sm" id="btStrategy"><option value="">-- Select --</option></select>
-                                <button class="btn btn-outline-secondary btn-sm" onclick="BacktestingPage.loadPyFile()" title="Load .py file"><i class="bi bi-file-earmark-code"></i></button>
-                            </div>
-                            <input type="file" id="btFileInput" accept=".py" style="display:none" onchange="BacktestingPage.onFileSelected(event)">
-                            <small class="text-secondary d-none" id="btStrategyInfo"></small>
-                        </div>
-                        <div class="col"><label class="form-label small text-secondary mb-0">FreqAI Model</label>
-                            <select class="form-select form-select-sm" id="btFreqaiModel">
-                                <option value="">None</option>
-                                <option value="LightGBMRegressor">LightGBMRegressor</option>
-                                <option value="LightGBMClassifier">LightGBMClassifier</option>
-                                <option value="XGBoostRegressor">XGBoostRegressor</option>
-                                <option value="XGBoostClassifier">XGBoostClassifier</option>
-                                <option value="XGBoostRFRegressor">XGBoostRFRegressor</option>
-                                <option value="SKLearnRandomForestClassifier">SKLearnRandomForest</option>
-                                <option value="PyTorchMLPRegressor">PyTorchMLPRegressor</option>
-                                <option value="ReinforcementLearner">ReinforcementLearner</option>
-                            </select>
-                        </div>
-                        <div class="col"><label class="form-label small text-secondary mb-0">Coin Pair</label>
-                            <select class="form-select form-select-sm" id="btPair"></select>
-                        </div>
-                    </div>
-
-                    <div class="row g-2 align-items-end mt-1">
-                        <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Timeframe</label>
-                            <select class="form-select form-select-sm" id="btTimeframe">
-                                <option value="" selected>Default</option>
-                                <option value="1m">1m</option><option value="5m">5m</option>
-                                <option value="15m">15m</option><option value="30m">30m</option>
-                                <option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
-                            </select>
-                        </div>
-                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">Start Date</label>
-                            <input type="date" class="form-control form-control-sm" id="btStartDate" value="${this._defaultStartDate()}">
-                        </div>
-                        <div class="col-auto" style="width:130px"><label class="form-label small text-secondary mb-0">End Date</label>
-                            <input type="date" class="form-control form-control-sm" id="btEndDate" value="${this._defaultEndDate()}">
-                        </div>
-                        <div class="col-auto" style="width:140px"><label class="form-label small text-secondary mb-0">Wallet</label>
-                            <div class="input-group input-group-sm">
-                                <input type="number" class="form-control form-control-sm" id="btWallet" value="1000">
-                                <span class="input-group-text" style="font-size:0.75rem">USDT</span>
-                            </div>
-                        </div>
-                        <div class="col-auto" style="width:120px"><label class="form-label small text-secondary mb-0">Stake</label>
-                            <input type="text" class="form-control form-control-sm" id="btStakeAmount" value="unlimited">
-                        </div>
-                        <div class="col-auto" style="width:100px"><label class="form-label small text-secondary mb-0">Max Trades</label>
-                            <input type="number" class="form-control form-control-sm" id="btMaxTrades" value="3">
-                        </div>
-                    </div>
-
-                    <div class="d-flex align-items-center mt-2">
-                        <div class="mx-auto">
-                            <button class="btn btn-success btn-sm fw-semibold px-5" id="btRunBtn" onclick="BacktestingPage._autoDownloaded = false; BacktestingPage.runBacktest()" style="min-width:280px">
-                                Run Backtest
-                            </button>
-                        </div>
-                        <div class="form-check form-switch mb-0 ms-3">
-                            <input type="checkbox" class="form-check-input" id="btProtections">
-                            <label class="form-check-label small" for="btProtections">Protections</label>
-                        </div>
-                    </div>
-                </div>
+            <!-- Hidden form elements needed by runBacktest() when called from strategy builder -->
+            <div class="d-none">
+                <select id="btStrategy"><option value="">-- Select --</option></select>
+                <select id="btFreqaiModel"><option value="">None</option></select>
+                <select id="btPair"></select>
+                <select id="btTimeframe"><option value="" selected>Default</option></select>
+                <input type="date" id="btStartDate" value="${this._defaultStartDate()}">
+                <input type="date" id="btEndDate" value="${this._defaultEndDate()}">
+                <input type="number" id="btWallet" value="1000">
+                <input type="text" id="btStakeAmount" value="unlimited">
+                <input type="number" id="btMaxTrades" value="3">
+                <input type="checkbox" id="btProtections">
+                <input type="file" id="btFileInput" accept=".py" style="display:none">
+                <span id="btStrategyInfo"></span>
+                <button id="btRunBtn">Run Backtest</button>
             </div>
 
             <!-- Progress Section -->
@@ -448,6 +388,7 @@ const BacktestingPage = {
                     setTimeout(() => {
                         this.hideProgress();
                         this.displayResults(this.currentResult);
+                        this.loadHistory();
                     }, 500);
                 }, 200);
             } else if (status.status === 'error') {
@@ -842,8 +783,8 @@ const BacktestingPage = {
             });
             candleSeries.setData(candleData);
 
-            // Build B (buy) and S (sell) markers from trades
-            const markers = [];
+            // Build buy/sell marker data from trades
+            const tradeMarkers = [];
             trades.forEach(t => {
                 const openTime = t.open_date ? Math.floor(new Date(t.open_date).getTime() / 1000) : 0;
                 const closeTime = t.close_date ? Math.floor(new Date(t.close_date).getTime() / 1000) : 0;
@@ -862,31 +803,64 @@ const BacktestingPage = {
                 };
 
                 if (openTime) {
-                    markers.push({
-                        time: snapTo(openTime),
-                        position: 'belowBar',
-                        color: '#2dd4a8',
-                        shape: 'arrowUp',
-                        text: 'B',
-                    });
+                    const snapped = snapTo(openTime);
+                    const candle = candleData.find(c => c.time === snapped);
+                    tradeMarkers.push({ time: snapped, price: candle ? candle.low : (t.open_rate || 0), type: 'buy' });
                 }
                 if (closeTime) {
-                    const isWin = (t.profit_abs || 0) >= 0;
-                    markers.push({
-                        time: snapTo(closeTime),
-                        position: 'aboveBar',
-                        color: isWin ? '#2dd4a8' : '#e74c5e',
-                        shape: 'arrowDown',
-                        text: 'S',
-                    });
+                    const snapped = snapTo(closeTime);
+                    const candle = candleData.find(c => c.time === snapped);
+                    tradeMarkers.push({ time: snapped, price: candle ? candle.high : (t.close_rate || 0), type: 'sell' });
                 }
             });
 
-            // Sort and deduplicate markers by time (lightweight-charts requirement)
-            markers.sort((a, b) => a.time - b.time);
-            if (markers.length > 0) {
-                candleSeries.setMarkers(markers);
-            }
+            // Create HTML overlay markers (white letter in colored circle)
+            this._tradeMarkerEls = [];
+            const chartEl = container.querySelector('table') || container;
+            tradeMarkers.forEach(m => {
+                const el = document.createElement('div');
+                const isBuy = m.type === 'buy';
+                el.textContent = isBuy ? 'B' : 'S';
+                Object.assign(el.style, {
+                    position: 'absolute',
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: isBuy ? '#2dd4a8' : '#e74c5e',
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: '10',
+                    pointerEvents: 'none',
+                    lineHeight: '1',
+                });
+                container.style.position = 'relative';
+                container.appendChild(el);
+                this._tradeMarkerEls.push({ el, time: m.time, price: m.price, type: m.type });
+            });
+
+            // Position markers on chart and update on scroll/zoom
+            const updateMarkerPositions = () => {
+                const ts = this.chart.timeScale();
+                this._tradeMarkerEls.forEach(({ el, time, price, type }) => {
+                    const x = ts.timeToCoordinate(time);
+                    const y = candleSeries.priceToCoordinate(price);
+                    if (x === null || y === null || x < 0) {
+                        el.style.display = 'none';
+                        return;
+                    }
+                    el.style.display = 'flex';
+                    const offset = type === 'buy' ? 8 : -30;
+                    el.style.left = (x - 11) + 'px';
+                    el.style.top = (y + offset) + 'px';
+                });
+            };
+            updateMarkerPositions();
+            this.chart.timeScale().subscribeVisibleLogicalRangeChange(updateMarkerPositions);
+            candleSeries.subscribeDataChanged && candleSeries.subscribeDataChanged(updateMarkerPositions);
 
             this._candleSeries = candleSeries;
         } else {
@@ -1059,7 +1033,9 @@ const BacktestingPage = {
                     });
                     return;
                 }
-                API.getBacktestResult(h.filename, h.strategy).then(result => {
+                API.getBacktestResult(h.filename, h.strategy).then(rawResult => {
+                    // Unwrap backtest_result wrapper if present
+                    const result = rawResult?.backtest_result || rawResult;
                     let sr = null;
                     if (result && result.strategy && typeof result.strategy === 'object') {
                         const vals = Object.values(result.strategy);

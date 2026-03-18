@@ -620,7 +620,7 @@ const StrategyStorePage = {
         this.refresh();
     },
 
-    async importToBuilder(id) {
+    async importToBuilder(id, skipNavigate = false) {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
 
@@ -641,11 +641,13 @@ const StrategyStorePage = {
                     StrategyBuilderPage._parseStrategyToFlow(detail.code, s.name);
                     StrategyBuilderPage.autoSave();
                     App.showToast(`Strategy "${s.name}" imported as visual flow`, 'success');
-                    App.navigate('strategy-builder');
-                    setTimeout(() => {
-                        StrategyBuilderPage.renderNodes();
-                        StrategyBuilderPage.zoomFit();
-                    }, 200);
+                    if (!skipNavigate) {
+                        App.navigate('strategy-builder');
+                        setTimeout(() => {
+                            StrategyBuilderPage.renderNodes();
+                            StrategyBuilderPage.zoomFit();
+                        }, 200);
+                    }
                     return;
                 }
             } catch(e) {
@@ -664,20 +666,23 @@ const StrategyStorePage = {
 
         StrategyBuilderPage.autoSave();
         App.showToast(`Strategy "${s.name}" imported as visual flow`, 'success');
-        App.navigate('strategy-builder');
-
-        setTimeout(() => {
-            StrategyBuilderPage.renderNodes();
-            StrategyBuilderPage.zoomFit();
-        }, 200);
+        if (!skipNavigate) {
+            App.navigate('strategy-builder');
+            setTimeout(() => {
+                StrategyBuilderPage.renderNodes();
+                StrategyBuilderPage.zoomFit();
+            }, 200);
+        }
     },
 
-    backtestTemplate(id) {
+    async backtestTemplate(id) {
         const s = this.templates.find(t => t.id === id);
         if (!s) return;
-        this.importToBuilder(id);
-        BacktestingPage.pendingStrategy = `visual:${s.name}`;
-        setTimeout(() => App.navigate('backtesting'), 100);
+        // Import strategy data without navigating away
+        await this.importToBuilder(id, true);
+        // If the strategy is a remote Freqtrade strategy, use its name directly
+        BacktestingPage.pendingStrategy = s.isRemote ? s.name : `visual:${s.name}`;
+        App.navigate('backtesting');
     },
 
     loadUserStrategy(index) {
@@ -700,9 +705,17 @@ const StrategyStorePage = {
     backtestUserStrategy(index) {
         const saved = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
         const s = saved[index];
-        if (s) BacktestingPage.pendingStrategy = `visual:${s.name}`;
-        this.loadUserStrategy(index);
-        setTimeout(() => App.navigate('backtesting'), 100);
+        if (!s) return;
+        // Load strategy data into builder without navigating
+        StrategyBuilderPage.nodes = JSON.parse(JSON.stringify(s.nodes));
+        StrategyBuilderPage.connections = JSON.parse(JSON.stringify(s.connections));
+        StrategyBuilderPage.strategyName = s.name;
+        StrategyBuilderPage.strategyDesc = s.desc || '';
+        StrategyBuilderPage.nextId = s.nextId || 1;
+        StrategyBuilderPage.timeUnit = s.timeUnit || '5m';
+        StrategyBuilderPage.autoSave();
+        BacktestingPage.pendingStrategy = `visual:${s.name}`;
+        App.navigate('backtesting');
     },
 
     deleteUserStrategy(index) {

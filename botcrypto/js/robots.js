@@ -316,13 +316,34 @@ const RobotsPage = {
             return;
         }
         try {
-            if (action === 'start') await API.startBot();
-            else if (action === 'stop') await API.stopBot();
-            else if (action === 'pause') await API.pauseBot();
+            if (action === 'start') {
+                try {
+                    await API.startBot();
+                } catch (e) {
+                    if (e.message && e.message.includes('not in the correct state')) {
+                        // Bot may need a reload first, try reload then start
+                        App.showToast('Reloading config before starting...', 'info');
+                        await API.request('/reload_config', { method: 'POST' }).catch(() => {});
+                        await new Promise(r => setTimeout(r, 2000));
+                        await API.startBot();
+                    } else {
+                        throw e;
+                    }
+                }
+            } else if (action === 'stop') {
+                await API.stopBot();
+            } else if (action === 'pause') {
+                await API.pauseBot();
+            }
             App.showToast(`Bot ${action} command sent`, 'success');
             setTimeout(() => this.loadActiveBotInfo(), 1000);
         } catch (e) {
-            App.showToast(`Failed: ${e.message}`, 'error');
+            const msg = e.message || '';
+            if (msg.includes('not in the correct state')) {
+                App.showToast('Bot is not in a startable state. Try stopping it first, then starting again.', 'warning');
+            } else {
+                App.showToast(`Failed: ${msg}`, 'error');
+            }
         }
     },
 
@@ -504,6 +525,20 @@ const RobotsPage = {
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label small text-secondary">FreqAI Model</label>
+                        <select class="form-select form-select-sm" id="botFreqaiModel" ${inp}>
+                            <option value="" ${!bot.freqaimodel ? 'selected' : ''}>None</option>
+                            <option value="LightGBMRegressor" ${bot.freqaimodel === 'LightGBMRegressor' ? 'selected' : ''}>LightGBMRegressor</option>
+                            <option value="LightGBMClassifier" ${bot.freqaimodel === 'LightGBMClassifier' ? 'selected' : ''}>LightGBMClassifier</option>
+                            <option value="XGBoostRegressor" ${bot.freqaimodel === 'XGBoostRegressor' ? 'selected' : ''}>XGBoostRegressor</option>
+                            <option value="XGBoostClassifier" ${bot.freqaimodel === 'XGBoostClassifier' ? 'selected' : ''}>XGBoostClassifier</option>
+                            <option value="XGBoostRFRegressor" ${bot.freqaimodel === 'XGBoostRFRegressor' ? 'selected' : ''}>XGBoostRFRegressor</option>
+                            <option value="SKLearnRandomForestClassifier" ${bot.freqaimodel === 'SKLearnRandomForestClassifier' ? 'selected' : ''}>SKLearnRandomForest</option>
+                            <option value="PyTorchMLPRegressor" ${bot.freqaimodel === 'PyTorchMLPRegressor' ? 'selected' : ''}>PyTorchMLPRegressor</option>
+                            <option value="ReinforcementLearner" ${bot.freqaimodel === 'ReinforcementLearner' ? 'selected' : ''}>ReinforcementLearner</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label small text-secondary">Coin Pairs <small class="text-secondary">(comma separated)</small></label>
                         <input type="text" class="form-control form-control-sm" id="botPairs" value="${bot.pairs || ''}" placeholder="BTC/USDT:USDT, ETH/USDT:USDT" ${inp}>
                     </div>
@@ -589,6 +624,7 @@ const RobotsPage = {
             exchange: document.getElementById('botExchange')?.value || 'bybit',
             trading_mode: document.getElementById('botTradingMode')?.value || 'futures',
             strategy: document.getElementById('botStrategy')?.value || '',
+            freqaimodel: document.getElementById('botFreqaiModel')?.value || '',
             pairs: document.getElementById('botPairs')?.value || '',
             timeframe: document.getElementById('botTimeframe')?.value || '5m',
             max_open_trades: parseInt(document.getElementById('botMaxTrades')?.value) || 3,

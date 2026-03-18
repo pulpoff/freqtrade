@@ -71,17 +71,6 @@ const StrategyBuilderPage = {
                     <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold"
                         style="width:200px;max-width:30vw" value="${this.strategyName}"
                         onchange="StrategyBuilderPage.strategyName = this.value">
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-sm btn-outline-warning fw-semibold" onclick="StrategyBuilderPage.saveStrategy()" title="Save Strategy">
-                        <i class="bi bi-save me-1"></i> SAVE
-                    </button>
-                    <button class="btn btn-sm btn-outline-light fw-semibold" onclick="StrategyBuilderPage.loadStrategy()" title="Load Strategy">
-                        <i class="bi bi-folder-symlink me-1"></i> LOAD
-                    </button>
-                    <button class="btn btn-sm btn-outline-success fw-semibold" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
-                        <i class="bi bi-code-slash me-1"></i> CODE
-                    </button>
                     <select class="form-select form-select-sm border-secondary" style="width:80px;background:var(--bc-card);color:var(--bc-text)"
                         id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
                         <option value="1m">1m</option><option value="3m">3m</option>
@@ -89,10 +78,21 @@ const StrategyBuilderPage = {
                         <option value="30m">30m</option><option value="1h">1h</option>
                         <option value="4h">4h</option><option value="1d">1d</option>
                     </select>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-warning fw-semibold" onclick="StrategyBuilderPage.saveStrategy()" title="Save Strategy">
+                        <i class="bi bi-save me-1"></i> SAVE
+                    </button>
+                    <button class="btn btn-sm btn-secondary fw-semibold" onclick="StrategyBuilderPage.loadStrategy()" title="Load Strategy">
+                        <i class="bi bi-folder-symlink me-1"></i> LOAD
+                    </button>
+                    <button class="btn btn-sm btn-success fw-semibold" onclick="StrategyBuilderPage.generateCode()" title="Generate Code">
+                        <i class="bi bi-code-slash me-1"></i> CODE
+                    </button>
                     <button class="btn btn-warning btn-sm fw-semibold" onclick="StrategyBuilderPage.importStrategy()">
                         IMPORT <i class="bi bi-download ms-1"></i>
                     </button>
-                    <button class="btn btn-outline-info btn-sm fw-semibold" onclick="StrategyBuilderPage.showAnalysis()" title="Analyze Strategy">
+                    <button class="btn btn-info btn-sm fw-semibold" onclick="StrategyBuilderPage.showAnalysis()" title="Analyze Strategy">
                         <i class="bi bi-bar-chart-line me-1"></i> ANALYZE
                     </button>
                     <button class="btn btn-success btn-sm fw-semibold" onclick="StrategyBuilderPage.toggleBacktestPanel()">
