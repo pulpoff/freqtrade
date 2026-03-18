@@ -1139,80 +1139,294 @@ const RobotsPage = {
             return;
         }
 
-        // Calculate indicator using DashboardPage's helpers
+        // Use DashboardPage's calc methods - they expect candle objects with .close/.high/.low/.volume/.time
         const candles = this._bdCandles;
-        const closes = candles.map(c => c.close);
-        const highs = candles.map(c => c.high);
-        const lows = candles.map(c => c.low);
-        const volumes = candles.map(c => c.volume || 0);
-
-        const addLine = (data, opts) => {
-            const s = this._bdChart.addLineSeries(opts);
-            s.setData(data);
-            return s;
+        const dp = DashboardPage;
+        const scaleId = def.overlay ? undefined : id;
+        const lineOpts = (color, extra = {}) => ({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, ...extra });
+        const oscOpts = (color, extra = {}) => ({ ...lineOpts(color, extra), priceScaleId: scaleId, lastValueVisible: true });
+        const setOscScale = () => {
+            if (scaleId) this._bdChart.priceScale(scaleId).applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
         };
+        const addLine = (data, opts) => { const s = this._bdChart.addLineSeries(opts); s.setData(data); return s; };
+        const addHist = (data, opts) => { const s = this._bdChart.addHistogramSeries(opts); s.setData(data); return s; };
 
         let series = null;
         try {
-            // Delegate to DashboardPage's calculation methods
-            if (def.type === 'ema' || def.type === 'sma' || def.type === 'wma' || def.type === 'dema' || def.type === 'tema' || def.type === 'kama' || def.type === 'hma' || def.type === 'vwma') {
-                let vals;
-                if (def.type === 'ema') vals = DashboardPage._calcEMA(closes, def.period);
-                else if (def.type === 'sma') vals = DashboardPage._calcMA(closes, def.period);
-                else if (def.type === 'wma') vals = DashboardPage._calcWMA(closes, def.period);
-                else if (def.type === 'dema') { const ema1 = DashboardPage._calcEMA(closes, def.period); const ema2 = DashboardPage._calcEMA(ema1, def.period); vals = ema1.map((v, i) => v !== null && ema2[i] !== null ? 2 * v - ema2[i] : null); }
-                else if (def.type === 'tema') { const e1 = DashboardPage._calcEMA(closes, def.period); const e2 = DashboardPage._calcEMA(e1, def.period); const e3 = DashboardPage._calcEMA(e2, def.period); vals = e1.map((v, i) => v !== null && e2[i] !== null && e3[i] !== null ? 3 * v - 3 * e2[i] + e3[i] : null); }
-                else vals = DashboardPage._calcMA(closes, def.period);
+        // ========== MOVING AVERAGES ==========
+        if (def.type === 'ema' || def.type === 'sma') {
+            series = addLine(dp._calcMA(candles, def.period, def.type), lineOpts(def.color));
 
-                if (vals) {
-                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: def.overlay ? undefined : id });
-                }
-            } else if (def.type === 'rsi') {
-                const vals = DashboardPage._calcRSI(closes, def.period);
-                if (vals) {
-                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: id });
-                }
-            } else if (def.type === 'bb') {
-                const bb = DashboardPage._calcBB(closes, def.period);
-                if (bb) {
-                    const upper = bb.upper.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    const lower = bb.lower.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    const mid = bb.mid.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    const s1 = addLine(upper, { color: def.color, lineWidth: 1, lineStyle: 2 });
-                    const s2 = addLine(lower, { color: def.color, lineWidth: 1, lineStyle: 2 });
-                    const s3 = addLine(mid, { color: def.color, lineWidth: 1 });
-                    series = [s1, s2, s3];
-                }
-            } else if (def.type === 'macd') {
-                const macd = DashboardPage._calcMACD ? DashboardPage._calcMACD(closes) : null;
-                if (macd) {
-                    const macdLine = macd.macd.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    const signalLine = macd.signal.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    const s1 = addLine(macdLine, { color: '#4a90d9', lineWidth: 1, priceScaleId: id });
-                    const s2 = addLine(signalLine, { color: '#e74c5e', lineWidth: 1, priceScaleId: id });
-                    const hist = macd.histogram.map((v, i) => v !== null ? { time: candles[i].time, value: v, color: v >= 0 ? 'rgba(45,212,168,0.5)' : 'rgba(231,76,94,0.5)' } : null).filter(Boolean);
-                    const s3 = this._bdChart.addHistogramSeries({ priceScaleId: id });
-                    s3.setData(hist);
-                    series = [s1, s2, s3];
-                }
-            } else if (def.type === 'atr') {
-                const vals = DashboardPage._calcATR ? DashboardPage._calcATR(highs, lows, closes, def.period) : null;
-                if (vals) {
-                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    series = addLine(data, { color: def.color, lineWidth: 1, priceScaleId: id });
-                }
-            } else if (def.type === 'psar') {
-                const vals = DashboardPage._calcPSAR ? DashboardPage._calcPSAR(highs, lows, closes) : null;
-                if (vals) {
-                    const data = vals.map((v, i) => v !== null ? { time: candles[i].time, value: v } : null).filter(Boolean);
-                    series = addLine(data, { color: def.color, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 1.5 });
-                }
-            }
-            // For other indicators, use similar pattern as above
+        } else if (def.type === 'wma') {
+            series = addLine(dp._calcWMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'dema') {
+            series = addLine(dp._calcDEMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'tema') {
+            series = addLine(dp._calcTEMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'kama') {
+            series = addLine(dp._calcKAMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'hma') {
+            series = addLine(dp._calcHMA(candles, def.period), lineOpts(def.color));
+
+        } else if (def.type === 'vwma') {
+            series = addLine(dp._calcVWMA(candles, def.period), lineOpts(def.color));
+
+        // ========== OVERLAYS ==========
+        } else if (def.type === 'bb') {
+            const bb = dp._calcBB(candles, def.period);
+            series = [
+                addLine(bb.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(bb.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(bb.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'kc') {
+            const kc = dp._calcKC(candles, def.period);
+            series = [
+                addLine(kc.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(kc.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(kc.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'dc') {
+            const dc = dp._calcDC(candles, def.period);
+            series = [
+                addLine(dc.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(dc.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(dc.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'envelope') {
+            const env = dp._calcEnvelope(candles, def.period, def.pct);
+            series = [
+                addLine(env.upper, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(env.lower, lineOpts(def.color, { lineStyle: 2 })),
+                addLine(env.mid,   lineOpts(def.color, { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'psar') {
+            const data = dp._calcPSAR(candles);
+            const s = this._bdChart.addLineSeries({ ...lineOpts(def.color), lineType: 1, pointMarkersVisible: true, lineVisible: false });
+            s.setData(data);
+            series = s;
+
+        } else if (def.type === 'ichimoku') {
+            const ich = dp._calcIchimoku(candles);
+            series = [
+                addLine(ich.tenkan,  lineOpts('#e74c3c')),
+                addLine(ich.kijun,   lineOpts('#3498db')),
+                addLine(ich.senkouA, lineOpts('#2ecc71', { lineStyle: 2 })),
+                addLine(ich.senkouB, lineOpts('#e74c5e', { lineStyle: 2 })),
+                addLine(ich.chikou,  lineOpts('#9b59b6', { lineStyle: 1 })),
+            ];
+
+        } else if (def.type === 'supertrend') {
+            const st = dp._calcSupertrend(candles, def.period, def.mult);
+            const s = this._bdChart.addLineSeries({ ...lineOpts(def.color), lineWidth: 2 });
+            s.setData(st);
+            series = s;
+
+        } else if (def.type === 'pivots') {
+            const piv = dp._calcPivots(candles);
+            series = [
+                addLine(piv.pivot, lineOpts('#dfe6e9', { lineStyle: 1 })),
+                addLine(piv.r1,    lineOpts('#e74c5e', { lineStyle: 2 })),
+                addLine(piv.s1,    lineOpts('#2ecc71', { lineStyle: 2 })),
+                addLine(piv.r2,    lineOpts('#ff7675', { lineStyle: 2 })),
+                addLine(piv.s2,    lineOpts('#55efc4', { lineStyle: 2 })),
+            ];
+
+        } else if (def.type === 'vwap') {
+            series = addLine(dp._calcVWAP(candles), lineOpts(def.color, { lineWidth: 2 }));
+
+        // ========== MOMENTUM / OSCILLATORS ==========
+        } else if (def.type === 'rsi') {
+            series = addLine(dp._calcRSI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'stochrsi') {
+            const sr = dp._calcStochRSI(candles, def.period);
+            series = [
+                addLine(sr.k, oscOpts('#00cec9')),
+                addLine(sr.d, oscOpts('#e74c5e', { lineStyle: 2 })),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'macd') {
+            const macd = dp._calcMACD(candles);
+            series = [
+                addLine(macd.macd, { ...oscOpts('#4a90d9'), lineWidth: 1.5 }),
+                addLine(macd.signal, oscOpts('#e74c5e')),
+                addHist(macd.histogram, { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false }),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'stoch') {
+            const stoch = dp._calcStoch(candles, def.period, def.smooth);
+            series = [
+                addLine(stoch.k, oscOpts(def.color)),
+                addLine(stoch.d, oscOpts('#e74c5e', { lineStyle: 2 })),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'cci') {
+            series = addLine(dp._calcCCI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'willr') {
+            series = addLine(dp._calcWillR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mom') {
+            series = addLine(dp._calcMomentum(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'roc') {
+            series = addLine(dp._calcROC(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'tsi') {
+            series = addLine(dp._calcTSI(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'uo') {
+            series = addLine(dp._calcUO(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'awesome') {
+            series = addHist(dp._calcAwesome(candles), { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false });
+            setOscScale();
+
+        } else if (def.type === 'ppo') {
+            series = addLine(dp._calcPPO(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'cmo') {
+            series = addLine(dp._calcCMO(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'fisher') {
+            series = addLine(dp._calcFisher(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        // ========== VOLATILITY ==========
+        } else if (def.type === 'atr') {
+            series = addLine(dp._calcATR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'natr') {
+            series = addLine(dp._calcNATR(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'bbwidth') {
+            series = addLine(dp._calcBBWidth(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'bbpct') {
+            series = addLine(dp._calcBBPct(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'stddev') {
+            series = addLine(dp._calcStdDev(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'chop') {
+            series = addLine(dp._calcChop(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'kc_width') {
+            series = addLine(dp._calcKCWidth(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        // ========== VOLUME ==========
+        } else if (def.type === 'obv') {
+            series = addLine(dp._calcOBV(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'adosc') {
+            series = addLine(dp._calcADOsc(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'cmf') {
+            series = addLine(dp._calcCMF(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mfi') {
+            series = addLine(dp._calcMFI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'eom') {
+            series = addLine(dp._calcEOM(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'vpt') {
+            series = addLine(dp._calcVPT(candles), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'fi') {
+            series = addLine(dp._calcFI(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'nvi') {
+            series = addLine(dp._calcNVI(candles), oscOpts(def.color));
+            setOscScale();
+
+        // ========== TREND ==========
+        } else if (def.type === 'adx') {
+            series = addLine(dp._calcADX(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'di') {
+            const di = dp._calcDI(candles, def.period);
+            series = [
+                addLine(di.plus, oscOpts('#2ecc71')),
+                addLine(di.minus, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'aroon') {
+            const ar = dp._calcAroon(candles, def.period);
+            series = [
+                addLine(ar.up, oscOpts('#2ecc71')),
+                addLine(ar.down, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'aroonosc') {
+            series = addLine(dp._calcAroonOsc(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'vortex') {
+            const vt = dp._calcVortex(candles, def.period);
+            series = [
+                addLine(vt.plus, oscOpts('#2ecc71')),
+                addLine(vt.minus, oscOpts('#e74c5e')),
+            ];
+            setOscScale();
+
+        } else if (def.type === 'dpo') {
+            series = addLine(dp._calcDPO(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'trix') {
+            series = addLine(dp._calcTRIX(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'mass') {
+            series = addLine(dp._calcMass(candles, def.period), oscOpts(def.color));
+            setOscScale();
+
+        } else if (def.type === 'copp') {
+            series = addLine(dp._calcCoppock(candles), oscOpts(def.color));
+            setOscScale();
+        }
+
         } catch(e) {
-            console.warn(`Indicator ${id} calc error:`, e);
+            console.error(`Error adding indicator ${id}:`, e);
         }
 
         this._bdIndicators[id] = { enabled, series };

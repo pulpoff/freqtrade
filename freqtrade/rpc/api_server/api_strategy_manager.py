@@ -185,7 +185,7 @@ def get_strategy_profit(strategy_id: str, sm=Depends(_get_strategy_manager)):
     try:
         from freqtrade.rpc.rpc import RPC
         rpc = RPC(bot)
-        return rpc._rpc_trade_statistics(bot.config["stake_currency"])
+        return rpc._rpc_trade_statistics(bot.config["stake_currency"], bot.config.get("fiat_display_currency", ""))
     except Exception as e:
         logger.error(f"Error getting profit for '{strategy_id}': {e}")
         return {"profit_all_coin": 0, "profit_all_percent": 0, "trade_count": 0, "error": str(e)}

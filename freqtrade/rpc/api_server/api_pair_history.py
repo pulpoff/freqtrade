@@ -37,6 +37,12 @@ def pair_history(
             "freqaimodel": freqaimodel if freqaimodel else config_loc.get("freqaimodel"),
         }
     )
+    # Auto-resolve freqaimodel from freqai config if not set
+    if not config_loc.get("freqaimodel"):
+        freqai = config_loc.get("freqai", {})
+        if freqai and freqai.get("enabled") and freqai.get("model"):
+            config_loc["freqaimodel"] = freqai["model"]
+
     validate_config_consistency(config_loc)
     try:
         return RPC._rpc_analysed_history_full(config_loc, pair, timeframe, exchange, None, False)
@@ -60,6 +66,12 @@ def pair_history_filtered(payload: PairHistoryRequest, config=Depends(get_config
             ),
         }
     )
+    # Auto-resolve freqaimodel from freqai config if not set
+    if not config_loc.get("freqaimodel"):
+        freqai = config_loc.get("freqai", {})
+        if freqai and freqai.get("enabled") and freqai.get("model"):
+            config_loc["freqaimodel"] = freqai["model"]
+
     handleExchangePayload(payload, config_loc)
     exchange = get_exchange(config_loc)
 
