@@ -134,24 +134,45 @@ const DashboardPage = {
                 </div>
             </div>
 
-            <!-- Bottom: Equity + Trades -->
-            <div class="row g-3">
-                <div class="col-lg-4">
+            <!-- Open Trades (left) + Closed Trades (right) -->
+            <div class="row g-3 mb-3">
+                <div class="col-lg-6">
                     <div class="card h-100">
+                        <div class="card-header d-flex align-items-center justify-content-between">
+                            <h6 class="mb-0 fw-semibold"><i class="bi bi-arrow-left-right me-2 text-success"></i>Open Trades <span class="badge bg-success ms-1" id="dashOpenTradeCount">0</span></h6>
+                        </div>
+                        <div class="card-body p-0" id="dashOpenTradesPanel" style="max-height:400px;overflow-y:auto">
+                            <div class="text-center text-secondary py-4">
+                                <i class="bi bi-robot d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>
+                                No open trades
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header d-flex align-items-center justify-content-between">
+                            <h6 class="mb-0 fw-semibold"><i class="bi bi-clock-history me-2 text-info"></i>Closed Trades <span class="badge bg-info ms-1" id="dashClosedTradeCount">0</span></h6>
+                        </div>
+                        <div class="card-body p-0" id="dashClosedTradesPanel" style="max-height:400px;overflow-y:auto">
+                            <div class="text-center text-secondary py-4">
+                                <i class="bi bi-clock-history d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>
+                                No closed trades
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve -->
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card">
                         <div class="card-body">
                             <h6 class="fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Equity Curve</h6>
                             <div id="equityChart" style="height:180px"></div>
                             <div id="dashProfitDisplay">
                                 ${Components.profitDisplay(0, 0, 0, 0)}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-8">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div id="dashTradesTable">
-                                ${Components.tradesTable([])}
                             </div>
                         </div>
                     </div>
@@ -715,18 +736,31 @@ const DashboardPage = {
                 el('dashOpenTrades').textContent = count.current || 0;
             }
 
-            // Trades table - combine open and closed, open trades first
-            const allTrades = [];
-            openTradesList.forEach(t => { t.is_open = true; allTrades.push(t); });
-            if (trades && trades.trades) {
-                trades.trades.forEach(t => { if (!t.is_open) allTrades.push(t); });
-            }
-            const tt = el('dashTradesTable');
-            if (tt) {
-                if (allTrades.length > 0) {
-                    tt.innerHTML = Components.tradesTable(allTrades.slice(0, 20));
+            // Open trades panel (left)
+            const openPanel = el('dashOpenTradesPanel');
+            const openCountBadge = el('dashOpenTradeCount');
+            if (openPanel) {
+                if (openTradesList.length > 0) {
+                    if (openCountBadge) openCountBadge.textContent = openTradesList.length;
+                    openPanel.innerHTML = this._renderTradeCards(openTradesList, true);
                 } else {
-                    tt.innerHTML = Components.tradesTable([]);
+                    if (openCountBadge) openCountBadge.textContent = '0';
+                    openPanel.innerHTML = `<div class="text-center text-secondary py-4">
+                        <i class="bi bi-robot d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>No open trades</div>`;
+                }
+            }
+
+            // Closed trades panel (right)
+            const closedPanel = el('dashClosedTradesPanel');
+            const closedCountBadge = el('dashClosedTradeCount');
+            const closedTrades = (trades && trades.trades) ? trades.trades.filter(t => !t.is_open) : [];
+            if (closedPanel) {
+                if (closedCountBadge) closedCountBadge.textContent = closedTrades.length;
+                if (closedTrades.length > 0) {
+                    closedPanel.innerHTML = this._renderTradeCards(closedTrades.slice(0, 30), false);
+                } else {
+                    closedPanel.innerHTML = `<div class="text-center text-secondary py-4">
+                        <i class="bi bi-clock-history d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>No closed trades</div>`;
                 }
             }
 
@@ -753,19 +787,59 @@ const DashboardPage = {
     },
 
     showDemoData() {
-        const tt = document.getElementById('dashTradesTable');
-        if (tt) {
-            if (API.connected) {
-                // Connected but no trade data (backtesting mode)
-                tt.innerHTML = Components.tradesTable([]);
-            } else {
-                const demoTrades = Components.generateDemoTrades(10);
-                tt.innerHTML = Components.tradesTable(demoTrades);
-            }
-        }
+        const openPanel = document.getElementById('dashOpenTradesPanel');
+        const closedPanel = document.getElementById('dashClosedTradesPanel');
+        if (openPanel) openPanel.innerHTML = `<div class="text-center text-secondary py-4">
+            <i class="bi bi-robot d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>No open trades</div>`;
+        if (closedPanel) closedPanel.innerHTML = `<div class="text-center text-secondary py-4">
+            <i class="bi bi-clock-history d-block mb-2" style="font-size:1.5rem;opacity:0.4"></i>No closed trades</div>`;
 
         const pd = document.getElementById('dashProfitDisplay');
         if (pd) pd.innerHTML = Components.profitDisplay(0, 0, 0, 0);
+    },
+
+    /** Render trade cards as compact list items for open/closed panels */
+    _renderTradeCards(trades, isOpen) {
+        if (!trades || trades.length === 0) return '';
+        return `<div class="list-group list-group-flush">
+            ${trades.map(t => {
+                const pair = Components.cleanPairName(t.pair || '');
+                const profit = t.profit_abs || 0;
+                const profitPct = t.profit_ratio ? (t.profit_ratio * 100) : (t.profit_pct || 0);
+                const profitClass = profit >= 0 ? 'text-profit' : 'text-loss';
+                const currency = t.stake_currency || t.quote_currency || 'USDT';
+                const date = isOpen ? t.open_date : (t.close_date || t.open_date);
+                const duration = t.trade_duration ? `${Math.round(t.trade_duration)} min` : '';
+                const exitReason = t.exit_reason || t.sell_reason || '';
+                const leverage = t.leverage && t.leverage > 1 ? `${t.leverage}x` : '';
+                const direction = t.is_short ? 'Short' : 'Long';
+                const dirClass = t.is_short ? 'text-danger' : 'text-success';
+
+                return `<div class="list-group-item px-3 py-2" style="background:transparent;border-color:var(--bc-border)">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-semibold">${pair}</span>
+                            <span class="badge bg-secondary bg-opacity-25 ms-1 small ${dirClass}">${direction}</span>
+                            ${leverage ? `<span class="badge bg-warning bg-opacity-25 ms-1 small">${leverage}</span>` : ''}
+                        </div>
+                        <div class="text-end">
+                            <span class="${profitClass} fw-semibold">${profit >= 0 ? '+' : ''}${Components.formatNumber(profit, 2)} ${currency}</span>
+                            <small class="d-block ${profitClass}">${profitPct >= 0 ? '+' : ''}${Components.formatNumber(profitPct, 2)}%</small>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-secondary">
+                            ${isOpen ? `@ ${Components.formatNumber(t.open_rate, 6)}` : `${Components.formatNumber(t.open_rate, 6)} → ${Components.formatNumber(t.close_rate || t.current_rate, 6)}`}
+                        </small>
+                        <small class="text-secondary">
+                            ${isOpen ? Components.formatDate(date) : ''}
+                            ${!isOpen && exitReason ? exitReason : ''}
+                            ${!isOpen && duration ? ` · ${duration}` : ''}
+                        </small>
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>`;
     },
 
     // ========== INDICATORS ==========

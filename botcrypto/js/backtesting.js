@@ -750,11 +750,20 @@ const BacktestingPage = {
         const pair = pairs[0] || document.getElementById('btPair')?.value || 'BTC/USDT:USDT';
         const timeframe = stratResult.timeframe || document.getElementById('btTimeframe')?.value || '5m';
 
+        // Store candle data reference for indicator calculations
+        this._btCandleData = [];
+        this._btIndicators = {};
+
         const tb = document.getElementById('btChartToolbar');
         if (tb) {
-            tb.innerHTML = `<div class="d-flex align-items-center gap-2 mb-2">
-                <small class="text-secondary">Pair: ${pair}</small>
-                <small class="text-secondary ms-3">Trades: ${trades.length}</small>
+            tb.innerHTML = `<div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="d-flex align-items-center gap-2">
+                    <small class="text-secondary">Pair: ${pair}</small>
+                    <small class="text-secondary ms-3">Trades: ${trades.length}</small>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" onclick="BacktestingPage.showBtIndicatorsModal()">
+                    <i class="bi bi-activity me-1"></i> Indicators <span class="badge bg-success ms-1" id="btActiveIndCount">0</span>
+                </button>
             </div>`;
         }
 
@@ -845,6 +854,10 @@ const BacktestingPage = {
             candleSeries.setMarkers(tradeMarkers);
 
             this._candleSeries = candleSeries;
+            this._btCandleData = candleData;
+
+            // Auto-load indicators from strategy
+            this._autoLoadStrategyIndicators(stratResult);
         } else {
             // Fallback: line chart from trade data if no OHLCV available
             const lineSeries = this.chart.addLineSeries({ color: '#2dd4a8', lineWidth: 2 });
@@ -861,6 +874,384 @@ const BacktestingPage = {
         }
 
         this.chart.timeScale().fitContent();
+    },
+
+    // ========== BACKTEST CHART INDICATORS ==========
+
+    /** Auto-detect and load indicators from the strategy's backtest result */
+    _autoLoadStrategyIndicators(stratResult) {
+        if (!this.chart || !this._btCandleData || this._btCandleData.length === 0) return;
+
+        // Try to detect indicators from the strategy by checking the pair_candles data columns
+        // The API provides analyzed data with indicator columns when available
+        this._tryLoadApiIndicators(stratResult);
+    },
+
+    /** Try to load indicator data from API's analyzed pair data (columns from strategy) */
+    async _tryLoadApiIndicators(stratResult) {
+        try {
+            const pairs = stratResult.pairlist || [];
+            const pair = pairs[0] || Object.keys(stratResult.results_per_pair || {})[0] || '';
+            const tf = stratResult.timeframe || '5m';
+            if (!pair) return;
+
+            // Try pair_candles which returns strategy-analyzed data with indicator columns
+            const data = await API.getPairCandles(pair, tf, 3000).catch(() => null);
+            if (!data || !data.columns || !data.data || data.data.length === 0) {
+                // Fallback: compute common indicators locally
+                this._loadLocalIndicators(stratResult);
+                return;
+            }
+
+            const cols = data.columns;
+            const colIdx = {};
+            cols.forEach((c, i) => colIdx[c] = i);
+
+            // Filter to backtest period
+            const btStart = stratResult.backtest_start ? new Date(stratResult.backtest_start).getTime() / 1000 : 0;
+            const btEnd = stratResult.backtest_end ? new Date(stratResult.backtest_end).getTime() / 1000 : Infinity;
+
+            // Find indicator columns (anything that's not date/open/high/low/close/volume/signal)
+            const skipCols = new Set(['date', 'open', 'high', 'low', 'close', 'volume',
+                'enter_long', 'exit_long', 'enter_short', 'exit_short',
+                'enter_tag', 'exit_tag', '__date_ts']);
+            const indicatorCols = cols.filter(c => !skipCols.has(c) && !c.startsWith('&'));
+
+            if (indicatorCols.length === 0) {
+                this._loadLocalIndicators(stratResult);
+                return;
+            }
+
+            const timeCol = colIdx['__date_ts'] !== undefined ? '__date_ts' : 'date';
+            let loadedCount = 0;
+            const overlayColors = ['#f5a623', '#4a90d9', '#9b59b6', '#e74c5e', '#2ecc71', '#00cec9', '#fd79a8', '#6c5ce7'];
+            const oscColors = ['#f5a623', '#e74c5e', '#4a90d9', '#2ecc71', '#9b59b6', '#00b894'];
+            let overlayIdx = 0, oscIdx = 0;
+
+            for (const col of indicatorCols) {
+                if (loadedCount >= 8) break; // Max 8 indicators to keep chart readable
+
+                const values = data.data
+                    .map(row => {
+                        const ts = timeCol === '__date_ts'
+                            ? Math.floor(row[colIdx[timeCol]] / 1000)
+                            : Math.floor(new Date(row[colIdx[timeCol]]).getTime() / 1000);
+                        const val = row[colIdx[col]];
+                        return { time: ts, value: val };
+                    })
+                    .filter(d => d.value !== null && d.value !== undefined && !isNaN(d.value)
+                        && d.time >= btStart && d.time <= btEnd)
+                    .sort((a, b) => a.time - b.time);
+
+                // Deduplicate
+                const seen = new Set();
+                const unique = values.filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true; });
+                if (unique.length < 10) continue;
+
+                // Detect if overlay or oscillator by value range
+                const min = Math.min(...unique.map(d => d.value));
+                const max = Math.max(...unique.map(d => d.value));
+                const candleMin = Math.min(...this._btCandleData.map(c => c.low));
+                const candleMax = Math.max(...this._btCandleData.map(c => c.high));
+                // If indicator values are in similar range as price, it's an overlay
+                const isOverlay = min > candleMin * 0.5 && max < candleMax * 2;
+
+                let color, scaleId;
+                if (isOverlay) {
+                    color = overlayColors[overlayIdx++ % overlayColors.length];
+                    scaleId = undefined; // Same scale as price
+                } else {
+                    color = oscColors[oscIdx++ % oscColors.length];
+                    scaleId = `bt_osc_${col}`;
+                }
+
+                try {
+                    const series = this.chart.addLineSeries({
+                        color,
+                        lineWidth: 1,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                        title: col,
+                        priceScaleId: scaleId,
+                    });
+                    series.setData(unique);
+
+                    if (scaleId) {
+                        this.chart.priceScale(scaleId).applyOptions({
+                            scaleMargins: { top: 0.8 + (oscIdx * 0.03), bottom: 0 },
+                            borderVisible: false,
+                        });
+                    }
+
+                    this._btIndicators[col] = { series, color, isOverlay };
+                    loadedCount++;
+                } catch (e) {
+                    console.log(`Could not add indicator ${col}:`, e.message);
+                }
+            }
+
+            // Update count badge
+            const badge = document.getElementById('btActiveIndCount');
+            if (badge) badge.textContent = loadedCount;
+
+            if (loadedCount > 0) {
+                App.showToast(`Loaded ${loadedCount} strategy indicators on chart`, 'info');
+            }
+        } catch (e) {
+            console.log('Could not load API indicators:', e.message);
+            this._loadLocalIndicators(stratResult);
+        }
+    },
+
+    /** Fallback: compute common indicators locally from candle data */
+    _loadLocalIndicators(stratResult) {
+        if (!this.chart || !this._btCandleData || this._btCandleData.length < 30) return;
+        const candles = this._btCandleData;
+        let loadedCount = 0;
+
+        // Reuse DashboardPage's calculation methods
+        const dp = DashboardPage;
+        const addLine = (data, color, title, scaleId) => {
+            if (!data || data.length < 5) return null;
+            const s = this.chart.addLineSeries({
+                color, lineWidth: 1, priceLineVisible: false,
+                lastValueVisible: false, crosshairMarkerVisible: false,
+                title, priceScaleId: scaleId,
+            });
+            s.setData(data);
+            return s;
+        };
+
+        try {
+            // EMA 9 + EMA 21 (common combo)
+            const ema9 = dp._calcMA(candles, 9, 'ema');
+            const s1 = addLine(ema9, '#f5a623', 'EMA 9');
+            if (s1) { this._btIndicators['ema9'] = { series: s1, color: '#f5a623', isOverlay: true }; loadedCount++; }
+
+            const ema21 = dp._calcMA(candles, 21, 'ema');
+            const s2 = addLine(ema21, '#4a90d9', 'EMA 21');
+            if (s2) { this._btIndicators['ema21'] = { series: s2, color: '#4a90d9', isOverlay: true }; loadedCount++; }
+
+            // RSI
+            const rsi = dp._calcRSI(candles, 14);
+            const s3 = addLine(rsi, '#f5a623', 'RSI 14', 'bt_rsi');
+            if (s3) {
+                this.chart.priceScale('bt_rsi').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
+                this._btIndicators['rsi'] = { series: s3, color: '#f5a623', isOverlay: false };
+                loadedCount++;
+            }
+
+            const badge = document.getElementById('btActiveIndCount');
+            if (badge) badge.textContent = loadedCount;
+        } catch (e) {
+            console.log('Local indicator computation error:', e.message);
+        }
+    },
+
+    /** Show indicator modal for backtest chart */
+    showBtIndicatorsModal() {
+        if (!this.chart || !this._btCandleData || this._btCandleData.length === 0) {
+            App.showToast('Load backtest results with chart data first', 'warning');
+            return;
+        }
+
+        // Build modal with available indicators (reuse DashboardPage's definitions)
+        const defs = DashboardPage._indicatorDefs;
+        const categories = {};
+        defs.forEach(d => {
+            if (!categories[d.category]) categories[d.category] = [];
+            categories[d.category].push(d);
+        });
+
+        const activeIds = Object.keys(this._btIndicators);
+        let html = `<div class="modal fade" id="btIndicatorsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-activity me-2"></i>Backtest Chart Indicators</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+                        <div class="d-flex gap-2 mb-3">
+                            <button class="btn btn-sm btn-outline-danger" onclick="BacktestingPage.clearBtIndicators()">
+                                <i class="bi bi-x-circle me-1"></i> Clear All
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="BacktestingPage.addDefaultBtIndicators()">
+                                <i class="bi bi-magic me-1"></i> Add Defaults (EMA + RSI)
+                            </button>
+                        </div>`;
+
+        for (const [cat, items] of Object.entries(categories)) {
+            html += `<h6 class="fw-semibold mt-3 mb-2 text-secondary small text-uppercase">${cat}</h6>
+                <div class="row g-2">`;
+            items.forEach(d => {
+                const isActive = !!this._btIndicators[d.id];
+                html += `<div class="col-6 col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="btInd-${d.id}"
+                            ${isActive ? 'checked' : ''}
+                            onchange="BacktestingPage.toggleBtIndicator('${d.id}', this.checked)">
+                        <label class="form-check-label small" for="btInd-${d.id}">
+                            <span style="color:${d.color}">●</span> ${d.name}
+                        </label>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        html += `</div><div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div></div></div></div>`;
+
+        // Remove existing modal if any
+        const existing = document.getElementById('btIndicatorsModal');
+        if (existing) existing.remove();
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modal = new bootstrap.Modal(document.getElementById('btIndicatorsModal'));
+        modal.show();
+    },
+
+    /** Toggle a single indicator on the backtest chart */
+    toggleBtIndicator(id, enabled) {
+        if (!enabled) {
+            // Remove
+            if (this._btIndicators[id]?.series) {
+                const series = this._btIndicators[id].series;
+                (Array.isArray(series) ? series : [series]).forEach(s => {
+                    try { this.chart.removeSeries(s); } catch(e){}
+                });
+            }
+            delete this._btIndicators[id];
+            this._updateBtIndCount();
+            return;
+        }
+
+        const def = DashboardPage._indicatorDefs.find(d => d.id === id);
+        if (!def || !this.chart || !this._btCandleData || this._btCandleData.length === 0) return;
+
+        const candles = this._btCandleData;
+        const dp = DashboardPage;
+        const scaleId = def.overlay ? undefined : `bt_${id}`;
+        const lineOpts = (color, extra = {}) => ({
+            color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+            crosshairMarkerVisible: false, priceScaleId: scaleId, ...extra
+        });
+        const addLine = (data, opts) => { const s = this.chart.addLineSeries(opts); s.setData(data); return s; };
+        const addHist = (data, opts) => { const s = this.chart.addHistogramSeries(opts); s.setData(data); return s; };
+        const setOscScale = () => {
+            if (scaleId) this.chart.priceScale(scaleId).applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, borderVisible: false });
+        };
+
+        try {
+            // Reuse DashboardPage's calculation and rendering logic
+            if (def.type === 'ema' || def.type === 'sma') {
+                this._btIndicators[id] = { series: addLine(dp._calcMA(candles, def.period, def.type), lineOpts(def.color)) };
+            } else if (def.type === 'bb') {
+                const bb = dp._calcBB(candles, def.period);
+                this._btIndicators[id] = { series: [
+                    addLine(bb.upper, lineOpts(def.color, { lineStyle: 2 })),
+                    addLine(bb.lower, lineOpts(def.color, { lineStyle: 2 })),
+                    addLine(bb.mid, lineOpts(def.color, { lineStyle: 1 })),
+                ]};
+            } else if (def.type === 'rsi') {
+                this._btIndicators[id] = { series: addLine(dp._calcRSI(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'macd') {
+                const macd = dp._calcMACD(candles);
+                this._btIndicators[id] = { series: [
+                    addLine(macd.macd, { ...lineOpts('#4a90d9'), lineWidth: 1.5 }),
+                    addLine(macd.signal, lineOpts('#e74c5e')),
+                    addHist(macd.histogram, { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false }),
+                ]};
+                setOscScale();
+            } else if (def.type === 'stoch' && dp._calcStoch) {
+                const stoch = dp._calcStoch(candles, def.period, def.smooth);
+                this._btIndicators[id] = { series: [
+                    addLine(stoch.k, lineOpts(def.color)),
+                    addLine(stoch.d, lineOpts('#e74c5e', { lineStyle: 2 })),
+                ]};
+                setOscScale();
+            } else if (def.type === 'atr' && dp._calcATR) {
+                this._btIndicators[id] = { series: addLine(dp._calcATR(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'adx' && dp._calcADX) {
+                this._btIndicators[id] = { series: addLine(dp._calcADX(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'cci' && dp._calcCCI) {
+                this._btIndicators[id] = { series: addLine(dp._calcCCI(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'wma' && dp._calcWMA) {
+                this._btIndicators[id] = { series: addLine(dp._calcWMA(candles, def.period), lineOpts(def.color)) };
+            } else if (def.type === 'dema' && dp._calcDEMA) {
+                this._btIndicators[id] = { series: addLine(dp._calcDEMA(candles, def.period), lineOpts(def.color)) };
+            } else if (def.type === 'tema' && dp._calcTEMA) {
+                this._btIndicators[id] = { series: addLine(dp._calcTEMA(candles, def.period), lineOpts(def.color)) };
+            } else if (def.type === 'psar' && dp._calcPSAR) {
+                const data = dp._calcPSAR(candles);
+                const s = this.chart.addLineSeries({ ...lineOpts(def.color), lineType: 1, pointMarkersVisible: true, lineVisible: false });
+                s.setData(data);
+                this._btIndicators[id] = { series: s };
+            } else if (def.type === 'supertrend' && dp._calcSupertrend) {
+                this._btIndicators[id] = { series: addLine(dp._calcSupertrend(candles, def.period, def.mult), lineOpts(def.color, { lineWidth: 2 })) };
+            } else if (def.type === 'stochrsi' && dp._calcStochRSI) {
+                const sr = dp._calcStochRSI(candles, def.period);
+                this._btIndicators[id] = { series: [
+                    addLine(sr.k, lineOpts('#00cec9')),
+                    addLine(sr.d, lineOpts('#e74c5e', { lineStyle: 2 })),
+                ]};
+                setOscScale();
+            } else if (def.type === 'willr' && dp._calcWillR) {
+                this._btIndicators[id] = { series: addLine(dp._calcWillR(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'obv' && dp._calcOBV) {
+                this._btIndicators[id] = { series: addLine(dp._calcOBV(candles), lineOpts(def.color)) };
+                setOscScale();
+            } else if (def.type === 'mfi' && dp._calcMFI) {
+                this._btIndicators[id] = { series: addLine(dp._calcMFI(candles, def.period), lineOpts(def.color)) };
+                setOscScale();
+            } else {
+                // Unsupported indicator type
+                App.showToast(`${def.name} not available for backtest chart`, 'warning');
+                const cb = document.getElementById('btInd-' + id);
+                if (cb) cb.checked = false;
+                return;
+            }
+        } catch (e) {
+            console.error(`Error adding indicator ${id}:`, e);
+            App.showToast(`Error computing ${def.name}`, 'error');
+            delete this._btIndicators[id];
+            const cb = document.getElementById('btInd-' + id);
+            if (cb) cb.checked = false;
+            return;
+        }
+
+        this._updateBtIndCount();
+    },
+
+    /** Clear all backtest chart indicators */
+    clearBtIndicators() {
+        Object.keys(this._btIndicators).forEach(id => this.toggleBtIndicator(id, false));
+        document.querySelectorAll('#btIndicatorsModal input[type="checkbox"]').forEach(cb => cb.checked = false);
+        this._updateBtIndCount();
+    },
+
+    /** Add default indicators (EMA 9/21 + RSI) */
+    addDefaultBtIndicators() {
+        ['ema9', 'ema21', 'rsi'].forEach(id => {
+            if (!this._btIndicators[id]) {
+                this.toggleBtIndicator(id, true);
+                const cb = document.getElementById('btInd-' + id);
+                if (cb) cb.checked = true;
+            }
+        });
+    },
+
+    _updateBtIndCount() {
+        const badge = document.getElementById('btActiveIndCount');
+        if (badge) badge.textContent = Object.keys(this._btIndicators).length;
     },
 
     initEquityChart(trades, stratResult) {

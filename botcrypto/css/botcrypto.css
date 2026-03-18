@@ -1889,11 +1889,18 @@ h4.fw-semibold, h5.fw-semibold {
    MOBILE RESPONSIVE OVERHAUL
    ============================================ */
 
-/* --- Global: hamburger menu spacing --- */
+/* --- Global: hamburger menu spacing + pull-to-refresh fix --- */
 @media (max-width: 767.98px) {
-    /* Add left padding for hamburger menu icon on all pages */
+    /* Allow native pull-to-refresh on mobile by removing overflow:hidden from body */
+    body {
+        overflow: visible !important;
+        overflow-x: hidden !important;
+    }
+    /* Let #pageContainer be the scroll container with pull-to-refresh enabled */
     #pageContainer {
         padding-top: 3rem !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: auto;
     }
     #menuToggle {
         top: 6px !important;
