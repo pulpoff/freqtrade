@@ -41,10 +41,14 @@ router = APIRouter()
 
 
 def _auto_download_bt_data(btconfig: Config, bt) -> None:
-    """Auto-download missing data for backtesting."""
+    """Auto-download missing data for backtesting with progress tracking."""
     from copy import deepcopy
 
+    from rich.progress import TextColumn
+
     from freqtrade.data.history import download_data
+    from freqtrade.enums import BacktestState
+    from freqtrade.util.rich_progress import CustomProgress
 
     dl_config = deepcopy(btconfig)
     dl_config["pairs"] = bt.pairlists.whitelist
@@ -57,12 +61,31 @@ def _auto_download_bt_data(btconfig: Config, bt) -> None:
     if "timerange" not in dl_config or not dl_config.get("timerange"):
         dl_config["days"] = dl_config.get("new_pairs_days", 30)
 
+    pairs = dl_config["pairs"]
+    tfs = dl_config["timeframes"]
+
+    # Set progress to DATADOWNLOAD state
+    bt.progress.init_step(BacktestState.DATADOWNLOAD, 1)
+
     logger.info(
-        f"Auto-downloading data for {dl_config['pairs']}, "
-        f"timeframes: {dl_config['timeframes']}"
+        f"Auto-downloading data for {pairs}, "
+        f"timeframes: {tfs}"
     )
+
+    # Bridge Rich progress to BTProgress so frontend can show download %
+    def _on_progress(task):
+        if task.total and task.total > 0:
+            bt.progress.set_new_value(task.completed / task.total)
+
+    progress_tracker = CustomProgress(
+        TextColumn("[progress.description]{task.description}"),
+        ft_callback=_on_progress,
+    )
+
     try:
-        download_data(dl_config, bt.exchange)
+        with progress_tracker:
+            download_data(dl_config, bt.exchange, progress_tracker=progress_tracker)
+        bt.progress.set_new_value(1)
         logger.info("Auto-download completed successfully.")
     except Exception as e:
         logger.error(f"Auto-download failed: {e}")

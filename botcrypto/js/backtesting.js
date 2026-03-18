@@ -290,8 +290,9 @@ const BacktestingPage = {
         }
 
         if (!API.connected) {
-            App.showToast('Connect to Freqtrade first to run backtests', 'warning');
-            return;
+            App.showToast('Reconnecting...', 'info');
+            await App.reconnect();
+            if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; }
         }
 
         const timeframe = document.getElementById('btTimeframe').value;
@@ -368,13 +369,27 @@ const BacktestingPage = {
             const status = await API.getBacktestStatus();
 
             if (status.running) {
-                const progress = 15 + (status.progress || 0) * 80;
-                const step = status.step || status.status_msg || 'Processing...';
+                const stepNames = {
+                    startup: 'Starting up...',
+                    dataload: 'Loading data...',
+                    datadownload: 'Downloading data...',
+                    analyze: 'Analyzing strategy...',
+                    convert: 'Converting data...',
+                    backtest: 'Running backtest...',
+                };
+                const rawStep = status.step || 'startup';
+                const step = stepNames[rawStep] || rawStep;
+                const pct = status.progress || 0;
+                const isDownloading = rawStep === 'datadownload';
+                const progress = isDownloading ? pct * 15 : 15 + pct * 80;
                 this.updateProgress(progress, step);
 
-                if (status.trade_count) {
+                if (isDownloading) {
+                    const detail = document.getElementById('btProgressDetail');
+                    if (detail) detail.textContent = `Downloading market data... ${Math.round(pct * 100)}%`;
+                } else if (status.trade_count) {
                     document.getElementById('btProgressDetail').textContent =
-                        `${step} - ${status.trade_count} trades found`;
+                        `${step} ${status.trade_count} trades found`;
                 }
 
                 this.pollTimer = setTimeout(() => this.pollBacktest(), 1500);

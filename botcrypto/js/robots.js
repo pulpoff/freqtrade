@@ -492,7 +492,7 @@ const RobotsPage = {
     },
 
     async editActiveBot() {
-        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        if (!API.connected) { App.showToast('Reconnecting...', 'info'); await App.reconnect(); if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; } }
         try {
             const config = await API.getConfig();
             const whitelist = await API.getWhitelist().catch(() => ({}));
@@ -530,7 +530,7 @@ const RobotsPage = {
         const bots = this._getSavedBots();
         const bot = bots[index];
         if (!bot) return;
-        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        if (!API.connected) { App.showToast('Reconnecting...', 'info'); await App.reconnect(); if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; } }
         if (!bot.strategy) { App.showToast('Select a strategy first', 'warning'); return; }
         if (!await App.confirm(`Deploy and start "<b>${bot.name}</b>" with strategy <b>${bot.strategy}</b>?`, { title: 'Deploy Bot', confirmText: 'Deploy', confirmClass: 'btn-success', icon: 'bi-rocket-takeoff text-success' })) return;
 
@@ -893,25 +893,10 @@ const RobotsPage = {
         container.innerHTML = '';
 
         this._bdChart = Components.createChart(container, {
-            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
+            handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { mouseWheel: true, axisPressedMouseMove: true, pinch: true },
         });
         if (!this._bdChart) return;
-
-        // Zoom in only
-        const chart = this._bdChart;
-        container.addEventListener('wheel', (e) => {
-            if (e.deltaY < 0) {
-                e.preventDefault();
-                const ts = chart.timeScale();
-                const range = ts.getVisibleLogicalRange();
-                if (range) {
-                    const center = (range.from + range.to) / 2;
-                    const half = (range.to - range.from) / 2 * 0.85;
-                    ts.setVisibleLogicalRange({ from: center - half, to: center + half });
-                }
-            }
-        }, { passive: false });
 
         this._bdCandleSeries = this._bdChart.addCandlestickSeries({
             upColor: '#2dd4a8', downColor: '#e74c5e',

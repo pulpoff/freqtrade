@@ -11,6 +11,7 @@ class BacktestState(Enum):
     ANALYZE = 3
     CONVERT = 4
     BACKTEST = 5
+    DATADOWNLOAD = 6
 
     def __str__(self):
         return f"{self.name.lower()}"
