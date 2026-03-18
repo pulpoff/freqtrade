@@ -871,11 +871,10 @@ const BacktestingPage = {
                     });
                 }
                 if (closeTime) {
-                    const isWin = (t.profit_abs || 0) >= 0;
                     markers.push({
                         time: snapTo(closeTime),
                         position: 'aboveBar',
-                        color: isWin ? '#2dd4a8' : '#e74c5e',
+                        color: '#e74c5e',
                         shape: 'arrowDown',
                         text: 'S',
                     });
