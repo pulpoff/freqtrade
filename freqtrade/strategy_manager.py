@@ -318,7 +318,10 @@ class StrategyManager:
         Build a complete Freqtrade config for a single strategy,
         merging the base engine config with strategy-specific settings.
         """
-        config = copy.deepcopy(self._base_config)
+        # Exclude non-picklable objects (strategy_manager, api_server, etc.) from deepcopy
+        skip_keys = {'strategy_manager', 'api_server', 'freqtradebot', 'rpc'}
+        base_safe = {k: v for k, v in self._base_config.items() if k not in skip_keys}
+        config = copy.deepcopy(base_safe)
         config.update(copy.deepcopy(strategy_config))
 
         # Ensure per-strategy database (separate SQLite for each)
