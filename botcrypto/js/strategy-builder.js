@@ -642,7 +642,7 @@ const StrategyBuilderPage = {
                 ` : ''}
             </div>
             ${volumeText ? `<div class="node-volume-pill">${volumeText}</div>` : ''}
-            ${paramsText ? `<div class="node-params ${paramsClass}">${paramsText}</div>` : ''}
+            ${paramsText ? `<div class="node-params ${paramsClass}" title="${paramsText.replace(/"/g, '&quot;')}">${paramsText.length > 30 ? paramsText.substring(0, 28) + '...' : paramsText}</div>` : ''}
         </div>`;
     },
 
@@ -1843,7 +1843,7 @@ ${entryConditions.length > 0 ?
         if (canLong && entryLongConds.length > 0) {
             longGroupNode = {
                 id: this.nextId++, type: 'group', x, y: yBase - 80,
-                params: { logic: 'AND', _label: `LONG Entry\n${entryLongConds.map(c => c.label).join(' & ')}` }
+                params: { logic: 'AND', _label: `LONG (${entryLongConds.length} conds)` }
             };
             this.nodes.push(longGroupNode);
             allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: longGroupNode.id, type: 'normal' }));
@@ -1852,7 +1852,7 @@ ${entryConditions.length > 0 ?
         if (canShort && entryShortConds.length > 0) {
             shortGroupNode = {
                 id: this.nextId++, type: 'group', x, y: yBase + 80,
-                params: { logic: 'AND', _label: `SHORT Entry\n${entryShortConds.map(c => c.label).join(' & ')}` }
+                params: { logic: 'AND', _label: `SHORT (${entryShortConds.length} conds)` }
             };
             this.nodes.push(shortGroupNode);
             allEntrySourceNodes.forEach(n => this.connections.push({ from: n.id, to: shortGroupNode.id, type: 'normal' }));
@@ -2031,103 +2031,170 @@ ${entryConditions.length > 0 ?
         const indicators = [];
         const seen = new Set();
 
-        // Helper: extract period from timeperiod=X or self.param.value patterns
-        const extractPeriod = (match, defaultVal) => {
-            if (!match) return defaultVal;
-            const numMatch = match.match(/(\d+)/);
-            return numMatch ? parseInt(numMatch[1]) : defaultVal;
+        // Helper to add indicator if not seen
+        const addInd = (type, period, condition, compareType, extra) => {
+            const key = `${type}_${period}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                indicators.push({ type, period, condition, compareType: compareType || 'Value', value: 0, compareValue: 0, ...extra });
+            }
         };
 
-        // EMA (all periods)
-        for (const m of code.matchAll(/ta\.EMA\s*\([^)]*?(?:timeperiod\s*=\s*(?:self\.\w+\.value|(\d+)))/g)) {
-            const period = m[1] ? parseInt(m[1]) : 0;
-            const key = `EMA_${period}`;
-            if (!seen.has(key) && period > 0) { seen.add(key); indicators.push({ type: 'EMA', period, condition: 'Trend', compareType: 'Value', value: 0 }); }
+        // Helper: extract length/period from either talib (timeperiod=X) or pandas-ta (length=X) or positional
+        const extractLen = (str, defaultVal) => {
+            if (!str) return defaultVal;
+            const m = str.match(/(?:timeperiod|length|period)\s*=\s*(?:self\.\w+\.value|(\d+))/);
+            if (m) return m[1] ? parseInt(m[1]) : defaultVal;
+            // Positional arg: second numeric arg
+            const posM = str.match(/,\s*(\d+)/);
+            return posM ? parseInt(posM[1]) : defaultVal;
+        };
+
+        // ======= EMA =======
+        // talib: ta.EMA(df, timeperiod=X)
+        for (const m of code.matchAll(/ta\.EMA\s*\(([^)]*)\)/g)) {
+            const period = extractLen(m[1], 0);
+            if (period > 0) addInd('EMA', period, 'Trend');
         }
-        // Also detect EMA from column assignments like dataframe['ema'] = ta.EMA(...
-        for (const m of code.matchAll(/\['(\w*ema\w*)'\]\s*=\s*ta\.EMA/gi)) {
+        // pandas-ta: df.ta.ema(length=X) or pta.ema(df['close'], X)
+        for (const m of code.matchAll(/(?:\.ta\.ema|pta\.ema)\s*\(([^)]*)\)/gi)) {
+            const period = extractLen(m[1], 0);
+            if (period > 0) addInd('EMA', period, 'Trend');
+        }
+        // Named EMA column assignments without explicit period
+        for (const m of code.matchAll(/\['(\w*ema\w*)'\]\s*=\s*(?:ta\.EMA|\.ta\.ema|pta\.ema)/gi)) {
             const name = m[1];
-            if (!seen.has(`EMA_named_${name}`)) { seen.add(`EMA_named_${name}`); if (indicators.filter(i => i.type === 'EMA').length === 0) indicators.push({ type: 'EMA', period: 0, condition: name, compareType: 'Value', value: 0 }); }
+            if (!seen.has(`EMA_named_${name}`) && indicators.filter(i => i.type === 'EMA').length === 0) {
+                seen.add(`EMA_named_${name}`);
+                addInd('EMA', 0, name);
+            }
         }
 
-        // SMA
-        for (const m of code.matchAll(/ta\.SMA\s*\([^)]*?timeperiod\s*=\s*(\d+)/g)) {
-            const period = parseInt(m[1]); const key = `SMA_${period}`;
-            if (!seen.has(key)) { seen.add(key); indicators.push({ type: 'SMA', period, condition: 'Trend', compareType: 'Value', value: 0 }); }
+        // ======= SMA =======
+        for (const m of code.matchAll(/ta\.SMA\s*\(([^)]*)\)/g)) {
+            const period = extractLen(m[1], 0);
+            if (period > 0) addInd('SMA', period, 'Trend');
+        }
+        for (const m of code.matchAll(/(?:\.ta\.sma|pta\.sma)\s*\(([^)]*)\)/gi)) {
+            const period = extractLen(m[1], 0);
+            if (period > 0) addInd('SMA', period, 'Trend');
         }
 
-        // RSI (all periods)
-        for (const m of code.matchAll(/ta\.RSI\s*\([^)]*?(?:timeperiod\s*=\s*(?:self\.\w+\.value|(\d+)))/g)) {
-            const period = m[1] ? parseInt(m[1]) : 14;
-            const key = `RSI_${period}`;
-            if (!seen.has(key)) { seen.add(key); indicators.push({ type: 'RSI', period, condition: 'Momentum', compareType: 'Value', value: 0, compareValue: 0 }); }
+        // ======= RSI =======
+        for (const m of code.matchAll(/ta\.RSI\s*\(([^)]*)\)/g)) {
+            addInd('RSI', extractLen(m[1], 14), 'Momentum');
         }
-        // RSI without named param
-        if (!seen.has('RSI_any') && /ta\.RSI\s*\(/.test(code) && indicators.filter(i => i.type === 'RSI').length === 0) {
-            seen.add('RSI_any'); indicators.push({ type: 'RSI', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
+        for (const m of code.matchAll(/(?:\.ta\.rsi|pta\.rsi)\s*\(([^)]*)\)/gi)) {
+            addInd('RSI', extractLen(m[1], 14), 'Momentum');
         }
-
-        // MACD
-        if (/ta\.MACD\s*\(/.test(code)) {
-            const fastM = code.match(/MACD\s*\([^)]*?fastperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
-            const slowM = code.match(/MACD\s*\([^)]*?slowperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
-            const sigM = code.match(/MACD\s*\([^)]*?signalperiod\s*=\s*(?:self\.\w+\.value|(\d+))/);
-            const fast = fastM && fastM[1] ? parseInt(fastM[1]) : 12;
-            const slow = slowM && slowM[1] ? parseInt(slowM[1]) : 26;
-            const sig = sigM && sigM[1] ? parseInt(sigM[1]) : 9;
-            indicators.push({ type: 'MACD', period: fast, condition: `${fast}/${slow}/${sig}`, compareType: 'Signal Line', comparePeriod: slow, compareValue: sig, value: 0 });
+        // RSI fallback: used but no match above
+        if (indicators.filter(i => i.type === 'RSI').length === 0 && /\brsi\b/i.test(code) && /ta\.|pta\./i.test(code)) {
+            addInd('RSI', 14, 'Momentum');
         }
 
-        // Bollinger Bands
-        const bbMatch = code.match(/ta\.BBANDS\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
-        if (bbMatch) {
-            indicators.push({ type: 'Bollinger', period: parseInt(bbMatch[1]), condition: 'Band', compareType: 'Value', value: 0 });
+        // ======= MACD =======
+        const macdTalib = /ta\.MACD\s*\(([^)]*)\)/;
+        const macdPta = /(?:\.ta\.macd|pta\.macd)\s*\(([^)]*)\)/i;
+        const macdMatch = code.match(macdTalib) || code.match(macdPta);
+        if (macdMatch) {
+            const args = macdMatch[1];
+            const fast = (args.match(/(?:fastperiod|fast)\s*=\s*(?:self\.\w+\.value|(\d+))/) || [])[1] || 12;
+            const slow = (args.match(/(?:slowperiod|slow)\s*=\s*(?:self\.\w+\.value|(\d+))/) || [])[1] || 26;
+            const sig = (args.match(/(?:signalperiod|signal)\s*=\s*(?:self\.\w+\.value|(\d+))/) || [])[1] || 9;
+            indicators.push({ type: 'MACD', period: +fast, condition: `${fast}/${slow}/${sig}`, compareType: 'Signal Line', comparePeriod: +slow, compareValue: +sig, value: 0 });
+            seen.add('MACD');
         }
 
-        // ADX
-        if (/ta\.ADX\s*\(/.test(code)) {
-            const adxM = code.match(/ta\.ADX\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
-            indicators.push({ type: 'ADX', period: adxM ? parseInt(adxM[1]) : 14, condition: 'Trend Strength', compareType: 'Value', value: 25 });
+        // ======= Bollinger Bands =======
+        const bbTalib = code.match(/ta\.BBANDS\s*\(([^)]*)\)/);
+        const bbPta = code.match(/(?:\.ta\.bbands|pta\.bbands)\s*\(([^)]*)\)/i);
+        const bbM = bbTalib || bbPta;
+        if (bbM) addInd('Bollinger', extractLen(bbM[1], 20), 'Band');
+
+        // ======= ADX =======
+        if (/ta\.ADX\s*\(/.test(code) || /(?:\.ta\.adx|pta\.adx)\s*\(/i.test(code)) {
+            const adxM = code.match(/(?:ta\.ADX|\.ta\.adx|pta\.adx)\s*\(([^)]*)\)/i);
+            addInd('ADX', adxM ? extractLen(adxM[1], 14) : 14, 'Trend Strength', 'Value', { value: 25 });
         }
 
-        // ATR
-        if (/ta\.ATR\s*\(/.test(code)) {
-            const atrM = code.match(/ta\.ATR\s*\([^)]*?timeperiod\s*=\s*(\d+)/);
-            indicators.push({ type: 'ATR', period: atrM ? parseInt(atrM[1]) : 14, condition: 'Volatility', compareType: 'Value', value: 0 });
+        // ======= ATR =======
+        if (/ta\.ATR\s*\(/.test(code) || /(?:\.ta\.atr|pta\.atr)\s*\(/i.test(code)) {
+            const atrM = code.match(/(?:ta\.ATR|\.ta\.atr|pta\.atr)\s*\(([^)]*)\)/i);
+            addInd('ATR', atrM ? extractLen(atrM[1], 14) : 14, 'Volatility');
         }
 
-        // Stochastic
-        if (/ta\.STOCH\s*\(/.test(code)) {
-            indicators.push({ type: 'Stochastic', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
+        // ======= Stochastic =======
+        if (/ta\.STOCH\s*\(/.test(code) || /(?:\.ta\.stoch|pta\.stoch)\s*\(/i.test(code)) {
+            addInd('Stochastic', 14, 'Momentum');
         }
 
-        // Williams %R
-        if (/ta\.WILLR\s*\(/.test(code)) {
-            indicators.push({ type: 'Williams %R', period: 14, condition: 'Overbought/Oversold', compareType: 'Value', value: 0 });
+        // ======= Williams %R =======
+        if (/ta\.WILLR\s*\(/.test(code) || /(?:\.ta\.willr|pta\.willr)\s*\(/i.test(code)) {
+            addInd('Williams %R', 14, 'Overbought/Oversold');
         }
 
-        // CCI
-        if (/ta\.CCI\s*\(/.test(code)) {
-            indicators.push({ type: 'CCI', period: 14, condition: 'Momentum', compareType: 'Value', value: 0 });
+        // ======= CCI =======
+        if (/ta\.CCI\s*\(/.test(code) || /(?:\.ta\.cci|pta\.cci)\s*\(/i.test(code)) {
+            addInd('CCI', 14, 'Momentum');
         }
 
-        // Volume indicators
-        if (/ta\.OBV\s*\(/.test(code)) indicators.push({ type: 'OBV', period: 0, condition: 'Volume', compareType: 'Value', value: 0 });
-        if (/ta\.MFI\s*\(/.test(code)) indicators.push({ type: 'MFI', period: 14, condition: 'Money Flow', compareType: 'Value', value: 0 });
+        // ======= Volume indicators =======
+        if (/ta\.OBV\s*\(/.test(code) || /(?:\.ta\.obv|pta\.obv)\s*\(/i.test(code)) addInd('OBV', 0, 'Volume');
+        if (/ta\.MFI\s*\(/.test(code) || /(?:\.ta\.mfi|pta\.mfi)\s*\(/i.test(code)) addInd('MFI', 14, 'Money Flow');
+        if (/(?:\.ta\.vwap|pta\.vwap)\s*\(/i.test(code)) addInd('VWAP', 0, 'Volume Weighted');
 
+        // ======= pandas-ta exclusive indicators =======
+        // SuperTrend
+        if (/(?:\.ta\.supertrend|pta\.supertrend)\s*\(/i.test(code)) {
+            const stM = code.match(/(?:\.ta\.supertrend|pta\.supertrend)\s*\(([^)]*)\)/i);
+            addInd('SuperTrend', stM ? extractLen(stM[1], 7) : 7, 'Trend Direction');
+        }
+
+        // Ichimoku
+        if (/(?:\.ta\.ichimoku|pta\.ichimoku)\s*\(/i.test(code) || /ichimoku/i.test(code)) {
+            addInd('Ichimoku', 0, 'Cloud');
+        }
+
+        // Parabolic SAR
+        if (/ta\.SAR\s*\(/.test(code) || /(?:\.ta\.psar|pta\.psar)\s*\(/i.test(code)) {
+            addInd('PSAR', 0, 'Trend Reversal');
+        }
+
+        // Donchian Channel
+        if (/(?:\.ta\.donchian|pta\.donchian)\s*\(/i.test(code)) {
+            const dcM = code.match(/(?:\.ta\.donchian|pta\.donchian)\s*\(([^)]*)\)/i);
+            addInd('Donchian', dcM ? extractLen(dcM[1], 20) : 20, 'Channel');
+        }
+
+        // Keltner Channel
+        if (/(?:\.ta\.kc|pta\.kc)\s*\(/i.test(code)) {
+            addInd('Keltner', 20, 'Channel');
+        }
+
+        // Squeeze (TTM Squeeze)
+        if (/(?:\.ta\.squeeze|pta\.squeeze)\s*\(/i.test(code)) {
+            addInd('Squeeze', 20, 'Volatility Breakout');
+        }
+
+        // Heikin Ashi
+        if (/(?:\.ta\.ha|pta\.ha)\s*\(/i.test(code) || /heikin/i.test(code)) {
+            addInd('Heikin Ashi', 0, 'Candle Transform');
+        }
+
+        // ======= Custom calculated indicators =======
         // Volatility calculation
         if (/['"]volatility['"]/.test(code) && /\.std\(\)|\.rolling/.test(code)) {
-            indicators.push({ type: 'Volatility', period: 0, condition: 'Std Dev', compareType: 'Value', value: 0 });
+            addInd('Volatility', 0, 'Std Dev');
         }
 
         // Swing points / trend structure
         if (/swing_high|swing_low|detect_swing/.test(code)) {
-            indicators.push({ type: 'Swing Points', period: 0, condition: 'Structure', compareType: 'Value', value: 0 });
+            addInd('Swing Points', 0, 'Structure');
         }
 
         // Market trend filter
         if (/market_trend|market_ema/.test(code)) {
-            indicators.push({ type: 'Market Filter', period: 0, condition: 'Trend Direction', compareType: 'Value', value: 0 });
+            addInd('Market Filter', 0, 'Trend Direction');
         }
 
         return indicators;
@@ -2170,7 +2237,7 @@ ${entryConditions.length > 0 ?
                 seen.add(name);
                 signals.push({
                     name,
-                    label: `${name}: ${label}`.substring(0, 80),
+                    label: `${name}: ${label}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
                     deps: [...deps],
                     subCondCount: subConds.length
@@ -2192,14 +2259,14 @@ ${entryConditions.length > 0 ?
             if (subConds.length > 0 && !seen.has(name)) {
                 seen.add(name);
                 signals.push({
-                    name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 80),
+                    name, label: `${name}: ${subConds.join(' & ')}`.substring(0, 40),
                     conditionSummary: `${subConds.length} conditions`,
                     deps: [...deps], subCondCount: subConds.length
                 });
             }
         }
 
-        return signals;
+        return signals.slice(0, 5);
     },
 
     /** Parse entry conditions from populate_entry_trend */
@@ -2252,7 +2319,8 @@ ${entryConditions.length > 0 ?
             }
         }
 
-        return conditions;
+        // Deduplicate and limit to prevent visual clutter
+        return conditions.filter((c, i, arr) => arr.findIndex(x => x.label === c.label) === i).slice(0, 6);
     },
 
     /** Parse custom_exit function for exit conditions */
@@ -2296,7 +2364,7 @@ ${entryConditions.length > 0 ?
         }
 
         // Deduplicate
-        return exits.filter((e, i, arr) => arr.findIndex(x => x.label === e.label) === i).slice(0, 6);
+        return exits.filter((e, i, arr) => arr.findIndex(x => x.label === e.label) === i).slice(0, 4);
     },
 
     /** Parse confirm_trade_entry for additional entry checks */
@@ -2873,7 +2941,7 @@ ${entryConditions.length > 0 ?
         const content = document.getElementById('sbAnalysisContent');
         if (!content) return;
         const a = this._analyzeStrategy(code);
-        const badge = (text, color) => `<span class="badge bg-${color} bg-opacity-25 text-${color} me-1 mb-1">${text}</span>`;
+        const badge = (text, color) => `<span class="badge bg-${color} text-white me-1 mb-1" style="font-size:11px">${text}</span>`;
         const section = (title, icon, body) => `<div class="sa-section mb-3">
             <div class="sa-section-title d-flex align-items-center gap-2 mb-2">
                 <i class="bi ${icon} text-info"></i><span class="fw-semibold small text-uppercase">${title}</span>

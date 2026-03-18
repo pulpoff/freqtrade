@@ -28,7 +28,7 @@ def safe_deepcopy(config: dict[str, Any]) -> dict[str, Any]:
             config_loc = {k: v for k, v in config.items()
                           if isinstance(v, (str, int, float, bool, list, dict, type(None)))}
         # Restore Path objects that got converted to strings by JSON serialization
-        for key in ("datadir", "user_data_dir"):
+        for key in ("datadir", "user_data_dir", "exportdirectory"):
             if key in config_loc and isinstance(config_loc[key], str):
                 config_loc[key] = Path(config_loc[key])
         # Ensure essential config keys have defaults if missing after JSON serialization
