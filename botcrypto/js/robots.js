@@ -210,8 +210,8 @@ const RobotsPage = {
         }
     },
 
-    deleteStrategy(index) {
-        if (!confirm('Delete this strategy?')) return;
+    async deleteStrategy(index) {
+        if (!await App.confirm('Delete this strategy?', { title: 'Delete Strategy', confirmText: 'Delete' })) return;
         if (this.activeTab === 'my') {
             const strategies = JSON.parse(localStorage.getItem('bc_strategies') || '[]');
             strategies.splice(index, 1);
@@ -359,7 +359,7 @@ const RobotsPage = {
     },
 
     async removeManagedStrategy(strategyId) {
-        if (!confirm('Remove this strategy?')) return;
+        if (!await App.confirm('Remove this managed strategy?', { title: 'Remove Strategy', confirmText: 'Remove' })) return;
         try {
             await API.removeManagedStrategy(strategyId);
             App.showToast('Strategy removed', 'info');
@@ -516,8 +516,8 @@ const RobotsPage = {
         if (bots[index]) this._showBotModal(bots[index], index);
     },
 
-    deleteBot(index) {
-        if (!confirm('Delete this bot configuration?')) return;
+    async deleteBot(index) {
+        if (!await App.confirm('Delete this bot configuration?', { title: 'Delete Bot', confirmText: 'Delete' })) return;
         const bots = this._getSavedBots();
         bots.splice(index, 1);
         this._saveBots(bots);
@@ -531,7 +531,7 @@ const RobotsPage = {
         if (!bot) return;
         if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
         if (!bot.strategy) { App.showToast('Select a strategy first', 'warning'); return; }
-        if (!confirm(`Deploy and start "${bot.name}" with strategy ${bot.strategy}?`)) return;
+        if (!await App.confirm(`Deploy and start "<b>${bot.name}</b>" with strategy <b>${bot.strategy}</b>?`, { title: 'Deploy Bot', confirmText: 'Deploy', confirmClass: 'btn-success', icon: 'bi-rocket-takeoff text-success' })) return;
 
         const strategyId = `${bot.name || 'bot'}-${Date.now()}`.replace(/\s+/g, '-').toLowerCase();
         const pairs = (bot.pairs || 'BTC/USDT:USDT').split(',').map(p => p.trim()).filter(Boolean);

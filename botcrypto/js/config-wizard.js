@@ -737,7 +737,7 @@ const ConfigWizardPage = {
     },
 
     async applyAndRestart(id) {
-        if (!confirm('This will restart the bot with the selected config. Continue?')) return;
+        if (!await App.confirm('This will restart the bot with the selected config. Continue?', { title: 'Restart Bot', confirmText: 'Restart', confirmClass: 'btn-warning', icon: 'bi-arrow-repeat text-warning' })) return;
 
         try {
             const result = await ConfigDB.restartWithConfig(id);
@@ -763,7 +763,7 @@ const ConfigWizardPage = {
     },
 
     async deleteFromDb(id) {
-        if (!confirm('Delete this config?')) return;
+        if (!await App.confirm('Delete this config?', { title: 'Delete Config', confirmText: 'Delete' })) return;
         try {
             await ConfigDB.deleteConfig(id);
             App.showToast('Config deleted', 'info');
@@ -855,7 +855,7 @@ const ConfigWizardPage = {
     },
 
     async deleteStrategy(id) {
-        if (!confirm('Delete this strategy file?')) return;
+        if (!await App.confirm('Delete this strategy file?', { title: 'Delete Strategy', confirmText: 'Delete' })) return;
         try {
             await ConfigDB.deleteStrategyFile(id);
             App.showToast('Strategy file deleted', 'info');
