@@ -111,10 +111,10 @@ const RobotsPage = {
             const leverageM = code.match(/leverage\s*.*?return\s+(\d+)/s) || code.match(/leverage\s*=\s*(\d+)/);
             if (tf) timeUnit = tf[1];
             const badges = [];
-            if (sl) badges.push(`<span class="badge bg-danger bg-opacity-25 text-danger">SL ${(parseFloat(sl[1]) * 100).toFixed(1)}%</span>`);
-            if (roi) badges.push(`<span class="badge bg-success bg-opacity-25 text-success">ROI ${(parseFloat(roi[1]) * 100).toFixed(1)}%</span>`);
-            if (leverageM) badges.push(`<span class="badge bg-info bg-opacity-25 text-info">${leverageM[1]}x</span>`);
-            if (ts && ts[1] === 'True') badges.push(`<span class="badge bg-warning bg-opacity-25 text-warning">Trailing</span>`);
+            if (sl) badges.push(`<span class="badge bg-danger text-white">SL ${(parseFloat(sl[1]) * 100).toFixed(1)}%</span>`);
+            if (roi) badges.push(`<span class="badge bg-success text-white">ROI ${(parseFloat(roi[1]) * 100).toFixed(1)}%</span>`);
+            if (leverageM) badges.push(`<span class="badge bg-info text-white">${leverageM[1]}x</span>`);
+            if (ts && ts[1] === 'True') badges.push(`<span class="badge bg-warning text-dark">Trail</span>`);
             if (badges.length) paramsHtml = `<div class="d-flex gap-1 mt-2 flex-wrap">${badges.join('')}</div>`;
         }
 

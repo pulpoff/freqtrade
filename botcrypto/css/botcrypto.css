@@ -1737,6 +1737,32 @@ h4.fw-semibold, h5.fw-semibold {
     transition: width 0.5s ease;
 }
 
+/* Persistent backtest notification - bottom right corner */
+.bt-persistent-notif {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1080;
+    background: var(--bc-card);
+    border: 1px solid var(--bc-border);
+    border-radius: var(--bc-radius);
+    padding: 12px 16px;
+    min-width: 240px;
+    max-width: 320px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: btNotifSlideIn 0.3s ease;
+}
+.bt-persistent-notif:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+}
+@keyframes btNotifSlideIn {
+    from { transform: translateY(100px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
 @media (max-width: 768px) {
     .sb-backtest-panel {
         width: 95vw;
@@ -1746,5 +1772,11 @@ h4.fw-semibold, h5.fw-semibold {
         left: 0;
         width: 100vw;
         max-width: 100vw;
+    }
+    .bt-persistent-notif {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
     }
 }
