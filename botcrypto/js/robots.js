@@ -492,7 +492,7 @@ const RobotsPage = {
     },
 
     async editActiveBot() {
-        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        if (!API.connected) { App.showToast('Reconnecting...', 'info'); await App.reconnect(); if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; } }
         try {
             const config = await API.getConfig();
             const whitelist = await API.getWhitelist().catch(() => ({}));
@@ -530,7 +530,7 @@ const RobotsPage = {
         const bots = this._getSavedBots();
         const bot = bots[index];
         if (!bot) return;
-        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        if (!API.connected) { App.showToast('Reconnecting...', 'info'); await App.reconnect(); if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; } }
         if (!bot.strategy) { App.showToast('Select a strategy first', 'warning'); return; }
         if (!await App.confirm(`Deploy and start "<b>${bot.name}</b>" with strategy <b>${bot.strategy}</b>?`, { title: 'Deploy Bot', confirmText: 'Deploy', confirmClass: 'btn-success', icon: 'bi-rocket-takeoff text-success' })) return;
 

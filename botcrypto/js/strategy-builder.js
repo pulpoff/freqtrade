@@ -2744,8 +2744,9 @@ ${entryConditions.length > 0 ?
 
     async runBacktestInPanel() {
         if (!API.connected) {
-            App.showToast('Connect to Freqtrade first', 'warning');
-            return;
+            App.showToast('Reconnecting...', 'info');
+            await App.reconnect();
+            if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; }
         }
 
         let strategyName = this._importedStrategyName || this.strategyName;

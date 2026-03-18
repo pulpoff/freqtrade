@@ -290,8 +290,9 @@ const BacktestingPage = {
         }
 
         if (!API.connected) {
-            App.showToast('Connect to Freqtrade first to run backtests', 'warning');
-            return;
+            App.showToast('Reconnecting...', 'info');
+            await App.reconnect();
+            if (!API.connected) { App.showToast('Could not connect to Freqtrade', 'error'); return; }
         }
 
         const timeframe = document.getElementById('btTimeframe').value;
