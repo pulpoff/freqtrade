@@ -1732,20 +1732,37 @@ ${entryConditions.length > 0 ?
         const yBase = 300;
         let x = 50;
 
+        // Grid layout helper: arranges items in multiple columns when count exceeds maxPerCol
+        const maxPerCol = 6;
+        const ySpacing = 100;
+        const gridPos = (index, total, baseX) => {
+            if (total <= maxPerCol) {
+                // Single column, centered
+                const yOff = (index - (total - 1) / 2) * ySpacing;
+                return { x: baseX, y: yBase + yOff };
+            }
+            const cols = Math.ceil(total / maxPerCol);
+            const col = Math.floor(index / maxPerCol);
+            const row = index % maxPerCol;
+            const itemsInCol = Math.min(maxPerCol, total - col * maxPerCol);
+            const yOff = (row - (itemsInCol - 1) / 2) * ySpacing;
+            return { x: baseX + col * xStep, y: yBase + yOff };
+        };
+        const gridCols = (total) => total <= maxPerCol ? 1 : Math.ceil(total / maxPerCol);
+
         // 1. START node
         const startNode = { id: this.nextId++, type: 'start', x, y: yBase, params: {} };
         this.nodes.push(startNode);
         x += xStep;
 
-        // 2. Indicator nodes (one per detected indicator)
-        const ySpacing = 120;
+        // 2. Indicator nodes (one per detected indicator) - grid layout
         const allIndicators = indicators;
         const indicatorNodes = [];
         allIndicators.forEach((ind, i) => {
-            const yOff = (i - (allIndicators.length - 1) / 2) * ySpacing;
+            const pos = gridPos(i, allIndicators.length, x);
             const node = {
                 id: this.nextId++, type: 'indicator',
-                x, y: yBase + yOff,
+                x: pos.x, y: pos.y,
                 params: {
                     type: ind.type, timeframe: ind.timeframe || this.timeUnit || '5m',
                     period: ind.period, value: ind.value || 0,
@@ -1759,34 +1776,34 @@ ${entryConditions.length > 0 ?
             indicatorNodes.push(node);
             this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
         });
-        if (indicatorNodes.length > 0) x += xStep;
+        if (indicatorNodes.length > 0) x += gridCols(allIndicators.length) * xStep;
 
-        // 2b. Logic blocks (unrecognized code)
+        // 2b. Logic blocks (unrecognized code) - grid layout
         const logicNodes = [];
         if (logicBlocks.length > 0) {
-            const totalItems = allIndicators.length + logicBlocks.length;
+            const lbBaseX = x - (indicatorNodes.length > 0 ? 0 : xStep);
             logicBlocks.forEach((lb, i) => {
-                const yOff = (allIndicators.length + i - (totalItems - 1) / 2) * ySpacing;
+                const pos = gridPos(i, logicBlocks.length, lbBaseX);
                 const node = {
                     id: this.nextId++, type: 'logic',
-                    x: x - (indicatorNodes.length > 0 ? 0 : xStep), y: yBase + yOff,
+                    x: pos.x, y: pos.y,
                     params: { code: lb.code, _label: lb.label }
                 };
                 this.nodes.push(node);
                 logicNodes.push(node);
                 this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
             });
-            if (indicatorNodes.length === 0) x += xStep;
+            if (indicatorNodes.length === 0) x += gridCols(logicBlocks.length) * xStep;
         }
 
-        // 3. Composite signal nodes (e.g. price_peak, price_reversal, macd_reversal)
+        // 3. Composite signal nodes (e.g. price_peak, price_reversal, macd_reversal) - grid layout
         const signalNodes = [];
         if (compositeSignals.length > 0) {
             compositeSignals.forEach((sig, i) => {
-                const yOff = (i - (compositeSignals.length - 1) / 2) * ySpacing;
+                const pos = gridPos(i, compositeSignals.length, x);
                 const node = {
                     id: this.nextId++, type: 'indicator',
-                    x, y: yBase + yOff,
+                    x: pos.x, y: pos.y,
                     params: {
                         type: sig.name, timeframe: this.timeUnit || '5m',
                         period: 0, value: 0,
@@ -1814,7 +1831,7 @@ ${entryConditions.length > 0 ?
                     this.connections.push({ from: startNode.id, to: node.id, type: 'normal' });
                 }
             });
-            x += xStep;
+            x += gridCols(compositeSignals.length) * xStep;
         }
 
         // 4. Entry condition group nodes
@@ -1921,14 +1938,14 @@ ${entryConditions.length > 0 ?
         this.nodes.push(slNode);
         this.connections.push({ from: buyNode.id, to: slNode.id, type: 'normal' });
 
-        // 10. Exit condition nodes (between trade and sell)
+        // 10. Exit condition nodes (between trade and sell) - grid layout
         let exitNodes = [];
         const allExitConds = [...exitLongConds, ...exitShortConds];
         if (allExitConds.length > 0) {
             allExitConds.forEach((ec, i) => {
-                const yOff = (i - (allExitConds.length - 1) / 2) * 100;
+                const pos = gridPos(i, allExitConds.length, x);
                 const exitNode = {
-                    id: this.nextId++, type: 'indicator', x, y: yBase + yOff,
+                    id: this.nextId++, type: 'indicator', x: pos.x, y: pos.y,
                     params: {
                         type: ec.signal || 'Exit', timeframe: this.timeUnit || '5m',
                         period: 0, value: 0,
@@ -1944,12 +1961,13 @@ ${entryConditions.length > 0 ?
             });
         }
 
-        // 11. Custom exit nodes
+        // 11. Custom exit nodes - grid layout
         if (customExits.length > 0) {
+            const ceTotal = allExitConds.length + customExits.length;
             customExits.forEach((ce, i) => {
-                const yOff = 200 + i * 100;
+                const pos = gridPos(allExitConds.length + i, ceTotal, x);
                 const ceNode = {
-                    id: this.nextId++, type: 'indicator', x, y: yBase + yOff,
+                    id: this.nextId++, type: 'indicator', x: pos.x, y: pos.y,
                     params: {
                         type: 'Custom Exit', timeframe: this.timeUnit || '5m',
                         period: 0, value: 0,
@@ -1964,7 +1982,8 @@ ${entryConditions.length > 0 ?
                 this.connections.push({ from: buyNode.id, to: ceNode.id, type: 'normal' });
             });
         }
-        x += xStep;
+        const exitTotal = allExitConds.length + customExits.length;
+        x += gridCols(exitTotal || 1) * xStep;
 
         // 12. Trailing stop node
         if (trailMatch) {
@@ -3291,16 +3310,16 @@ ${entryConditions.length > 0 ?
         const btBackdrop = document.getElementById('sbBacktestBackdrop');
         if (btBackdrop) btBackdrop.remove();
         panel.classList.add('open');
-        if (this._importedStrategyCode) {
-            this._renderAnalysis(this._importedStrategyCode);
+        // Always analyze the current strategy: use imported code if available, otherwise generate from visual builder
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        const code = imported[this.strategyName]?.content || this._importedStrategyCode || this._buildFreqtradeStrategy();
+        if (code) {
+            this._renderAnalysis(code);
         } else {
             const content = document.getElementById('sbAnalysisContent');
             if (content) content.innerHTML = `<div class="text-center text-secondary py-4">
                 <i class="bi bi-file-earmark-code fs-1 d-block mb-2 opacity-50"></i>
-                <p class="small">Import a Python strategy to see analysis</p>
-                <button class="btn btn-sm btn-outline-info" onclick="StrategyBuilderPage.importStrategy()">
-                    <i class="bi bi-download me-1"></i> Import Strategy
-                </button></div>`;
+                <p class="small">Add some nodes to your strategy first</p></div>`;
         }
     },
 

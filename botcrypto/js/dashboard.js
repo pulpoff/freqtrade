@@ -1461,6 +1461,680 @@ const DashboardPage = {
         return { macd: macdLine, signal: signalLine, histogram };
     },
 
+    // Helper: EMA over raw values array, returns raw values array
+    _emaRaw(values, period) {
+        const result = [];
+        const k = 2 / (period + 1);
+        for (let i = 0; i < values.length; i++) {
+            if (values[i] === null || values[i] === undefined) { result.push(null); continue; }
+            if (result.length === 0 || result.every(v => v === null)) {
+                result.push(values[i]);
+            } else {
+                const prev = result[result.length - 1];
+                result.push(prev !== null ? values[i] * k + prev * (1 - k) : values[i]);
+            }
+        }
+        return result;
+    },
+
+    _calcWMA(candles, period) {
+        const result = [];
+        const denom = period * (period + 1) / 2;
+        for (let i = period - 1; i < candles.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < period; j++) sum += candles[i - j].close * (period - j);
+            result.push({ time: candles[i].time, value: sum / denom });
+        }
+        return result;
+    },
+
+    _calcDEMA(candles, period) {
+        const ema1 = this._calcMA(candles, period, 'ema');
+        // Build candle-like objects from ema1 for second EMA pass
+        const ema2 = this._calcMA(ema1.map(e => ({ time: e.time, close: e.value })), period, 'ema');
+        const ema2Map = {}; ema2.forEach(e => ema2Map[e.time] = e.value);
+        return ema1.filter(e => ema2Map[e.time] !== undefined).map(e => ({ time: e.time, value: 2 * e.value - ema2Map[e.time] }));
+    },
+
+    _calcTEMA(candles, period) {
+        const e1 = this._calcMA(candles, period, 'ema');
+        const e2 = this._calcMA(e1.map(e => ({ time: e.time, close: e.value })), period, 'ema');
+        const e3 = this._calcMA(e2.map(e => ({ time: e.time, close: e.value })), period, 'ema');
+        const e2Map = {}; e2.forEach(e => e2Map[e.time] = e.value);
+        const e3Map = {}; e3.forEach(e => e3Map[e.time] = e.value);
+        return e1.filter(e => e2Map[e.time] !== undefined && e3Map[e.time] !== undefined)
+            .map(e => ({ time: e.time, value: 3 * e.value - 3 * e2Map[e.time] + e3Map[e.time] }));
+    },
+
+    _calcKAMA(candles, period) {
+        const result = [];
+        const fast = 2 / (2 + 1), slow = 2 / (30 + 1);
+        for (let i = period; i < candles.length; i++) {
+            const direction = Math.abs(candles[i].close - candles[i - period].close);
+            let volatility = 0;
+            for (let j = 0; j < period; j++) volatility += Math.abs(candles[i - j].close - candles[i - j - 1].close);
+            const er = volatility === 0 ? 0 : direction / volatility;
+            const sc = Math.pow(er * (fast - slow) + slow, 2);
+            const prev = result.length > 0 ? result[result.length - 1].value : candles[i].close;
+            result.push({ time: candles[i].time, value: prev + sc * (candles[i].close - prev) });
+        }
+        return result;
+    },
+
+    _calcHMA(candles, period) {
+        const half = Math.floor(period / 2);
+        const sqrtP = Math.floor(Math.sqrt(period));
+        const wma1 = this._calcWMA(candles, half);
+        const wma2 = this._calcWMA(candles, period);
+        // Align by time and compute 2*wma(half) - wma(full)
+        const wma2Map = {}; wma2.forEach(w => wma2Map[w.time] = w.value);
+        const diff = wma1.filter(w => wma2Map[w.time] !== undefined)
+            .map(w => ({ time: w.time, close: 2 * w.value - wma2Map[w.time] }));
+        return this._calcWMA(diff, sqrtP);
+    },
+
+    _calcVWMA(candles, period) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let sumPV = 0, sumV = 0;
+            for (let j = 0; j < period; j++) {
+                const v = candles[i - j].volume || 1;
+                sumPV += candles[i - j].close * v;
+                sumV += v;
+            }
+            result.push({ time: candles[i].time, value: sumPV / sumV });
+        }
+        return result;
+    },
+
+    _calcATR(candles, period) {
+        const result = [];
+        const tr = [];
+        for (let i = 0; i < candles.length; i++) {
+            if (i === 0) { tr.push(candles[i].high - candles[i].low); continue; }
+            tr.push(Math.max(candles[i].high - candles[i].low, Math.abs(candles[i].high - candles[i-1].close), Math.abs(candles[i].low - candles[i-1].close)));
+        }
+        let atr = 0;
+        for (let i = 0; i < period; i++) atr += tr[i];
+        atr /= period;
+        result.push({ time: candles[period - 1].time, value: atr });
+        for (let i = period; i < candles.length; i++) {
+            atr = (atr * (period - 1) + tr[i]) / period;
+            result.push({ time: candles[i].time, value: atr });
+        }
+        return result;
+    },
+
+    _calcKC(candles, period) {
+        const ema = this._calcMA(candles, period, 'ema');
+        const atr = this._calcATR(candles, period);
+        const atrMap = {}; atr.forEach(a => atrMap[a.time] = a.value);
+        const upper = [], lower = [], mid = [];
+        ema.forEach(e => {
+            if (atrMap[e.time] !== undefined) {
+                upper.push({ time: e.time, value: e.value + 2 * atrMap[e.time] });
+                lower.push({ time: e.time, value: e.value - 2 * atrMap[e.time] });
+                mid.push({ time: e.time, value: e.value });
+            }
+        });
+        return { upper, lower, mid };
+    },
+
+    _calcDC(candles, period) {
+        const upper = [], lower = [], mid = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let hi = -Infinity, lo = Infinity;
+            for (let j = 0; j < period; j++) { hi = Math.max(hi, candles[i-j].high); lo = Math.min(lo, candles[i-j].low); }
+            upper.push({ time: candles[i].time, value: hi });
+            lower.push({ time: candles[i].time, value: lo });
+            mid.push({ time: candles[i].time, value: (hi + lo) / 2 });
+        }
+        return { upper, lower, mid };
+    },
+
+    _calcEnvelope(candles, period, pct) {
+        const sma = this._calcMA(candles, period, 'sma');
+        return {
+            upper: sma.map(s => ({ time: s.time, value: s.value * (1 + pct) })),
+            lower: sma.map(s => ({ time: s.time, value: s.value * (1 - pct) })),
+            mid: sma,
+        };
+    },
+
+    _calcPSAR(candles) {
+        const result = [];
+        if (candles.length < 2) return result;
+        let af = 0.02, maxAf = 0.2, rising = true;
+        let sar = candles[0].low, ep = candles[0].high;
+        for (let i = 1; i < candles.length; i++) {
+            const prev = sar;
+            sar = prev + af * (ep - prev);
+            if (rising) {
+                if (candles[i].low < sar) { rising = false; sar = ep; ep = candles[i].low; af = 0.02; }
+                else { if (candles[i].high > ep) { ep = candles[i].high; af = Math.min(af + 0.02, maxAf); } }
+            } else {
+                if (candles[i].high > sar) { rising = true; sar = ep; ep = candles[i].high; af = 0.02; }
+                else { if (candles[i].low < ep) { ep = candles[i].low; af = Math.min(af + 0.02, maxAf); } }
+            }
+            result.push({ time: candles[i].time, value: sar });
+        }
+        return result;
+    },
+
+    _calcIchimoku(candles) {
+        const tenkan = [], kijun = [], senkouA = [], senkouB = [], chikou = [];
+        const hl = (arr, i, p) => { let hi = -Infinity, lo = Infinity; for (let j = 0; j < p && i - j >= 0; j++) { hi = Math.max(hi, arr[i-j].high); lo = Math.min(lo, arr[i-j].low); } return (hi + lo) / 2; };
+        for (let i = 0; i < candles.length; i++) {
+            if (i >= 8) tenkan.push({ time: candles[i].time, value: hl(candles, i, 9) });
+            if (i >= 25) kijun.push({ time: candles[i].time, value: hl(candles, i, 26) });
+            if (i >= 25 && tenkan.length > 0 && kijun.length > 0) {
+                senkouA.push({ time: candles[i].time, value: (tenkan[tenkan.length-1].value + kijun[kijun.length-1].value) / 2 });
+            }
+            if (i >= 51) senkouB.push({ time: candles[i].time, value: hl(candles, i, 52) });
+            if (i + 26 < candles.length) chikou.push({ time: candles[i + 26].time, value: candles[i].close });
+        }
+        return { tenkan, kijun, senkouA, senkouB, chikou };
+    },
+
+    _calcSupertrend(candles, period, mult) {
+        const atr = this._calcATR(candles, period);
+        const atrMap = {}; atr.forEach(a => atrMap[a.time] = a.value);
+        const result = [];
+        let trend = 1, upperBand = 0, lowerBand = 0;
+        for (let i = 0; i < candles.length; i++) {
+            const c = candles[i], a = atrMap[c.time];
+            if (a === undefined) continue;
+            const hl2 = (c.high + c.low) / 2;
+            const newUpper = hl2 + mult * a, newLower = hl2 - mult * a;
+            upperBand = (result.length > 0 && newUpper < upperBand) || (result.length > 0 && candles[i-1]?.close > upperBand) ? newUpper : (result.length === 0 ? newUpper : Math.min(newUpper, upperBand));
+            lowerBand = (result.length > 0 && newLower > lowerBand) || (result.length > 0 && candles[i-1]?.close < lowerBand) ? newLower : (result.length === 0 ? newLower : Math.max(newLower, lowerBand));
+            if (trend === 1 && c.close < lowerBand) trend = -1;
+            else if (trend === -1 && c.close > upperBand) trend = 1;
+            result.push({ time: c.time, value: trend === 1 ? lowerBand : upperBand, color: trend === 1 ? '#2ecc71' : '#e74c5e' });
+        }
+        return result;
+    },
+
+    _calcPivots(candles) {
+        const pivot = [], r1 = [], s1 = [], r2 = [], s2 = [];
+        for (let i = 1; i < candles.length; i++) {
+            const p = candles[i-1], t = candles[i].time;
+            const pp = (p.high + p.low + p.close) / 3;
+            pivot.push({ time: t, value: pp });
+            r1.push({ time: t, value: 2 * pp - p.low });
+            s1.push({ time: t, value: 2 * pp - p.high });
+            r2.push({ time: t, value: pp + (p.high - p.low) });
+            s2.push({ time: t, value: pp - (p.high - p.low) });
+        }
+        return { pivot, r1, s1, r2, s2 };
+    },
+
+    _calcVWAP(candles) {
+        const result = [];
+        let cumPV = 0, cumV = 0;
+        for (let i = 0; i < candles.length; i++) {
+            const tp = (candles[i].high + candles[i].low + candles[i].close) / 3;
+            const v = candles[i].volume || 1;
+            cumPV += tp * v; cumV += v;
+            result.push({ time: candles[i].time, value: cumPV / cumV });
+        }
+        return result;
+    },
+
+    _calcStochRSI(candles, period) {
+        const rsi = this._calcRSI(candles, period);
+        const k = [], d = [];
+        const kPeriod = 14, dPeriod = 3;
+        for (let i = kPeriod - 1; i < rsi.length; i++) {
+            let hi = -Infinity, lo = Infinity;
+            for (let j = 0; j < kPeriod; j++) { hi = Math.max(hi, rsi[i-j].value); lo = Math.min(lo, rsi[i-j].value); }
+            const kVal = hi === lo ? 50 : (rsi[i].value - lo) / (hi - lo) * 100;
+            k.push({ time: rsi[i].time, value: kVal });
+        }
+        for (let i = dPeriod - 1; i < k.length; i++) {
+            let sum = 0; for (let j = 0; j < dPeriod; j++) sum += k[i-j].value;
+            d.push({ time: k[i].time, value: sum / dPeriod });
+        }
+        return { k, d };
+    },
+
+    _calcStoch(candles, period, smooth) {
+        const k = [], d = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let hi = -Infinity, lo = Infinity;
+            for (let j = 0; j < period; j++) { hi = Math.max(hi, candles[i-j].high); lo = Math.min(lo, candles[i-j].low); }
+            k.push({ time: candles[i].time, value: hi === lo ? 50 : (candles[i].close - lo) / (hi - lo) * 100 });
+        }
+        for (let i = smooth - 1; i < k.length; i++) {
+            let sum = 0; for (let j = 0; j < smooth; j++) sum += k[i-j].value;
+            d.push({ time: k[i].time, value: sum / smooth });
+        }
+        return { k, d };
+    },
+
+    _calcCCI(candles, period) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            const tp = (candles[i].high + candles[i].low + candles[i].close) / 3;
+            let sum = 0;
+            for (let j = 0; j < period; j++) sum += (candles[i-j].high + candles[i-j].low + candles[i-j].close) / 3;
+            const avg = sum / period;
+            let meanDev = 0;
+            for (let j = 0; j < period; j++) meanDev += Math.abs((candles[i-j].high + candles[i-j].low + candles[i-j].close) / 3 - avg);
+            meanDev /= period;
+            result.push({ time: candles[i].time, value: meanDev === 0 ? 0 : (tp - avg) / (0.015 * meanDev) });
+        }
+        return result;
+    },
+
+    _calcWillR(candles, period) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let hi = -Infinity, lo = Infinity;
+            for (let j = 0; j < period; j++) { hi = Math.max(hi, candles[i-j].high); lo = Math.min(lo, candles[i-j].low); }
+            result.push({ time: candles[i].time, value: hi === lo ? -50 : (hi - candles[i].close) / (hi - lo) * -100 });
+        }
+        return result;
+    },
+
+    _calcMomentum(candles, period) {
+        const result = [];
+        for (let i = period; i < candles.length; i++) {
+            result.push({ time: candles[i].time, value: candles[i].close - candles[i - period].close });
+        }
+        return result;
+    },
+
+    _calcROC(candles, period) {
+        const result = [];
+        for (let i = period; i < candles.length; i++) {
+            const prev = candles[i - period].close;
+            result.push({ time: candles[i].time, value: prev === 0 ? 0 : (candles[i].close - prev) / prev * 100 });
+        }
+        return result;
+    },
+
+    _calcTSI(candles) {
+        const result = [];
+        const diffs = [];
+        for (let i = 1; i < candles.length; i++) diffs.push(candles[i].close - candles[i-1].close);
+        const absDiffs = diffs.map(d => Math.abs(d));
+        const ema25 = this._emaRaw(diffs, 25);
+        const ema13 = this._emaRaw(ema25, 13);
+        const absEma25 = this._emaRaw(absDiffs, 25);
+        const absEma13 = this._emaRaw(absEma25, 13);
+        for (let i = 0; i < ema13.length; i++) {
+            if (ema13[i] !== null && absEma13[i] !== null && absEma13[i] !== 0) {
+                result.push({ time: candles[i + 1].time, value: (ema13[i] / absEma13[i]) * 100 });
+            }
+        }
+        return result;
+    },
+
+    _calcUO(candles) {
+        const result = [];
+        for (let i = 1; i < candles.length; i++) {
+            if (i < 28) continue;
+            const bp = (j) => candles[j].close - Math.min(candles[j].low, candles[j-1].close);
+            const tr = (j) => Math.max(candles[j].high, candles[j-1].close) - Math.min(candles[j].low, candles[j-1].close);
+            let bp7 = 0, tr7 = 0, bp14 = 0, tr14 = 0, bp28 = 0, tr28 = 0;
+            for (let j = i; j > i - 7; j--)  { bp7 += bp(j); tr7 += tr(j); }
+            for (let j = i; j > i - 14; j--) { bp14 += bp(j); tr14 += tr(j); }
+            for (let j = i; j > i - 28; j--) { bp28 += bp(j); tr28 += tr(j); }
+            const avg7 = tr7 === 0 ? 0 : bp7 / tr7;
+            const avg14 = tr14 === 0 ? 0 : bp14 / tr14;
+            const avg28 = tr28 === 0 ? 0 : bp28 / tr28;
+            result.push({ time: candles[i].time, value: 100 * (4 * avg7 + 2 * avg14 + avg28) / 7 });
+        }
+        return result;
+    },
+
+    _calcAwesome(candles) {
+        const result = [];
+        for (let i = 33; i < candles.length; i++) {
+            let sum5 = 0, sum34 = 0;
+            for (let j = 0; j < 5; j++) sum5 += (candles[i-j].high + candles[i-j].low) / 2;
+            for (let j = 0; j < 34; j++) sum34 += (candles[i-j].high + candles[i-j].low) / 2;
+            const val = sum5 / 5 - sum34 / 34;
+            result.push({ time: candles[i].time, value: val, color: val >= 0 ? 'rgba(45,212,168,0.6)' : 'rgba(231,76,94,0.6)' });
+        }
+        return result;
+    },
+
+    _calcPPO(candles) {
+        const ema12 = this._calcMA(candles, 12, 'ema');
+        const ema26 = this._calcMA(candles, 26, 'ema');
+        const ema26Map = {}; ema26.forEach(e => ema26Map[e.time] = e.value);
+        return ema12.filter(e => ema26Map[e.time] !== undefined)
+            .map(e => ({ time: e.time, value: ema26Map[e.time] === 0 ? 0 : (e.value - ema26Map[e.time]) / ema26Map[e.time] * 100 }));
+    },
+
+    _calcCMO(candles, period) {
+        const result = [];
+        for (let i = period; i < candles.length; i++) {
+            let up = 0, down = 0;
+            for (let j = 0; j < period; j++) {
+                const diff = candles[i - j].close - candles[i - j - 1].close;
+                if (diff > 0) up += diff; else down -= diff;
+            }
+            result.push({ time: candles[i].time, value: up + down === 0 ? 0 : (up - down) / (up + down) * 100 });
+        }
+        return result;
+    },
+
+    _calcFisher(candles, period) {
+        const result = [];
+        let val = 0;
+        for (let i = period - 1; i < candles.length; i++) {
+            let hi = -Infinity, lo = Infinity;
+            for (let j = 0; j < period; j++) { hi = Math.max(hi, candles[i-j].high); lo = Math.min(lo, candles[i-j].low); }
+            const hl2 = (candles[i].high + candles[i].low) / 2;
+            let x = hi === lo ? 0 : 2 * ((hl2 - lo) / (hi - lo) - 0.5);
+            x = Math.max(-0.999, Math.min(0.999, 0.33 * x + 0.67 * val));
+            val = x;
+            result.push({ time: candles[i].time, value: 0.5 * Math.log((1 + x) / (1 - x)) });
+        }
+        return result;
+    },
+
+    _calcNATR(candles, period) {
+        const atr = this._calcATR(candles, period);
+        const result = [];
+        let j = 0;
+        for (let i = 0; i < candles.length && j < atr.length; i++) {
+            if (candles[i].time === atr[j].time) {
+                result.push({ time: candles[i].time, value: candles[i].close === 0 ? 0 : atr[j].value / candles[i].close * 100 });
+                j++;
+            }
+        }
+        return result;
+    },
+
+    _calcBBWidth(candles, period) {
+        const bb = this._calcBB(candles, period);
+        return bb.upper.map((u, i) => ({ time: u.time, value: bb.mid[i].value === 0 ? 0 : (u.value - bb.lower[i].value) / bb.mid[i].value * 100 }));
+    },
+
+    _calcBBPct(candles, period) {
+        const bb = this._calcBB(candles, period);
+        const result = [];
+        let j = 0;
+        for (let i = 0; i < candles.length && j < bb.upper.length; i++) {
+            if (candles[i].time === bb.upper[j].time) {
+                const range = bb.upper[j].value - bb.lower[j].value;
+                result.push({ time: candles[i].time, value: range === 0 ? 0.5 : (candles[i].close - bb.lower[j].value) / range });
+                j++;
+            }
+        }
+        return result;
+    },
+
+    _calcStdDev(candles, period) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < period; j++) sum += candles[i-j].close;
+            const avg = sum / period;
+            let sqSum = 0;
+            for (let j = 0; j < period; j++) sqSum += Math.pow(candles[i-j].close - avg, 2);
+            result.push({ time: candles[i].time, value: Math.sqrt(sqSum / period) });
+        }
+        return result;
+    },
+
+    _calcChop(candles, period) {
+        const atr = this._calcATR(candles, 1);
+        const atrMap = {}; atr.forEach(a => atrMap[a.time] = a.value);
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let hi = -Infinity, lo = Infinity, atrSum = 0;
+            for (let j = 0; j < period; j++) {
+                hi = Math.max(hi, candles[i-j].high);
+                lo = Math.min(lo, candles[i-j].low);
+                if (atrMap[candles[i-j].time] !== undefined) atrSum += atrMap[candles[i-j].time];
+            }
+            const range = hi - lo;
+            result.push({ time: candles[i].time, value: range === 0 ? 50 : 100 * Math.log10(atrSum / range) / Math.log10(period) });
+        }
+        return result;
+    },
+
+    _calcKCWidth(candles, period) {
+        const kc = this._calcKC(candles, period);
+        return kc.upper.map((u, i) => ({ time: u.time, value: kc.mid[i].value === 0 ? 0 : (u.value - kc.lower[i].value) / kc.mid[i].value * 100 }));
+    },
+
+    _calcOBV(candles) {
+        const result = [];
+        let obv = 0;
+        for (let i = 0; i < candles.length; i++) {
+            if (i > 0) {
+                if (candles[i].close > candles[i-1].close) obv += (candles[i].volume || 0);
+                else if (candles[i].close < candles[i-1].close) obv -= (candles[i].volume || 0);
+            }
+            result.push({ time: candles[i].time, value: obv });
+        }
+        return result;
+    },
+
+    _calcADOsc(candles) {
+        const result = [];
+        let ad = 0;
+        for (let i = 0; i < candles.length; i++) {
+            const hl = candles[i].high - candles[i].low;
+            const mfm = hl === 0 ? 0 : ((candles[i].close - candles[i].low) - (candles[i].high - candles[i].close)) / hl;
+            ad += mfm * (candles[i].volume || 0);
+            result.push({ time: candles[i].time, value: ad });
+        }
+        return result;
+    },
+
+    _calcCMF(candles, period) {
+        const result = [];
+        for (let i = period - 1; i < candles.length; i++) {
+            let mfv = 0, vol = 0;
+            for (let j = 0; j < period; j++) {
+                const c = candles[i-j], hl = c.high - c.low;
+                const mfm = hl === 0 ? 0 : ((c.close - c.low) - (c.high - c.close)) / hl;
+                mfv += mfm * (c.volume || 0);
+                vol += (c.volume || 0);
+            }
+            result.push({ time: candles[i].time, value: vol === 0 ? 0 : mfv / vol });
+        }
+        return result;
+    },
+
+    _calcMFI(candles, period) {
+        const result = [];
+        for (let i = period; i < candles.length; i++) {
+            let posFlow = 0, negFlow = 0;
+            for (let j = 0; j < period; j++) {
+                const tp = (candles[i-j].high + candles[i-j].low + candles[i-j].close) / 3;
+                const prevTp = (candles[i-j-1].high + candles[i-j-1].low + candles[i-j-1].close) / 3;
+                const mf = tp * (candles[i-j].volume || 0);
+                if (tp > prevTp) posFlow += mf; else negFlow += mf;
+            }
+            const ratio = negFlow === 0 ? 100 : posFlow / negFlow;
+            result.push({ time: candles[i].time, value: 100 - 100 / (1 + ratio) });
+        }
+        return result;
+    },
+
+    _calcEOM(candles, period) {
+        const raw = [];
+        for (let i = 1; i < candles.length; i++) {
+            const dm = ((candles[i].high + candles[i].low) / 2) - ((candles[i-1].high + candles[i-1].low) / 2);
+            const br = (candles[i].volume || 1) / (candles[i].high - candles[i].low || 1);
+            raw.push({ time: candles[i].time, close: dm / br });
+        }
+        return this._calcMA(raw, period, 'sma');
+    },
+
+    _calcVPT(candles) {
+        const result = [];
+        let vpt = 0;
+        for (let i = 1; i < candles.length; i++) {
+            const roc = candles[i-1].close === 0 ? 0 : (candles[i].close - candles[i-1].close) / candles[i-1].close;
+            vpt += roc * (candles[i].volume || 0);
+            result.push({ time: candles[i].time, value: vpt });
+        }
+        return result;
+    },
+
+    _calcFI(candles, period) {
+        const raw = [];
+        for (let i = 1; i < candles.length; i++) {
+            raw.push({ time: candles[i].time, close: (candles[i].close - candles[i-1].close) * (candles[i].volume || 0) });
+        }
+        return this._calcMA(raw, period, 'ema');
+    },
+
+    _calcNVI(candles) {
+        const result = [];
+        let nvi = 1000;
+        for (let i = 0; i < candles.length; i++) {
+            if (i > 0 && (candles[i].volume || 0) < (candles[i-1].volume || 0)) {
+                nvi += nvi * (candles[i-1].close === 0 ? 0 : (candles[i].close - candles[i-1].close) / candles[i-1].close);
+            }
+            result.push({ time: candles[i].time, value: nvi });
+        }
+        return result;
+    },
+
+    _calcADX(candles, period) {
+        const di = this._calcDI(candles, period);
+        // ADX is smoothed DX
+        const result = [];
+        const diPlusMap = {}; di.plus.forEach(d => diPlusMap[d.time] = d.value);
+        const dx = [];
+        di.minus.forEach(d => {
+            if (diPlusMap[d.time] !== undefined) {
+                const sum = diPlusMap[d.time] + d.value;
+                dx.push({ time: d.time, value: sum === 0 ? 0 : Math.abs(diPlusMap[d.time] - d.value) / sum * 100 });
+            }
+        });
+        if (dx.length < period) return result;
+        let adx = 0;
+        for (let i = 0; i < period; i++) adx += dx[i].value;
+        adx /= period;
+        result.push({ time: dx[period - 1].time, value: adx });
+        for (let i = period; i < dx.length; i++) {
+            adx = (adx * (period - 1) + dx[i].value) / period;
+            result.push({ time: dx[i].time, value: adx });
+        }
+        return result;
+    },
+
+    _calcDI(candles, period) {
+        const plus = [], minus = [];
+        const pdm = [], ndm = [], tr = [];
+        for (let i = 1; i < candles.length; i++) {
+            const upMove = candles[i].high - candles[i-1].high;
+            const downMove = candles[i-1].low - candles[i].low;
+            pdm.push(upMove > downMove && upMove > 0 ? upMove : 0);
+            ndm.push(downMove > upMove && downMove > 0 ? downMove : 0);
+            tr.push(Math.max(candles[i].high - candles[i].low, Math.abs(candles[i].high - candles[i-1].close), Math.abs(candles[i].low - candles[i-1].close)));
+        }
+        let smoothPdm = 0, smoothNdm = 0, smoothTr = 0;
+        for (let i = 0; i < period; i++) { smoothPdm += pdm[i]; smoothNdm += ndm[i]; smoothTr += tr[i]; }
+        const t = candles[period].time;
+        plus.push({ time: t, value: smoothTr === 0 ? 0 : smoothPdm / smoothTr * 100 });
+        minus.push({ time: t, value: smoothTr === 0 ? 0 : smoothNdm / smoothTr * 100 });
+        for (let i = period; i < pdm.length; i++) {
+            smoothPdm = smoothPdm - smoothPdm / period + pdm[i];
+            smoothNdm = smoothNdm - smoothNdm / period + ndm[i];
+            smoothTr = smoothTr - smoothTr / period + tr[i];
+            plus.push({ time: candles[i + 1].time, value: smoothTr === 0 ? 0 : smoothPdm / smoothTr * 100 });
+            minus.push({ time: candles[i + 1].time, value: smoothTr === 0 ? 0 : smoothNdm / smoothTr * 100 });
+        }
+        return { plus, minus };
+    },
+
+    _calcAroon(candles, period) {
+        const up = [], down = [];
+        for (let i = period; i < candles.length; i++) {
+            let hiIdx = 0, loIdx = 0;
+            for (let j = 0; j <= period; j++) {
+                if (candles[i - j].high >= candles[i - hiIdx].high) hiIdx = j;
+                if (candles[i - j].low <= candles[i - loIdx].low) loIdx = j;
+            }
+            up.push({ time: candles[i].time, value: (period - hiIdx) / period * 100 });
+            down.push({ time: candles[i].time, value: (period - loIdx) / period * 100 });
+        }
+        return { up, down };
+    },
+
+    _calcAroonOsc(candles, period) {
+        const ar = this._calcAroon(candles, period);
+        return ar.up.map((u, i) => ({ time: u.time, value: u.value - ar.down[i].value }));
+    },
+
+    _calcVortex(candles, period) {
+        const plus = [], minus = [];
+        for (let i = period; i < candles.length; i++) {
+            let vmPlus = 0, vmMinus = 0, trSum = 0;
+            for (let j = 0; j < period; j++) {
+                const idx = i - j;
+                vmPlus += Math.abs(candles[idx].high - candles[idx - 1].low);
+                vmMinus += Math.abs(candles[idx].low - candles[idx - 1].high);
+                trSum += Math.max(candles[idx].high - candles[idx].low, Math.abs(candles[idx].high - candles[idx-1].close), Math.abs(candles[idx].low - candles[idx-1].close));
+            }
+            plus.push({ time: candles[i].time, value: trSum === 0 ? 0 : vmPlus / trSum });
+            minus.push({ time: candles[i].time, value: trSum === 0 ? 0 : vmMinus / trSum });
+        }
+        return { plus, minus };
+    },
+
+    _calcDPO(candles, period) {
+        const result = [];
+        const shift = Math.floor(period / 2) + 1;
+        const sma = this._calcMA(candles, period, 'sma');
+        const smaMap = {}; sma.forEach(s => smaMap[s.time] = s.value);
+        for (let i = shift; i < candles.length; i++) {
+            const smaTime = candles[i - shift]?.time;
+            if (smaMap[candles[i].time] !== undefined) {
+                result.push({ time: candles[i].time, value: candles[i].close - (smaMap[candles[i].time] || candles[i].close) });
+            }
+        }
+        return result;
+    },
+
+    _calcTRIX(candles, period) {
+        const e1 = this._calcMA(candles, period, 'ema');
+        const e2 = this._calcMA(e1.map(e => ({ time: e.time, close: e.value })), period, 'ema');
+        const e3 = this._calcMA(e2.map(e => ({ time: e.time, close: e.value })), period, 'ema');
+        const result = [];
+        for (let i = 1; i < e3.length; i++) {
+            result.push({ time: e3[i].time, value: e3[i-1].value === 0 ? 0 : (e3[i].value - e3[i-1].value) / e3[i-1].value * 10000 });
+        }
+        return result;
+    },
+
+    _calcMass(candles, period) {
+        const hl = candles.map(c => ({ time: c.time, close: c.high - c.low }));
+        const ema9 = this._calcMA(hl, 9, 'ema');
+        const ema9_2 = this._calcMA(ema9.map(e => ({ time: e.time, close: e.value })), 9, 'ema');
+        const ratioMap = {}; ema9_2.forEach(e => ratioMap[e.time] = e.value);
+        const ratios = ema9.filter(e => ratioMap[e.time] !== undefined && ratioMap[e.time] !== 0)
+            .map(e => ({ time: e.time, value: e.value / ratioMap[e.time] }));
+        const result = [];
+        for (let i = period - 1; i < ratios.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < period; j++) sum += ratios[i-j].value;
+            result.push({ time: ratios[i].time, value: sum });
+        }
+        return result;
+    },
+
+    _calcCoppock(candles) {
+        const roc14 = this._calcROC(candles, 14);
+        const roc11 = this._calcROC(candles, 11);
+        const roc11Map = {}; roc11.forEach(r => roc11Map[r.time] = r.value);
+        const combined = roc14.filter(r => roc11Map[r.time] !== undefined)
+            .map(r => ({ time: r.time, close: r.value + roc11Map[r.time] }));
+        return this._calcWMA(combined, 10);
+    },
+
     destroy() {
         // Clean up indicator series
         Object.keys(this._indicators).forEach(id => {
