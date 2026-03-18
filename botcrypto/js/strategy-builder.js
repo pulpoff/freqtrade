@@ -2598,20 +2598,23 @@ ${entryConditions.length > 0 ?
             this._updatePanelProgress(5, 'Resetting...', 'Clearing previous backtest');
             await API.resetBacktest().catch(() => {});
 
-            // Pre-download data for selected pair and common informative timeframes
-            this._updatePanelProgress(8, 'Downloading data...', `${selectedPair} (multiple timeframes)`);
+            // Check available data and only download missing timeframes
+            this._updatePanelProgress(8, 'Checking data...', `${selectedPair}`);
             const dlTimeframes = [timeframe || '5m'];
             for (const tf of ['1h', '4h', '1d']) {
                 if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
             }
             try {
-                const dlResult = await API.downloadData({
+                const dlResult = await API.downloadMissingData({
                     pairs: [selectedPair],
                     timeframes: dlTimeframes,
                     timerange: `${startDate}-${endDate}`,
                 });
                 if (dlResult && dlResult.job_id) {
+                    this._updatePanelProgress(10, 'Downloading missing data...', selectedPair);
                     await this._waitForDownload(dlResult.job_id);
+                } else {
+                    this._updatePanelProgress(18, 'Data ready', 'Using cached data');
                 }
             } catch(dlErr) {
                 console.log('Pre-download skipped:', dlErr.message);
@@ -2750,8 +2753,8 @@ ${entryConditions.length > 0 ?
             for (const tf of ['1h', '4h', '1d']) {
                 if (!timeframes.includes(tf)) timeframes.push(tf);
             }
-            this._updatePanelProgress(5, `Downloading data for ${pairs.length} pair(s)...`, pairs.join(', '));
-            const result = await API.downloadData({ pairs, timeframes, timerange });
+            this._updatePanelProgress(5, 'Checking data...', pairs.join(', '));
+            const result = await API.downloadMissingData({ pairs, timeframes, timerange });
             if (result && result.job_id) {
                 this._btDownloadJobId = result.job_id;
                 this._pollDownloadForPanel();
