@@ -2870,9 +2870,13 @@ ${entryConditions.length > 0 ?
         try {
             const status = await API.getBacktestStatus();
             if (status.running) {
-                const pct = 15 + (status.progress || 0) * 80;
-                const step = status.step || status.status_msg || 'Processing...';
-                this._updatePanelProgress(pct, step, status.trade_count ? `${status.trade_count} trades found` : 'Running...');
+                const stepNames = { startup: 'Starting up...', dataload: 'Loading data...', datadownload: 'Downloading data...', analyze: 'Analyzing...', convert: 'Converting...', backtest: 'Running backtest...' };
+                const rawStep = status.step || 'startup';
+                const step = stepNames[rawStep] || rawStep;
+                const isDownloading = rawStep === 'datadownload';
+                const pct = isDownloading ? (status.progress || 0) * 15 : 15 + (status.progress || 0) * 80;
+                const detail = isDownloading ? `Downloading market data... ${Math.round((status.progress || 0) * 100)}%` : (status.trade_count ? `${status.trade_count} trades found` : 'Running...');
+                this._updatePanelProgress(pct, step, detail);
                 this._updateNotification(pct, `Backtest: ${Math.round(pct)}%`, step);
                 this._btPollTimer = setTimeout(() => this._pollPanelBacktest(), 1500);
             } else if (status.status === 'ended' || (status.backtest_result && !status.running)) {
