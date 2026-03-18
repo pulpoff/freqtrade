@@ -448,6 +448,7 @@ const BacktestingPage = {
                     setTimeout(() => {
                         this.hideProgress();
                         this.displayResults(this.currentResult);
+                        this.loadHistory();
                     }, 500);
                 }, 200);
             } else if (status.status === 'error') {
@@ -1092,7 +1093,9 @@ const BacktestingPage = {
                     });
                     return;
                 }
-                API.getBacktestResult(h.filename, h.strategy).then(result => {
+                API.getBacktestResult(h.filename, h.strategy).then(rawResult => {
+                    // Unwrap backtest_result wrapper if present
+                    const result = rawResult?.backtest_result || rawResult;
                     let sr = null;
                     if (result && result.strategy && typeof result.strategy === 'object') {
                         const vals = Object.values(result.strategy);

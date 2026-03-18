@@ -80,6 +80,11 @@
                         <i class="bi bi-gear me-2"></i><span>Configuration</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#logs" data-page="logs" onclick="event.preventDefault(); App.navigate('logs')">
+                        <i class="bi bi-terminal me-2"></i><span>Log</span>
+                    </a>
+                </li>
             </ul>
             <div class="px-3 py-3 border-top border-secondary">
                 <div class="d-flex align-items-center" id="connectionStatus" style="cursor:pointer" onclick="App.reconnect()" title="Click to reconnect">
@@ -134,6 +139,7 @@
     <script src="js/trades.js?v=6"></script>
     <script src="js/webhooks.js?v=6"></script>
     <script src="js/config-wizard.js?v=6"></script>
+    <script src="js/logs.js?v=6"></script>
     <script src="js/app.js?v=6"></script>
 </body>
 </html>

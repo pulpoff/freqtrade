@@ -18,6 +18,7 @@ const App = {
         'trades': { title: 'Trades', module: () => TradesPage },
         'webhooks': { title: 'Webhooks', module: () => WebhooksPage },
         'config': { title: 'Configuration', module: () => ConfigWizardPage },
+        'logs': { title: 'Log', module: () => LogsPage },
     },
 
     async init() {
