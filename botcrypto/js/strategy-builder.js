@@ -3202,12 +3202,12 @@ ${entryConditions.length > 0 ?
                         const ts = Math.floor(new Date(t.open_date).getTime() / 1000);
                         // Snap to nearest candle time
                         const candle = candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
-                        markers.push({ time: candle ? candle.time : ts, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B' });
+                        markers.push({ time: candle ? candle.time : ts, position: 'belowBar', color: '#2dd4a8', shape: 'circle', text: 'B', size: 2 });
                     }
                     if (t.close_date) {
                         const ts = Math.floor(new Date(t.close_date).getTime() / 1000);
                         const candle = candles.reduce((best, c) => Math.abs(c.time - ts) < Math.abs(best.time - ts) ? c : best, candles[0]);
-                        markers.push({ time: candle ? candle.time : ts, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S' });
+                        markers.push({ time: candle ? candle.time : ts, position: 'aboveBar', color: '#e74c5e', shape: 'circle', text: 'S', size: 2 });
                     }
                 });
                 markers.sort((a, b) => a.time - b.time);

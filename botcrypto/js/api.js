@@ -244,6 +244,9 @@ const API = {
     async getManagedStrategyTrades(id) {
         return this.request(`/strategies/${encodeURIComponent(id)}/trades`);
     },
+    async getManagedStrategyProfit(id) {
+        return this.request(`/strategies/${encodeURIComponent(id)}/profit`);
+    },
 
     // ========== FORCE TRADE ==========
     async forceEntry(pair, side = 'long', options = {}) {
