@@ -337,6 +337,12 @@ class StrategyManager:
         # Ensure FreqAI config has required sub-keys if enabled
         freqai = config.get("freqai")
         if freqai and freqai.get("enabled"):
+            # Promote freqai.model to top-level freqaimodel (expected by resolver)
+            if "freqaimodel" not in config and freqai.get("model"):
+                config["freqaimodel"] = freqai["model"]
+                logger.info(
+                    f"Strategy '{strategy_id}': Set freqaimodel={config['freqaimodel']}"
+                )
             if "feature_parameters" not in freqai:
                 freqai["feature_parameters"] = {
                     "include_timeframes": [config.get("timeframe", "5m")],

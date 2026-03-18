@@ -515,11 +515,12 @@ select option:checked {
 .badge-running { background: rgba(74,144,217,0.1); color: var(--bc-blue); }
 .badge-failed { background: rgba(231,76,94,0.1); color: var(--bc-red); }
 
-.badge.bg-success { background: var(--bc-primary) !important; color: #111; }
-.badge.bg-danger { background: var(--bc-red) !important; }
-.badge.bg-warning { background: var(--bc-orange) !important; color: #111; }
+.badge.bg-success { background: var(--bc-primary) !important; color: #fff !important; }
+.badge.bg-danger { background: var(--bc-red) !important; color: #fff !important; }
+.badge.bg-warning { background: var(--bc-orange) !important; color: #fff !important; }
 .badge.bg-secondary { background: rgba(255,255,255,0.08) !important; color: var(--bc-text-secondary); }
-.badge.bg-primary { background: var(--bc-blue) !important; }
+.badge.bg-primary { background: var(--bc-blue) !important; color: #fff !important; }
+.badge.bg-info { color: #fff !important; }
 
 /* ============================================
    NAV TABS
