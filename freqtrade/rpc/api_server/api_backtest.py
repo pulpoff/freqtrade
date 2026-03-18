@@ -40,6 +40,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _auto_download_bt_data(btconfig: Config, bt) -> None:
+    """Auto-download missing data for backtesting."""
+    from copy import deepcopy
+
+    from freqtrade.data.history import download_data
+
+    dl_config = deepcopy(btconfig)
+    dl_config["pairs"] = bt.pairlists.whitelist
+    # Collect all needed timeframes
+    timeframes = {bt.timeframe}
+    if bt.timeframe_detail:
+        timeframes.add(bt.timeframe_detail)
+    dl_config["timeframes"] = list(timeframes)
+    # Default to 30 days if no timerange set
+    if "timerange" not in dl_config or not dl_config.get("timerange"):
+        dl_config["days"] = dl_config.get("new_pairs_days", 30)
+
+    logger.info(
+        f"Auto-downloading data for {dl_config['pairs']}, "
+        f"timeframes: {dl_config['timeframes']}"
+    )
+    try:
+        download_data(dl_config, bt.exchange)
+        logger.info("Auto-download completed successfully.")
+    except Exception as e:
+        logger.error(f"Auto-download failed: {e}")
+        raise OperationalException(
+            f"No data found and auto-download failed: {e}"
+        )
+
+
 def __run_backtest_bg(btconfig: Config):
     from freqtrade.data.metrics import combined_dataframes_with_rel_mean
     from freqtrade.optimize.optimize_reports import generate_backtest_stats, store_backtest_results
@@ -66,7 +97,16 @@ def __run_backtest_bg(btconfig: Config):
             ApiBG.bt["bt"].init_backtest()
         # Only reload data if timerange is open or settings changed
         if not ApiBG.bt["data"] or not ApiBG.bt["timerange"] or time_settings_changed:
-            ApiBG.bt["data"], ApiBG.bt["timerange"] = ApiBG.bt["bt"].load_bt_data()
+            try:
+                ApiBG.bt["data"], ApiBG.bt["timerange"] = ApiBG.bt["bt"].load_bt_data()
+            except OperationalException as e:
+                if "No data found" in str(e):
+                    # Auto-download missing data and retry
+                    logger.info("No data found - auto-downloading required data...")
+                    _auto_download_bt_data(btconfig, ApiBG.bt["bt"])
+                    ApiBG.bt["data"], ApiBG.bt["timerange"] = ApiBG.bt["bt"].load_bt_data()
+                else:
+                    raise
 
         lastconfig["timerange"] = btconfig["timerange"]
         lastconfig["timeframe_detail"] = btconfig.get("timeframe_detail")
