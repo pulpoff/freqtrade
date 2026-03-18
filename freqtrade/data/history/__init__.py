@@ -10,6 +10,7 @@ Includes:
 from .datahandlers import get_datahandler
 from .history_utils import (
     convert_trades_to_ohlcv,
+    download_data,
     download_data_main,
     get_timerange,
     load_data,
