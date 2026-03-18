@@ -102,6 +102,8 @@ class future63b(IStrategy):
          )
         
          # Secondary trend structure (based on rolling highs/lows - faster but less reliable)
+         dataframe['rolling_high'] = dataframe['high'].rolling(window=self.swing_lookback.value).max()
+         dataframe['rolling_low'] = dataframe['low'].rolling(window=self.swing_lookback.value).min()
          dataframe['rolling_high_prev'] = dataframe['rolling_high'].shift(self.swing_lookback.value)
          dataframe['rolling_low_prev'] = dataframe['rolling_low'].shift(self.swing_lookback.value)
         

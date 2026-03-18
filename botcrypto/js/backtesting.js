@@ -1043,12 +1043,13 @@ const BacktestingPage = {
                     }
                     if (!sr) sr = result;
 
-                    // Pair
+                    // Pair - show just coin name (e.g. BTC from BTC/USDT:USDT)
                     const pairEl = document.getElementById(`btHistPair_${idx}`);
                     if (pairEl) {
                         const trades = sr.trades || [];
                         const pairs = [...new Set(trades.map(t => t.pair))];
-                        pairEl.textContent = pairs.length > 0 ? pairs.join(', ') : (sr.pairlist || '-');
+                        const shortPairs = pairs.map(p => p.split('/')[0]);
+                        pairEl.textContent = shortPairs.length > 0 ? shortPairs.join(', ') : (sr.pairlist ? sr.pairlist.split('/')[0] : '-');
                     }
 
                     // Trades count

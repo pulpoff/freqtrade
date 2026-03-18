@@ -64,8 +64,9 @@ const LogsPage = {
 
             const levelFilter = document.getElementById('logLevelFilter')?.value || '';
 
+            // Freqtrade log format: [timestamp, epoch_ms, logger_name, level, message]
             const filtered = levelFilter
-                ? logs.filter(l => (l[2] || '').toUpperCase() === levelFilter)
+                ? logs.filter(l => (l[3] || '').toUpperCase() === levelFilter)
                 : logs;
 
             if (filtered.length === 0) {
@@ -75,9 +76,9 @@ const LogsPage = {
 
             container.innerHTML = filtered.map(l => {
                 const timestamp = l[0] || '';
-                const logger = l[1] || '';
-                const level = (l[2] || '').toUpperCase();
-                const message = l[3] || (typeof l === 'string' ? l : JSON.stringify(l));
+                const loggerName = l[2] || '';
+                const level = (l[3] || '').toUpperCase();
+                const message = l[4] || '';
 
                 const levelColor = {
                     'ERROR': '#e74c5e',
@@ -86,11 +87,17 @@ const LogsPage = {
                     'DEBUG': '#6c757d',
                 }[level] || '#adb5bd';
 
-                const levelBadge = `<span style="color:${levelColor};font-weight:600;min-width:55px;display:inline-block">${level}</span>`;
-                const ts = timestamp ? `<span style="color:#6c757d">${timestamp}</span> ` : '';
-                const log = logger ? `<span style="color:#58a6ff">${logger}</span> ` : '';
+                // Shorten logger name: freqtrade.rpc.api_server.api_backtest -> api_backtest
+                const shortLogger = loggerName.split('.').pop() || loggerName;
 
-                return `<div style="white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #1b2130;padding:2px 0">${ts}${levelBadge} ${log}<span style="color:#c9d1d9">${this._escapeHtml(message)}</span></div>`;
+                const levelBadge = `<span style="color:${levelColor};font-weight:700;min-width:60px;display:inline-block">${level}</span>`;
+                const ts = timestamp ? `<span style="color:#6c757d">${timestamp}</span> ` : '';
+                const loggerSpan = shortLogger ? `<span style="color:#58a6ff">${this._escapeHtml(shortLogger)}</span> ` : '';
+
+                // Highlight error/exception details
+                const msgColor = level === 'ERROR' ? '#e74c5e' : level === 'WARNING' ? '#f0ad4e' : '#c9d1d9';
+
+                return `<div style="white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #1b2130;padding:3px 0">${ts}${levelBadge} ${loggerSpan}<span style="color:${msgColor}">${this._escapeHtml(message)}</span></div>`;
             }).join('');
 
             if (this.autoScroll) {

@@ -805,13 +805,40 @@ select option:checked {
 }
 .node-type-start .node-label { color: #424242; }
 
-/* ---- INDICATOR node - white/light with blue accent ---- */
+/* ---- INDICATOR node - subtle blue tint ---- */
 .node-type-indicator .node-body {
-    background: #f5f5f5;
-    border-color: #e0e0e0;
+    background: #e8eef6;
+    border-color: #c5d3e8;
 }
 .node-type-indicator .node-body:hover { border-color: var(--bc-blue); }
-.node-type-indicator .node-label { color: #333; }
+.node-type-indicator .node-label { color: #2c3e6b; }
+
+/* ---- Composite signal nodes (parsed conditions) ---- */
+.node-type-indicator.node-composite .node-body {
+    background: #e0f2f1;
+    border-color: #b2dfdb;
+}
+.node-type-indicator.node-composite .node-body:hover { border-color: #26a69a; }
+.node-type-indicator.node-composite .node-label { color: #00695c; }
+.node-type-indicator.node-composite .node-badge { background: #26a69a; border-color: #26a69a; color: white; }
+
+/* ---- Confirm/Filter nodes ---- */
+.node-type-indicator.node-filter .node-body {
+    background: #fff3e0;
+    border-color: #ffe0b2;
+}
+.node-type-indicator.node-filter .node-body:hover { border-color: #ff9800; }
+.node-type-indicator.node-filter .node-label { color: #e65100; }
+.node-type-indicator.node-filter .node-badge { background: #ff9800; border-color: #ff9800; color: white; }
+
+/* ---- Exit signal nodes ---- */
+.node-type-indicator.node-exit .node-body {
+    background: #fce4ec;
+    border-color: #f8bbd0;
+}
+.node-type-indicator.node-exit .node-body:hover { border-color: #e91e63; }
+.node-type-indicator.node-exit .node-label { color: #880e4f; }
+.node-type-indicator.node-exit .node-badge { background: #e91e63; border-color: #e91e63; color: white; }
 
 /* ---- TERMINATE node - muted dark ---- */
 .node-type-terminate .node-body {
@@ -851,6 +878,7 @@ select option:checked {
 .node-icon.n-wait { background: rgba(241,196,15,0.15); color: var(--bc-yellow); }
 .node-icon.n-webhook { background: var(--bc-blue); color: white; }
 .node-icon.n-reset { background: var(--bc-blue); color: white; }
+.node-icon.n-logic { background: rgba(156,39,176,0.15); color: #ce93d8; border: 2px solid rgba(156,39,176,0.3); }
 
 .node-label {
     padding: 4px 10px 8px;
@@ -952,6 +980,9 @@ select option:checked {
 .connections-layer path.conn-true { stroke: var(--bc-orange); }
 .connections-layer path.conn-false { stroke: var(--bc-red); stroke-dasharray: 6,3; }
 .connections-layer path.conn-normal { stroke: var(--bc-orange); }
+.connections-layer path.conn-hitarea { stroke: transparent; stroke-width: 18; pointer-events: stroke; cursor: pointer; }
+.connections-layer path.conn-hitarea:hover + path { stroke-width: 4; filter: drop-shadow(0 0 4px rgba(245,166,35,0.5)); }
+.connections-layer .conn-selected { stroke-width: 4 !important; filter: drop-shadow(0 0 6px rgba(245,166,35,0.6)); }
 
 /* Bottom Toolbar - Single row matching botcrypto.io */
 .builder-bottom-toolbar {
@@ -1005,16 +1036,17 @@ select option:checked {
 }
 
 .tb-icon.tb-indicator { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 1px solid rgba(74,144,217,0.25); }
-.tb-icon.tb-group { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 1px solid rgba(74,144,217,0.25); }
-.tb-icon.tb-gain { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 1px solid rgba(74,144,217,0.25); }
+.tb-icon.tb-group { background: rgba(156,39,176,0.15); color: #ce93d8; border: 1px solid rgba(156,39,176,0.25); }
+.tb-icon.tb-gain { background: rgba(0,188,212,0.15); color: #00bcd4; border: 1px solid rgba(0,188,212,0.25); }
 .tb-icon.tb-trailing { background: rgba(245,166,35,0.15); color: var(--bc-orange); border: 1px solid rgba(245,166,35,0.25); }
 .tb-icon.tb-wait { background: rgba(241,196,15,0.15); color: var(--bc-yellow); border: 1px solid rgba(241,196,15,0.25); }
-.tb-icon.tb-webhook { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 1px solid rgba(74,144,217,0.25); }
-.tb-icon.tb-buy { background: rgba(45,212,168,0.2); color: var(--bc-green); border: 1px solid rgba(45,212,168,0.35); }
+.tb-icon.tb-webhook { background: rgba(121,134,203,0.15); color: #7986cb; border: 1px solid rgba(121,134,203,0.25); }
+.tb-icon.tb-buy { background: rgba(76,175,80,0.2); color: #4caf50; border: 1px solid rgba(76,175,80,0.35); }
 .tb-icon.tb-sell { background: rgba(231,76,94,0.2); color: var(--bc-red); border: 1px solid rgba(231,76,94,0.35); }
 .tb-icon.tb-takeprofit { background: rgba(45,212,168,0.15); color: var(--bc-primary); border: 1px solid rgba(45,212,168,0.25); }
 .tb-icon.tb-terminate { background: rgba(255,255,255,0.06); color: var(--bc-text-secondary); border: 1px solid rgba(255,255,255,0.1); }
-.tb-icon.tb-reset { background: rgba(74,144,217,0.15); color: var(--bc-blue); border: 1px solid rgba(74,144,217,0.25); }
+.tb-icon.tb-reset { background: rgba(255,152,0,0.15); color: #ff9800; border: 1px solid rgba(255,152,0,0.25); }
+.tb-icon.tb-stoploss { background: rgba(244,67,54,0.15); color: #f44336; border: 1px solid rgba(244,67,54,0.25); }
 
 .tb-name {
     font-size: 10px;
