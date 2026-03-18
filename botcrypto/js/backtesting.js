@@ -53,11 +53,10 @@ const BacktestingPage = {
                             </select>
                         </div>
 
-                        <!-- Pair Filter -->
+                        <!-- Coin Pair -->
                         <div class="col-6 col-md-2">
-                            <label class="form-label small text-secondary">Pair Filter</label>
+                            <label class="form-label small text-secondary">Coin Pair</label>
                             <select class="form-select" id="btPair">
-                                <option value="">All (from config)</option>
                             </select>
                         </div>
 
@@ -407,9 +406,10 @@ const BacktestingPage = {
             this.updateProgress(5, 'Resetting previous backtest...');
             await API.resetBacktest().catch(() => {});
 
-            // Pre-download data for all required timeframes
-            const selectedPair = document.getElementById('btPair')?.value;
-            const dlPairs = selectedPair ? [selectedPair] : (await API.getWhitelist().catch(() => ({}))).whitelist || ['BTC/USDT'];
+            // Pre-download data for selected pair
+            const selectedPair = document.getElementById('btPair')?.value || 'BTC/USDT:USDT';
+            btConfig.pair_whitelist = [selectedPair];
+            const dlPairs = [selectedPair];
             const dlTimeframes = [timeframe || '5m'];
             for (const tf of ['1h', '4h', '1d']) {
                 if (!dlTimeframes.includes(tf)) dlTimeframes.push(tf);
@@ -519,24 +519,8 @@ const BacktestingPage = {
             const endDate = document.getElementById('btEndDate').value.replace(/-/g, '');
             const timerange = `${startDate}-${endDate}`;
 
-            let pairs = [];
-            const selectedPair = document.getElementById('btPair').value;
-            if (selectedPair) {
-                pairs = [selectedPair];
-            } else {
-                try {
-                    const whitelist = await API.getWhitelist();
-                    pairs = whitelist?.whitelist || [];
-                } catch (e) {}
-            }
-            if (pairs.length === 0) {
-                try {
-                    const config = await API.getConfig();
-                    pairs = config?.exchange?.pair_whitelist || ['BTC/USDT'];
-                } catch (e) {
-                    pairs = ['BTC/USDT'];
-                }
-            }
+            const selectedPair = document.getElementById('btPair').value || 'BTC/USDT:USDT';
+            const pairs = [selectedPair];
 
             const timeframes = [timeframe];
             // Include common informative timeframes that strategies often need
