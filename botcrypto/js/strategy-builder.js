@@ -70,10 +70,10 @@ const StrategyBuilderPage = {
                         <i class="bi bi-plus-lg"></i>
                     </button>
                     <i class="bi bi-diagram-3 text-warning"></i>
-                    <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold"
-                        style="width:200px;max-width:30vw" value="${this.strategyName}"
+                    <input type="text" class="form-control form-control-sm bg-transparent border-0 text-white fw-semibold sb-strategy-name"
+                        value="${this.strategyName}"
                         onchange="StrategyBuilderPage.strategyName = this.value">
-                    <select class="form-select form-select-sm border-secondary" style="width:80px;background:var(--bc-card);color:var(--bc-text)"
+                    <select class="form-select form-select-sm border-secondary sb-timeunit-select"
                         id="sbTimeUnit" onchange="StrategyBuilderPage.timeUnit = this.value">
                         <option value="1m">1m</option><option value="3m">3m</option>
                         <option value="5m" selected>5m</option><option value="15m">15m</option>

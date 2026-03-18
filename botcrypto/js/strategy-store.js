@@ -199,7 +199,7 @@ const StrategyStorePage = {
                     <button class="btn btn-outline-primary btn-sm" onclick="StrategyStorePage.newCodeStrategy()">
                         <i class="bi bi-plus-lg me-1"></i> New Strategy
                     </button>
-                    <div class="input-group" style="width:280px">
+                    <div class="input-group store-search-input">
                         <span class="input-group-text bg-transparent border-secondary">
                             <i class="bi bi-search text-secondary"></i>
                         </span>
@@ -207,7 +207,7 @@ const StrategyStorePage = {
                             value="${this.searchQuery}"
                             oninput="StrategyStorePage.searchQuery = this.value; StrategyStorePage.refresh()">
                     </div>
-                    <select class="form-select form-select-sm" style="width:140px"
+                    <select class="form-select form-select-sm store-filter-select"
                         onchange="StrategyStorePage.filterTimeframe = this.value; StrategyStorePage.refresh()">
                         <option value="">All Timeframes</option>
                         <option value="1m">1m</option>
@@ -216,7 +216,7 @@ const StrategyStorePage = {
                         <option value="30m">30m</option>
                         <option value="1h">1h</option>
                     </select>
-                    <select class="form-select form-select-sm" style="width:160px"
+                    <select class="form-select form-select-sm store-filter-select"
                         onchange="StrategyStorePage.filterCategory = this.value; StrategyStorePage.refresh()">
                         <option value="">All Categories</option>
                         <option value="Trend Following">Trend Following</option>

@@ -1633,10 +1633,31 @@ h4.fw-semibold, h5.fw-semibold {
 /* ============================================
    PAIR SELECT STYLING
    ============================================ */
-#dashPairSelect {
+#dashPairSelect,
+.dash-pair-select {
+    width: 130px;
     background: rgba(255,255,255,0.06);
     border-color: var(--bc-border);
     font-weight: 600;
+}
+
+/* Strategy Store filter controls */
+.store-search-input {
+    width: 280px;
+}
+.store-filter-select {
+    width: 140px;
+}
+
+/* Strategy Builder toolbar controls */
+.sb-strategy-name {
+    width: 200px;
+    max-width: 30vw;
+}
+.sb-timeunit-select {
+    width: 80px;
+    background: var(--bc-card);
+    color: var(--bc-text);
 }
 
 /* ============================================
@@ -1861,5 +1882,288 @@ h4.fw-semibold, h5.fw-semibold {
         right: 10px;
         left: 10px;
         max-width: none;
+    }
+}
+
+/* ============================================
+   MOBILE RESPONSIVE OVERHAUL
+   ============================================ */
+
+/* --- Global: hamburger menu spacing --- */
+@media (max-width: 767.98px) {
+    /* Add left padding for hamburger menu icon on all pages */
+    #pageContainer {
+        padding-top: 3rem !important;
+    }
+    #menuToggle {
+        top: 6px !important;
+        left: 6px !important;
+        z-index: 1040 !important;
+    }
+    /* Sidebar mobile overlay backdrop */
+    .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1049;
+    }
+    .sidebar.show ~ .sidebar-backdrop,
+    .sidebar-backdrop.show {
+        display: block;
+    }
+}
+
+/* --- Stat cards: 2 cols on small mobile instead of 3 --- */
+@media (max-width: 575.98px) {
+    #dashSummaryStats > [class*="col-4"],
+    #tradesSummary > [class*="col-4"],
+    #btSummaryStats > [class*="col-4"] {
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+    .stat-value {
+        font-size: 14px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .stat-label {
+        font-size: 9px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* --- Page headers: stack title and buttons vertically --- */
+@media (max-width: 767.98px) {
+    /* Strategy Store header */
+    #strategyStorePage > .d-flex.justify-content-between,
+    #strategiesPage > .d-flex.justify-content-between {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.75rem !important;
+    }
+    /* Strategy Store filter controls: wrap */
+    #strategyStorePage > .d-flex.justify-content-between > .d-flex.gap-2 {
+        flex-wrap: wrap !important;
+        width: 100%;
+    }
+    /* Fix fixed-width inputs/selects in Strategy Store */
+    #strategyStorePage .input-group,
+    #strategyStorePage .form-select {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Bots section header */
+    #strategiesPage > .d-flex.align-items-center.justify-content-between {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
+    }
+
+    /* Strategy cards grid: single column */
+    .strategy-cards-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* --- Strategy Builder toolbar: wrap buttons --- */
+@media (max-width: 767.98px) {
+    .builder-layout > .d-flex.justify-content-between {
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+        padding: 0.4rem 0.5rem !important;
+    }
+    /* Left side (strategy name + timeframe) */
+    .builder-layout > .d-flex.justify-content-between > .d-flex:first-child {
+        flex: 1 1 100% !important;
+        min-width: 0;
+    }
+    /* Strategy name input: full width */
+    .builder-layout > .d-flex.justify-content-between > .d-flex:first-child input[type="text"] {
+        width: 100% !important;
+        max-width: none !important;
+        flex: 1 1 auto !important;
+    }
+    /* Right side buttons: wrap into 2 rows */
+    .builder-layout > .d-flex.justify-content-between > .d-flex:last-child {
+        flex-wrap: wrap !important;
+        gap: 0.25rem !important;
+    }
+    .builder-layout > .d-flex.justify-content-between > .d-flex:last-child .btn {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 11px !important;
+    }
+    /* Hide button labels on very small screens, keep icons */
+    .builder-layout > .d-flex.justify-content-between > .d-flex:last-child .btn .me-1 {
+        margin-right: 0 !important;
+    }
+
+    /* Builder bottom toolbar: horizontal scroll */
+    .builder-bottom-toolbar {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+        padding: 6px 8px !important;
+    }
+    .toolbar-block {
+        min-width: 52px !important;
+        flex-shrink: 0;
+    }
+    .tb-icon {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 16px !important;
+    }
+    .tb-name {
+        font-size: 8px !important;
+    }
+
+    /* Zoom controls: bottom-left to avoid overlap with toolbar */
+    .builder-zoom-controls {
+        bottom: 60px !important;
+        right: 8px !important;
+    }
+}
+
+/* --- Dashboard: chart toolbar and pair selector --- */
+@media (max-width: 767.98px) {
+    /* Pair selector and toolbar: stack */
+    .card-body > .d-flex.border-bottom > .d-flex.gap-2,
+    .card-body > .d-flex.border-bottom > .d-flex.gap-md-3 {
+        flex-wrap: wrap !important;
+    }
+    /* Pair select dropdown */
+    #dashPairSelect {
+        width: 100% !important;
+        max-width: none !important;
+    }
+    /* Timeframe buttons: smaller */
+    #dashTfBtns .btn-group .btn {
+        padding: 0.2rem 0.4rem !important;
+        font-size: 11px !important;
+    }
+    /* Chart container */
+    .chart-container,
+    #mainChart,
+    [id$="Chart"]:not(#equityChart) {
+        min-height: 250px;
+    }
+}
+
+/* --- Trades page --- */
+@media (max-width: 767.98px) {
+    /* Bot control buttons: wrap nicely */
+    #tradesPage .card-body > .d-flex.flex-wrap .d-flex.gap-2 {
+        flex-wrap: wrap !important;
+    }
+    /* Tabs: scrollable with no clip */
+    .nav-tabs.flex-nowrap {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .nav-tabs.flex-nowrap::-webkit-scrollbar {
+        display: none;
+    }
+    .nav-tabs .nav-link {
+        font-size: 12px;
+        padding: 0.4rem 0.75rem;
+    }
+    /* Force trade form: stack */
+    #forceTradeForm .row > [class*="col-"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+/* --- Strategy Store cards --- */
+@media (max-width: 767.98px) {
+    .strategy-card .card-body p {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+    .strategy-card .badge {
+        font-size: 10px;
+    }
+}
+
+/* --- Backtest History table --- */
+@media (max-width: 767.98px) {
+    /* Horizontal scroll wrapper for tables */
+    .table-responsive,
+    .card-body:has(> .table) {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table {
+        min-width: 500px;
+    }
+    /* Chart heights on mobile */
+    #btChart {
+        height: 280px !important;
+    }
+}
+
+/* --- Backtest config row: stack on mobile --- */
+@media (max-width: 575.98px) {
+    #backtestingPage .row.g-2 > [class*="col-md-"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+/* --- Toast on mobile: full width --- */
+@media (max-width: 767.98px) {
+    .toast-container {
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+    }
+    .toast-container .toast {
+        width: 100%;
+    }
+}
+
+/* --- Config wizard: responsive steps --- */
+@media (max-width: 575.98px) {
+    .wizard-steps {
+        flex-wrap: wrap !important;
+        gap: 0.25rem !important;
+    }
+    .wizard-steps .btn {
+        font-size: 11px;
+        padding: 0.3rem 0.6rem;
+    }
+}
+
+/* --- Modal fullscreen on mobile --- */
+@media (max-width: 575.98px) {
+    .modal-dialog {
+        margin: 0.25rem !important;
+        max-width: calc(100% - 0.5rem) !important;
+    }
+    .modal-body {
+        padding: 0.75rem;
+    }
+}
+
+/* --- Ensure offcanvas fills screen on mobile --- */
+@media (max-width: 767.98px) {
+    .offcanvas-end {
+        width: 100% !important;
+    }
+}
+
+/* --- Portfolio page header --- */
+@media (max-width: 767.98px) {
+    #portfolioPage > .d-flex.justify-content-between {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.5rem !important;
     }
 }

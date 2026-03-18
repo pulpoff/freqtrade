@@ -113,7 +113,7 @@ const DashboardPage = {
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border-bottom border-secondary pb-2 mb-2">
                         <div class="d-flex align-items-center gap-2 gap-md-3 flex-wrap">
-                            <select class="form-select form-select-sm" style="width:130px" id="dashPairSelect"
+                            <select class="form-select form-select-sm dash-pair-select" id="dashPairSelect"
                                 onchange="DashboardPage.changePair(this.value)">
                                 <option value="">Loading...</option>
                             </select>
