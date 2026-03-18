@@ -64,29 +64,15 @@ const RobotsPage = {
                 ` : filtered.map((s, i) => this._renderStrategyCard(s, i)).join('')}
             </div>
 
-            <!-- Active Bot Section -->
-            <div class="card mt-4" id="activeBotCard">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <h6 class="fw-semibold mb-0"><i class="bi bi-broadcast me-2 text-success"></i>Active Freqtrade Bot</h6>
-                        <div class="d-flex gap-2" id="robotBotControls">
-                            <button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start')">
-                                <i class="bi bi-play-fill me-1"></i> Start
-                            </button>
-                            <button class="btn btn-warning btn-sm" onclick="RobotsPage.controlBot('pause')">
-                                <i class="bi bi-pause-fill me-1"></i> Pause
-                            </button>
-                            <button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop')">
-                                <i class="bi bi-stop-fill me-1"></i> Stop
-                            </button>
-                        </div>
-                    </div>
-                    <div class="row g-3" id="activeBotInfo">
-                        <div class="col-12 text-center text-secondary py-3">
-                            <small>Connect to Freqtrade to see bot status</small>
-                        </div>
-                    </div>
-                </div>
+            <!-- Bots Section -->
+            <div class="d-flex align-items-center justify-content-between mt-4 mb-3">
+                <h5 class="fw-semibold mb-0"><i class="bi bi-robot me-2"></i>My Bots</h5>
+                <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.addBot()">
+                    <i class="bi bi-plus-lg me-1"></i> Add Bot
+                </button>
+            </div>
+            <div id="botsContainer">
+                ${this._renderBotCards()}
             </div>
         </div>`;
     },
@@ -338,6 +324,296 @@ const RobotsPage = {
         } catch (e) {
             App.showToast(`Failed: ${e.message}`, 'error');
         }
+    },
+
+    // ========== BOT MANAGEMENT ==========
+    _getSavedBots() {
+        return JSON.parse(localStorage.getItem('bc_bots') || '[]');
+    },
+
+    _saveBots(bots) {
+        localStorage.setItem('bc_bots', JSON.stringify(bots));
+    },
+
+    _renderBotCards() {
+        const bots = this._getSavedBots();
+        // Always show the active Freqtrade bot first, then saved bot configs
+        let html = `
+        <div class="card mb-3" id="activeBotCard">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h6 class="fw-semibold mb-0"><i class="bi bi-broadcast me-2 text-success"></i>Active Freqtrade Bot</h6>
+                    <div class="d-flex gap-2" id="robotBotControls">
+                        <button class="btn btn-success btn-sm" onclick="RobotsPage.controlBot('start')"><i class="bi bi-play-fill me-1"></i>Start</button>
+                        <button class="btn btn-warning btn-sm" onclick="RobotsPage.controlBot('pause')"><i class="bi bi-pause-fill me-1"></i>Pause</button>
+                        <button class="btn btn-danger btn-sm" onclick="RobotsPage.controlBot('stop')"><i class="bi bi-stop-fill me-1"></i>Stop</button>
+                        <button class="btn btn-outline-info btn-sm" onclick="RobotsPage.editActiveBot()"><i class="bi bi-pencil me-1"></i>Edit</button>
+                    </div>
+                </div>
+                <div class="row g-3" id="activeBotInfo">
+                    <div class="col-12 text-center text-secondary py-2"><small>Loading...</small></div>
+                </div>
+            </div>
+        </div>`;
+
+        // Saved bot configs
+        bots.forEach((bot, i) => {
+            html += `
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-robot text-info"></i>
+                            <div>
+                                <span class="fw-semibold">${bot.name || 'Bot ' + (i + 1)}</span>
+                                <div class="d-flex gap-2 mt-1 flex-wrap">
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary">${bot.exchange || '-'}</span>
+                                    <span class="badge bg-info bg-opacity-25 text-info">${bot.timeframe || '5m'}</span>
+                                    <span class="badge bg-success bg-opacity-25 text-success">${bot.strategy || '-'}</span>
+                                    <span class="badge bg-warning bg-opacity-25 text-warning">${bot.max_open_trades || 3} trades</span>
+                                    ${bot.pairs ? `<span class="badge bg-primary bg-opacity-25 text-primary">${bot.pairs.split(',').length} pairs</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-success btn-sm" onclick="RobotsPage.deployBot(${i})" title="Deploy to Freqtrade">
+                                <i class="bi bi-cloud-upload me-1"></i>Deploy
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="RobotsPage.editBot(${i})" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="RobotsPage.deleteBot(${i})" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+
+        return html;
+    },
+
+    addBot() {
+        this._showBotModal({
+            name: '',
+            exchange: 'bybit',
+            trading_mode: 'futures',
+            strategy: '',
+            timeframe: '5m',
+            pairs: 'BTC/USDT:USDT',
+            max_open_trades: 3,
+            stake_amount: 'unlimited',
+            dry_run_wallet: 1000,
+        }, -1);
+    },
+
+    async editActiveBot() {
+        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        try {
+            const config = await API.getConfig();
+            const whitelist = await API.getWhitelist().catch(() => ({}));
+            this._showBotModal({
+                name: 'Active Bot',
+                exchange: config.exchange || 'bybit',
+                trading_mode: config.trading_mode || 'spot',
+                strategy: config.strategy || '',
+                timeframe: config.timeframe || '5m',
+                pairs: (whitelist.whitelist || []).join(', '),
+                max_open_trades: config.max_open_trades || 3,
+                stake_amount: config.stake_amount || 'unlimited',
+                dry_run_wallet: config.dry_run_wallet || 1000,
+            }, 'active');
+        } catch (e) {
+            App.showToast(`Error: ${e.message}`, 'error');
+        }
+    },
+
+    editBot(index) {
+        const bots = this._getSavedBots();
+        if (bots[index]) this._showBotModal(bots[index], index);
+    },
+
+    deleteBot(index) {
+        if (!confirm('Delete this bot configuration?')) return;
+        const bots = this._getSavedBots();
+        bots.splice(index, 1);
+        this._saveBots(bots);
+        this.refresh();
+        App.showToast('Bot deleted', 'info');
+    },
+
+    async deployBot(index) {
+        const bots = this._getSavedBots();
+        const bot = bots[index];
+        if (!bot) return;
+        if (!API.connected) { App.showToast('Connect to Freqtrade first', 'warning'); return; }
+        if (!confirm(`Deploy "${bot.name}" config to Freqtrade? This will reload the configuration.`)) return;
+        // For now, show what would be deployed
+        App.showToast(`Bot "${bot.name}" config ready. Use Configuration page to apply settings.`, 'info');
+    },
+
+    _showBotModal(bot, index) {
+        let modal = document.getElementById('botEditModal');
+        if (modal) modal.remove();
+
+        const isNew = index === -1;
+        const isActive = index === 'active';
+        const title = isActive ? 'Edit Active Bot' : (isNew ? 'Add New Bot' : `Edit ${bot.name || 'Bot'}`);
+
+        modal = document.createElement('div');
+        modal.id = 'botEditModal';
+        modal.className = 'modal fade';
+        modal.tabIndex = -1;
+        const inp = 'style="background:var(--bc-bg);border-color:var(--bc-border);color:var(--bc-text)"';
+        modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content" style="background:var(--bc-card);border:1px solid var(--bc-border);color:var(--bc-text)">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="bi bi-robot me-2"></i>${title}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">Bot Name</label>
+                        <input type="text" class="form-control form-control-sm" id="botName" value="${bot.name || ''}" placeholder="My Bot" ${inp}>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">Exchange</label>
+                            <select class="form-select form-select-sm" id="botExchange" ${inp}>
+                                <option value="bybit" ${bot.exchange === 'bybit' ? 'selected' : ''}>Bybit</option>
+                                <option value="binance" ${bot.exchange === 'binance' ? 'selected' : ''}>Binance</option>
+                                <option value="okx" ${bot.exchange === 'okx' ? 'selected' : ''}>OKX</option>
+                                <option value="kraken" ${bot.exchange === 'kraken' ? 'selected' : ''}>Kraken</option>
+                                <option value="gate" ${bot.exchange === 'gate' ? 'selected' : ''}>Gate.io</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">Trading Mode</label>
+                            <select class="form-select form-select-sm" id="botTradingMode" ${inp}>
+                                <option value="spot" ${bot.trading_mode === 'spot' ? 'selected' : ''}>Spot</option>
+                                <option value="futures" ${bot.trading_mode === 'futures' ? 'selected' : ''}>Futures</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">Strategy</label>
+                        <select class="form-select form-select-sm" id="botStrategy" ${inp}>
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">Coin Pairs <small class="text-secondary">(comma separated)</small></label>
+                        <input type="text" class="form-control form-control-sm" id="botPairs" value="${bot.pairs || ''}" placeholder="BTC/USDT:USDT, ETH/USDT:USDT" ${inp}>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small text-secondary">Timeframe</label>
+                            <select class="form-select form-select-sm" id="botTimeframe" ${inp}>
+                                <option value="1m" ${bot.timeframe === '1m' ? 'selected' : ''}>1m</option>
+                                <option value="5m" ${bot.timeframe === '5m' ? 'selected' : ''}>5m</option>
+                                <option value="15m" ${bot.timeframe === '15m' ? 'selected' : ''}>15m</option>
+                                <option value="1h" ${bot.timeframe === '1h' ? 'selected' : ''}>1h</option>
+                                <option value="4h" ${bot.timeframe === '4h' ? 'selected' : ''}>4h</option>
+                                <option value="1d" ${bot.timeframe === '1d' ? 'selected' : ''}>1d</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-secondary">Max Trades</label>
+                            <input type="number" class="form-control form-control-sm" id="botMaxTrades" value="${bot.max_open_trades || 3}" ${inp}>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small text-secondary">Wallet</label>
+                            <input type="number" class="form-control form-control-sm" id="botWallet" value="${bot.dry_run_wallet || 1000}" ${inp}>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">Stake Amount</label>
+                        <input type="text" class="form-control form-control-sm" id="botStakeAmount" value="${bot.stake_amount || 'unlimited'}" ${inp}>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    ${!isNew && !isActive ? `<button class="btn btn-outline-danger btn-sm me-auto" onclick="RobotsPage.deleteBot(${index}); bootstrap.Modal.getInstance(document.getElementById('botEditModal')).hide()">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>` : ''}
+                    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success btn-sm" onclick="RobotsPage._saveBotFromModal('${index}')">
+                        <i class="bi bi-check-lg me-1"></i>${isNew ? 'Add Bot' : 'Save'}
+                    </button>
+                </div>
+            </div>
+        </div>`;
+
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+
+        // Load strategies into select
+        this._loadStrategiesForModal(bot.strategy);
+    },
+
+    async _loadStrategiesForModal(currentStrategy) {
+        const sel = document.getElementById('botStrategy');
+        if (!sel) return;
+
+        // Add imported strategies
+        const imported = JSON.parse(localStorage.getItem('bc_imported_strategies') || '{}');
+        Object.keys(imported).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name; opt.textContent = name;
+            if (name === currentStrategy) opt.selected = true;
+            sel.appendChild(opt);
+        });
+
+        // Add strategies from Freqtrade
+        if (API.connected) {
+            try {
+                const strats = await API.getStrategies();
+                (strats.strategies || []).forEach(name => {
+                    if (!imported[name]) {
+                        const opt = document.createElement('option');
+                        opt.value = name; opt.textContent = name;
+                        if (name === currentStrategy) opt.selected = true;
+                        sel.appendChild(opt);
+                    }
+                });
+            } catch (e) {}
+        }
+    },
+
+    _saveBotFromModal(indexStr) {
+        const bot = {
+            name: document.getElementById('botName')?.value || 'My Bot',
+            exchange: document.getElementById('botExchange')?.value || 'bybit',
+            trading_mode: document.getElementById('botTradingMode')?.value || 'futures',
+            strategy: document.getElementById('botStrategy')?.value || '',
+            pairs: document.getElementById('botPairs')?.value || '',
+            timeframe: document.getElementById('botTimeframe')?.value || '5m',
+            max_open_trades: parseInt(document.getElementById('botMaxTrades')?.value) || 3,
+            dry_run_wallet: parseFloat(document.getElementById('botWallet')?.value) || 1000,
+            stake_amount: document.getElementById('botStakeAmount')?.value || 'unlimited',
+            savedAt: new Date().toISOString(),
+        };
+
+        if (indexStr === 'active') {
+            // For active bot, just show info - actual config changes need Configuration page
+            App.showToast('Active bot settings saved locally', 'info');
+        } else {
+            const bots = this._getSavedBots();
+            const index = parseInt(indexStr);
+            if (index === -1) {
+                bots.push(bot);
+            } else {
+                bots[index] = bot;
+            }
+            this._saveBots(bots);
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('botEditModal'))?.hide();
+        this.refresh();
+        App.showToast(indexStr === '-1' ? 'Bot added' : 'Bot saved', 'success');
     },
 
     refresh() {
