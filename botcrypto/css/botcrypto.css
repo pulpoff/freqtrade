@@ -1641,18 +1641,19 @@ h4.fw-semibold, h5.fw-semibold {
     font-weight: 600;
 }
 
-/* Dashboard page: reduce padding for full-bleed layout */
-#dashboardPage {
+/* Bots page: reduce padding for full-bleed layout */
+#botsPage {
     margin: -1.25rem -1.5rem;
+    padding: 0.5rem;
 }
 @media (max-width: 991px) {
-    #dashboardPage { margin: -1rem; }
+    #botsPage { margin: -1rem; padding: 0.5rem; }
 }
 @media (max-width: 767.98px) {
-    #dashboardPage { margin: -0.75rem; }
+    #botsPage { margin: -0.75rem; padding: 0.25rem; }
 }
 @media (max-width: 480px) {
-    #dashboardPage { margin: -0.5rem; }
+    #botsPage { margin: -0.5rem; padding: 0.25rem; }
 }
 
 /* Dashboard Left Panel Tabs */

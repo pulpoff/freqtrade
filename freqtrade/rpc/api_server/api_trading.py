@@ -323,9 +323,12 @@ def forceexit(payload: ForceExitPayload, rpc: RPC = Depends(get_rpc)):
 @router.get("/blacklist", response_model=BlacklistResponse, tags=["Trading-info", "Pairlist"])
 def blacklist(rpc: RPC | None = Depends(get_rpc_optional), config=Depends(get_config)):
     if not rpc:
-        return {"method": [], "length": 0,
-                "blacklist": config.get("exchange", {}).get("pair_blacklist", []),
-                "blacklist_stake": config.get("exchange", {}).get("pair_blacklist", [])}
+        bl = config.get("exchange", {}).get("pair_blacklist", [])
+        return {"method": [], "length": len(bl),
+                "blacklist": bl,
+                "blacklist_expanded": bl,
+                "blacklist_stake": bl,
+                "errors": {}}
     return rpc._rpc_blacklist()
 
 

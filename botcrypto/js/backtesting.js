@@ -1124,23 +1124,10 @@ ${sep}`;
         }
 
         this.chart = Components.createChart(container, {
-            handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-            handleScale: { axisPressedMouseMove: false, mouseWheel: false, pinch: false },
+            handleScroll: { pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+            handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
         });
         if (!this.chart) return;
-        const _chart = this.chart;
-        container.addEventListener('wheel', (e) => {
-            if (e.deltaY < 0) {
-                e.preventDefault();
-                const ts = _chart.timeScale();
-                const range = ts.getVisibleLogicalRange();
-                if (range) {
-                    const center = (range.from + range.to) / 2;
-                    const half = (range.to - range.from) / 2 * 0.85;
-                    ts.setVisibleLogicalRange({ from: center - half, to: center + half });
-                }
-            }
-        }, { passive: false });
 
         // Try pair_history first (has strategy-analyzed data with signals + indicators)
         let candleData = [];
@@ -1712,8 +1699,8 @@ ${sep}`;
         const candles = this._btCandleData;
         let loadedCount = 0;
 
-        // Reuse DashboardPage's calculation methods
-        const dp = DashboardPage;
+        // Reuse BotsPage's calculation methods
+        const dp = BotsPage;
         const addLine = (data, color, title, scaleId) => {
             if (!data || data.length < 5) return null;
             const s = this.chart.addLineSeries({
@@ -1758,8 +1745,8 @@ ${sep}`;
             return;
         }
 
-        // Build modal with available indicators (reuse DashboardPage's definitions)
-        const defs = DashboardPage._indicatorDefs;
+        // Build modal with available indicators (reuse BotsPage's definitions)
+        const defs = BotsPage._indicatorDefs;
         const categories = {};
         defs.forEach(d => {
             if (!categories[d.category]) categories[d.category] = [];
@@ -1831,11 +1818,11 @@ ${sep}`;
             return;
         }
 
-        const def = DashboardPage._indicatorDefs.find(d => d.id === id);
+        const def = BotsPage._indicatorDefs.find(d => d.id === id);
         if (!def || !this.chart || !this._btCandleData || this._btCandleData.length === 0) return;
 
         const candles = this._btCandleData;
-        const dp = DashboardPage;
+        const dp = BotsPage;
         const scaleId = def.overlay ? undefined : `bt_${id}`;
         const lineOpts = (color, extra = {}) => ({
             color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
@@ -1848,7 +1835,7 @@ ${sep}`;
         };
 
         try {
-            // Reuse DashboardPage's calculation and rendering logic
+            // Reuse BotsPage's calculation and rendering logic
             if (def.type === 'ema' || def.type === 'sma') {
                 this._btIndicators[id] = { series: addLine(dp._calcMA(candles, def.period, def.type), lineOpts(def.color)) };
             } else if (def.type === 'bb') {
