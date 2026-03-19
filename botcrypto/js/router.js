@@ -7,10 +7,10 @@
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Ctrl+1-6 for quick navigation
-    if (e.ctrlKey && e.key >= '1' && e.key <= '6') {
+    // Ctrl+Shift+1-7 for quick navigation (require Shift to avoid accidental triggers)
+    if (e.ctrlKey && e.shiftKey && e.key >= '1' && e.key <= '7') {
         e.preventDefault();
-        const pages = ['dashboard', 'strategy-builder', 'backtesting', 'strategy-store', 'trades', 'config'];
+        const pages = ['dashboard', 'bots', 'strategy-builder', 'backtesting', 'strategy-store', 'trades', 'config'];
         const idx = parseInt(e.key) - 1;
         if (pages[idx]) App.navigate(pages[idx]);
     }
