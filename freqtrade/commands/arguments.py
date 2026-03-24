@@ -61,6 +61,7 @@ ARGS_BACKTEST = [
     "backtest_cache",
     "freqai_backtest_live_models",
     "backtest_notes",
+    "backtest_jobs",
 ]
 
 ARGS_HYPEROPT = [

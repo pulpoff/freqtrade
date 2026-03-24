@@ -336,6 +336,17 @@ AVAILABLE_CLI_OPTIONS = {
         " Example: --export-csv hyperopt.csv",
         metavar="FILE",
     ),
+    "backtest_jobs": Arg(
+        "-j",
+        "--job-workers",
+        help="The number of concurrently running jobs for backtesting "
+        "(parallel worker processes for indicator calculation and signal generation). "
+        "If -1 (default), all CPUs are used, for -2, all CPUs but one are used, etc. "
+        "If 1 is given, no parallel computing code is used at all.",
+        type=int,
+        metavar="JOBS",
+        default=-1,
+    ),
     "hyperopt_jobs": Arg(
         "-j",
         "--job-workers",
