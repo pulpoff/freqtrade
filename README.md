@@ -14,7 +14,8 @@ This fork adds three major improvements on top of the upstream Freqtrade project
 
 1. **BotCrypto Web Interface** — A complete trading GUI with visual strategy builder, live dashboard, and backtesting UI
 2. **C++ Performance Extensions** — Compiled pybind11 modules that accelerate backtesting, profit calculations, and data processing by 5-50x
-3. **Bug Fixes & Optimizations** — Thread-safety fixes, O(n) algorithm replacements, and reduced DB overhead
+3. **Parallel Backtesting** — Indicator calculation and signal generation run across all CPU cores, dramatically reducing backtest time for multi-pair strategies
+4. **Bug Fixes & Optimizations** — Thread-safety fixes, O(n) algorithm replacements, and reduced DB overhead
 
 ---
 
@@ -84,6 +85,40 @@ from freqtrade.ft_cpp.indicators import heikinashi, rolling_mean, ema
 from freqtrade.ft_cpp.trade_math import batch_calc_profit_ratio
 from freqtrade.ft_cpp.data_processing import nan_mask, shift_features
 ```
+
+---
+
+## Parallel Backtesting
+
+Upstream Freqtrade runs backtesting on a single CPU core. This fork parallelizes the two most CPU-intensive phases — indicator calculation and signal generation — across all available cores using fork-based multiprocessing, similar to how hyperopt already parallelizes its workload.
+
+### What's parallelized
+
+| Phase | What happens | Parallelism |
+|-------|-------------|-------------|
+| **Indicator calculation** | `advise_indicators()` per pair | All pairs processed in parallel across CPUs |
+| **Signal generation** | `ft_advise_signals()` + data conversion per pair | All pairs processed in parallel across CPUs |
+| **Main backtest loop** | Trade simulation with shared wallet state | Sequential (inherently serial due to cross-pair dependencies) |
+
+For strategies with many pairs and complex indicators, the indicator and signal phases dominate runtime — this is where parallel processing provides the most benefit.
+
+### Usage
+
+```bash
+# Use all CPUs (default, -1)
+freqtrade backtesting --strategy MyStrategy
+
+# Use all CPUs minus one (keep system responsive)
+freqtrade backtesting --strategy MyStrategy -j -2
+
+# Use exactly 4 workers
+freqtrade backtesting --strategy MyStrategy -j 4
+
+# Disable parallelism (original sequential behavior)
+freqtrade backtesting --strategy MyStrategy -j 1
+```
+
+The `-j` / `--job-workers` flag works identically to the hyperopt flag of the same name.
 
 ---
 
