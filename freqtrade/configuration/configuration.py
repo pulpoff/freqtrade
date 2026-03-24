@@ -337,6 +337,7 @@ class Configuration:
             ("disableparamexport", "Parameter --disableparamexport detected: {} ..."),
             ("freqai_backtest_live_models", "Parameter --freqai-backtest-live-models detected ..."),
             ("backtest_notes", "Parameter --notes detected: {} ..."),
+            ("backtest_jobs", "Parameter -j/--job-workers detected: {} ..."),
         ]
         self._args_to_config_loop(config, configurations)
 

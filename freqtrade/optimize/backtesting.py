@@ -5,10 +5,12 @@ This module contains the backtesting logic
 """
 
 import logging
+import multiprocessing
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
 
+from joblib import cpu_count
 from numpy import isnan, nan
 from pandas import DataFrame, Series
 
@@ -106,6 +108,67 @@ HEADERS = [
     "enter_tag",
     "exit_tag",
 ]
+
+
+# Module-level reference for fork-based multiprocessing workers.
+# Set by the parent process before pool creation; inherited by children via fork.
+_parallel_strategy = None
+_parallel_timerange = None
+_parallel_required_startup = None
+
+
+def _worker_advise_indicators(args):
+    """Worker function for parallel indicator calculation per pair.
+    Uses fork-inherited _parallel_strategy to avoid pickling the strategy object.
+    """
+    pair, pair_data = args
+    from freqtrade.strategy.strategy_result_validator import StrategyResultValidator
+
+    validator = StrategyResultValidator(
+        pair_data, warn_only=not _parallel_strategy.disable_dataframe_checks
+    )
+    result = _parallel_strategy.advise_indicators(pair_data.copy(), {"pair": pair}).copy()
+    validator.assert_df(result)
+    return pair, result
+
+
+def _worker_advise_signals(args):
+    """Worker function for parallel signal generation and data conversion per pair.
+    Uses fork-inherited _parallel_strategy to avoid pickling the strategy object.
+    """
+    pair, pair_data = args
+
+    if not pair_data.empty:
+        pair_data.drop(HEADERS[5:] + ["buy", "sell"], axis=1, errors="ignore")
+
+    df_analyzed = _parallel_strategy.ft_advise_signals(pair_data, {"pair": pair})
+
+    # Keep untrimmed version for dataprovider cache
+    df_analyzed_untrimmed = df_analyzed
+
+    # Trim startup period
+    df_analyzed = pair_data = trim_dataframe(
+        df_analyzed, _parallel_timerange, startup_candles=_parallel_required_startup
+    )
+
+    df_analyzed = df_analyzed.copy()
+
+    # Shift signals to avoid lookahead bias
+    for col in HEADERS[5:]:
+        tag_col = col in ("enter_tag", "exit_tag")
+        if col in df_analyzed.columns:
+            df_analyzed[col] = (
+                df_analyzed.loc[:, col]
+                .replace([nan], [0 if not tag_col else None])
+                .shift(1)
+            )
+        elif not df_analyzed.empty:
+            df_analyzed[col] = 0 if not tag_col else None
+
+    df_analyzed = df_analyzed.drop(df_analyzed.head(1).index)
+
+    data_list = df_analyzed[HEADERS].values.tolist() if not df_analyzed.empty else []
+    return pair, data_list, df_analyzed_untrimmed, pair_data
 
 
 class Backtesting:
@@ -218,6 +281,10 @@ class Backtesting:
         self._can_short = self.trading_mode != TradingMode.SPOT
         self._position_stacking: bool = self.config.get("position_stacking", False)
         self.enable_protections: bool = self.config.get("enable_protections", False)
+
+        # Parallel processing configuration
+        self.backtest_jobs: int = self.config.get("backtest_jobs", -1)
+
         migrate_data(config, self.exchange)
 
         self.init_backtest()
@@ -257,6 +324,16 @@ class Backtesting:
             self.fee = max(fee for fee in fees if fee is not None)
             self.log_once(f"Using fee {self.fee:.4%} - worst case fee from exchange (lowest tier).")
 
+    def _get_n_jobs(self) -> int:
+        """Get effective number of parallel jobs for backtesting."""
+        n_jobs = self.backtest_jobs
+        if n_jobs == 1:
+            return 1
+        cpus = cpu_count()
+        if n_jobs < 0:
+            n_jobs = max(1, cpus + 1 + n_jobs)
+        return min(n_jobs, cpus)
+
     @staticmethod
     def cleanup():
         LoggingMixin.show_output = True
@@ -286,6 +363,15 @@ class Backtesting:
 
         self.progress = BTProgress()
         self.abort = False
+
+        n_jobs = self._get_n_jobs()
+        if n_jobs > 1:
+            cpus = cpu_count()
+            logger.info(
+                f"Found {cpus} CPU cores. Using {n_jobs} parallel workers for backtesting."
+            )
+        else:
+            logger.info("Parallel backtesting disabled (--job-workers=1).")
 
     def _set_strategy(self, strategy: IStrategy):
         """
@@ -473,40 +559,42 @@ class Backtesting:
         Helper function to convert a processed dataframes into lists for performance reasons.
 
         Used by backtest() - so keep this optimized for performance.
+        Supports parallel signal generation across pairs using multiple CPUs.
 
         :param processed: a processed dictionary with format {pair, data}, which gets cleared to
         optimize memory usage!
         """
+        n_jobs = self._get_n_jobs()
+        n_pairs = len(processed)
 
+        if n_jobs > 1 and n_pairs > 1:
+            return self._get_ohlcv_as_lists_parallel(processed, n_jobs)
+
+        return self._get_ohlcv_as_lists_sequential(processed)
+
+    def _get_ohlcv_as_lists_sequential(self, processed: dict[str, DataFrame]) -> dict[str, tuple]:
+        """Original sequential signal generation."""
         data: dict = {}
         self.progress.init_step(BacktestState.CONVERT, len(processed))
 
-        # Create dict with data
         for pair in processed.keys():
             pair_data = processed[pair]
             self.check_abort()
             self.progress.increment()
 
             if not pair_data.empty:
-                # Cleanup from prior runs
                 pair_data.drop(HEADERS[5:] + ["buy", "sell"], axis=1, errors="ignore")
             df_analyzed = self.strategy.ft_advise_signals(pair_data, {"pair": pair})
-            # Update dataprovider cache
             self.dataprovider._set_cached_df(
                 pair, self.timeframe, df_analyzed, self.config["candle_type_def"]
             )
 
-            # Trim startup period from analyzed dataframe
             df_analyzed = processed[pair] = pair_data = trim_dataframe(
                 df_analyzed, self.timerange, startup_candles=self.required_startup
             )
 
-            # Create a copy of the dataframe before shifting, that way the entry signal/tag
-            # remains on the correct candle for callbacks.
             df_analyzed = df_analyzed.copy()
 
-            # To avoid using data from future, we use entry/exit signals shifted
-            # from the previous candle
             for col in HEADERS[5:]:
                 tag_col = col in ("enter_tag", "exit_tag")
                 if col in df_analyzed.columns:
@@ -520,9 +608,42 @@ class Backtesting:
 
             df_analyzed = df_analyzed.drop(df_analyzed.head(1).index)
 
-            # Convert from Pandas to list for performance reasons
-            # (Looping Pandas is slow.)
             data[pair] = df_analyzed[HEADERS].values.tolist() if not df_analyzed.empty else []
+        return data
+
+    def _get_ohlcv_as_lists_parallel(
+        self, processed: dict[str, DataFrame], n_jobs: int
+    ) -> dict[str, tuple]:
+        """Parallel signal generation across pairs using multiple CPUs."""
+        effective_jobs = min(n_jobs, len(processed))
+        logger.info(
+            f"Generating signals in parallel using {effective_jobs} workers "
+            f"for {len(processed)} pairs."
+        )
+        self.progress.init_step(BacktestState.CONVERT, len(processed))
+
+        global _parallel_strategy, _parallel_timerange, _parallel_required_startup
+        _parallel_strategy = self.strategy
+        _parallel_timerange = self.timerange
+        _parallel_required_startup = self.required_startup
+
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(processes=effective_jobs) as pool:
+            results = pool.map(
+                _worker_advise_signals,
+                [(pair, pair_data) for pair, pair_data in processed.items()],
+            )
+
+        data: dict = {}
+        for pair, data_list, df_analyzed_untrimmed, pair_data in results:
+            self.progress.increment()
+            # Update dataprovider cache with untrimmed data (must be done in main process)
+            self.dataprovider._set_cached_df(
+                pair, self.timeframe, df_analyzed_untrimmed, self.config["candle_type_def"]
+            )
+            processed[pair] = pair_data
+            data[pair] = data_list
+
         return data
 
     def _get_close_rate(
@@ -1745,6 +1866,34 @@ class Backtesting:
             "final_balance": self.wallets.get_total(self.strategy.config["stake_currency"]),
         }
 
+    def _parallel_advise_all_indicators(
+        self, data: dict[str, DataFrame]
+    ) -> dict[str, DataFrame]:
+        """Parallel version of strategy.advise_all_indicators using all available CPUs."""
+        n_jobs = self._get_n_jobs()
+        n_pairs = len(data)
+
+        if n_jobs <= 1 or n_pairs <= 1:
+            return self.strategy.advise_all_indicators(data)
+
+        effective_jobs = min(n_jobs, n_pairs)
+        logger.info(
+            f"Calculating indicators in parallel using {effective_jobs} workers "
+            f"for {n_pairs} pairs."
+        )
+
+        global _parallel_strategy
+        _parallel_strategy = self.strategy
+
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(processes=effective_jobs) as pool:
+            results = pool.map(
+                _worker_advise_indicators,
+                [(pair, pair_data) for pair, pair_data in data.items()],
+            )
+
+        return dict(results)
+
     def backtest_one_strategy(
         self, strat: IStrategy, data: dict[str, DataFrame], timerange: TimeRange
     ):
@@ -1755,7 +1904,7 @@ class Backtesting:
         self._set_strategy(strat)
 
         # need to reprocess data every time to populate signals
-        preprocessed = self.strategy.advise_all_indicators(data)
+        preprocessed = self._parallel_advise_all_indicators(data)
 
         # Trim startup period from analyzed dataframe
         # This only used to determine if trimming would result in an empty dataframe
